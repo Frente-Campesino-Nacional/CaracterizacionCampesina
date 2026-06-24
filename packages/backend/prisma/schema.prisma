@@ -1,0 +1,143 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== MODELOS ====================
+
+model Consejo {
+  id             Int      @id @default(autoincrement())
+  nombre         String   @unique
+  descripcion    String?
+  estado         String
+  municipio      String
+  encargado_tipo String
+  encargado_id   Int
+
+  creado_en      DateTime @default(now())
+  actualizado_en DateTime @updatedAt
+
+  usuarios       Usuario[]
+  campesinos     Campesino[]
+
+  @@map("consejos")
+}
+
+model Rol {
+  id_rol   Int      @id @default(autoincrement()) @map("id_rol")
+  tipo_rol String   @unique
+
+  usuarios Usuario[]
+
+  @@map("roles")
+}
+
+model Genero {
+  id_gen   Int      @id @default(autoincrement()) @map("id_gen")
+  tipo_gen String   @unique
+
+  usuarios   Usuario[]
+  campesinos Campesino[]
+
+  @@map("generos")
+}
+
+model Usuario {
+  id                 Int      @id @default(autoincrement())
+  email              String   @unique
+  password_hash      String
+  cedula             String?  @unique
+  rolId              Int      @map("rol")
+  rol                Rol      @relation(fields: [rolId], references: [id_rol], onDelete: Restrict)
+
+  nombre             String
+  apellido           String
+  numero_telefono    String?
+  fecha_nacimiento   DateTime?
+  generoId           Int?     @map("genero")
+  genero             Genero?  @relation(fields: [generoId], references: [id_gen], onDelete: SetNull)
+  estado             String?
+  municipio          String?
+  direccion          String?
+
+  consejo_id         Int?
+  consejo            Consejo? @relation(fields: [consejo_id], references: [id], onDelete: SetNull)
+
+  activo             Boolean  @default(true)
+
+  creado_en          DateTime @default(now())
+  actualizado_en     DateTime @updatedAt
+
+  campesinosCreados  Campesino[] @relation("CreadoPor")
+  campesinosAsignados Campesino[] @relation("AsignadoA")
+  formularios        Formulario[]
+
+  @@map("usuarios")
+}
+
+model Campesino {
+  id                Int      @id @default(autoincrement())
+  cedula            String   @unique
+  nombre            String
+  apellido          String?
+  telefono          String?
+  correo            String?
+  fecha_nacimiento  DateTime?
+  generoId          Int?     @map("genero")
+  genero            Genero?  @relation(fields: [generoId], references: [id_gen], onDelete: SetNull)
+  estado            String?
+  municipio         String?
+  direccion         String?
+
+  consejo_id        Int?
+  consejo           Consejo? @relation(fields: [consejo_id], references: [id], onDelete: SetNull)
+
+  creado_por        Int?
+  creadoPor         Usuario? @relation("CreadoPor", fields: [creado_por], references: [id])
+
+  asignado_a        Int?
+  asignadoA         Usuario? @relation("AsignadoA", fields: [asignado_a], references: [id])
+
+  tiene_pendientes  Boolean  @default(false)
+  metadata          Json?
+
+  creado_en         DateTime @default(now())
+  actualizado_en    DateTime @updatedAt
+
+  @@map("campesinos")
+}
+
+model Formulario {
+  id             Int    @id @default(autoincrement())
+  titulo         String
+  version        Int    @default(1)
+  estructura     Json   // JSONB para preguntas dinámicas
+  activo         Boolean @default(true)
+
+  creado_por     Int
+  creadoPor      Usuario @relation(fields: [creado_por], references: [id])
+
+  creado_en      DateTime @default(now())
+  actualizado_en DateTime @updatedAt
+
+  @@map("formularios")
+}
+
+model Sincronizacion {
+  id            Int      @id @default(autoincrement())
+  entidad       String   // "campesino", "consejo", etc.
+  entidad_id    Int
+  operacion     String   // "CREATE", "UPDATE", "DELETE"
+  datos         Json
+  estado        String   @default("PENDIENTE")
+  intentos      Int      @default(0)
+  error         String?
+  creado_en     DateTime @default(now())
+  procesado_en  DateTime?
+
+  @@map("sincronizaciones")
+}

@@ -1,0 +1,34 @@
+{
+  "name": "venezuela",
+  "version": "2.0.0",
+  "description": "Muestra información sobre el territorio Venezolano en tu CLI",
+  "main": "index.js",
+  "dependencies": {
+    "chalk": "^2.3.0",
+    "commander": "^2.13.0",
+    "update-notifier": "^0.6.3"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jobsamuel/venezuela-js.git"
+  },
+  "keywords": [
+    "venezuela",
+    "geografia",
+    "mapa",
+    "ciudades"
+  ],
+  "author": "Jobsamuel Núñez <jobsamuel.nunez@outlook.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/jobsamuel/venezuela-js/issues"
+  },
+  "homepage": "https://github.com/jobsamuel/venezuela-js#readme",
+  "bin": {
+    "venezuela": "cli.js"
+  }
+}

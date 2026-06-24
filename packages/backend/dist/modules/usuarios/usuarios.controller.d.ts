@@ -1,0 +1,121 @@
+import { UsuariosService } from './usuarios.service';
+import { CreateUsuarioDto } from './dto/create-usuario.dto';
+import { SaveProfileImageDto } from './dto/save-profile-image.dto';
+import { UpdateUsuarioDto } from './dto/update-usuario.dto';
+export declare class UsuariosController {
+    private readonly usuariosService;
+    constructor(usuariosService: UsuariosService);
+    findAll(req: any): Promise<{
+        rol: string;
+        genero: string;
+        consejo_nombre: string;
+        id: number;
+        cedula: string;
+        email: string;
+        nombre: string;
+        apellido: string;
+        numero_telefono: string;
+        fecha_nacimiento: Date;
+        estado: string;
+        municipio: string;
+        direccion: string;
+        consejo_id: number;
+        activo: boolean;
+        creado_en: Date;
+    }[]>;
+    findOne(req: any, id: number): Promise<{
+        rol: string;
+        genero: string;
+        consejo_nombre: string;
+        id: number;
+        cedula: string;
+        email: string;
+        nombre: string;
+        apellido: string;
+        numero_telefono: string;
+        fecha_nacimiento: Date;
+        estado: string;
+        municipio: string;
+        direccion: string;
+        consejo_id: number;
+        activo: boolean;
+        creado_en: Date;
+    }>;
+    create(createUsuarioDto: CreateUsuarioDto): Promise<{
+        rol: string;
+        genero: string;
+        consejo_nombre: string;
+        id: number;
+        cedula: string;
+        email: string;
+        nombre: string;
+        apellido: string;
+        numero_telefono: string;
+        fecha_nacimiento: Date;
+        estado: string;
+        municipio: string;
+        direccion: string;
+        consejo_id: number;
+        activo: boolean;
+        creado_en: Date;
+    }>;
+    update(id: number, updateUsuarioDto: UpdateUsuarioDto): Promise<{
+        rol: string;
+        genero: string;
+        consejo_nombre: string;
+        id: number;
+        cedula: string;
+        email: string;
+        nombre: string;
+        apellido: string;
+        numero_telefono: string;
+        fecha_nacimiento: Date;
+        estado: string;
+        municipio: string;
+        direccion: string;
+        consejo_id: number;
+        activo: boolean;
+        creado_en: Date;
+    }>;
+    remove(id: number): Promise<{
+        id: number;
+        cedula: string;
+        email: string;
+        nombre: string;
+        apellido: string;
+        numero_telefono: string;
+        fecha_nacimiento: Date;
+        estado: string;
+        municipio: string;
+        direccion: string;
+        consejo_id: number;
+        activo: boolean;
+        creado_en: Date;
+        password_hash: string;
+        rolId: number;
+        generoId: number;
+        actualizado_en: Date;
+    }>;
+    saveProfileImage(id: number, saveProfileImageDto: SaveProfileImageDto): Promise<{
+        usuario_id: number;
+        mongo_habilitado: boolean;
+        guardado_en_mongo: boolean;
+        mongo_id: string;
+    }>;
+    getProfileImage(id: number): Promise<{
+        usuario_id: number;
+        mongo_habilitado: boolean;
+        imagen: Record<string, unknown>;
+    }>;
+    updateProfileImage(id: number, saveProfileImageDto: SaveProfileImageDto): Promise<{
+        usuario_id: number;
+        mongo_habilitado: boolean;
+        guardado_en_mongo: boolean;
+        mongo_id: string;
+    }>;
+    deleteProfileImage(id: number): Promise<{
+        usuario_id: number;
+        mongo_habilitado: boolean;
+        eliminado: boolean;
+    }>;
+}

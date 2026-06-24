@@ -1,0 +1,22 @@
+{
+  "name": "censo-campesino",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "start": "npm run start --workspace=mobile",
+    "dev:backend": "npm run start:dev --workspace=backend",
+    "dev:mobile": "npm run start --workspace=mobile",
+    "build:backend": "npm run build --workspace=backend"
+  },
+  "devDependencies": {
+    "metro": "0.80.12",
+    "typescript": "~5.3.3"
+  },
+  "dependencies": {
+    "typescript": "~5.3.3"
+  }
+}
