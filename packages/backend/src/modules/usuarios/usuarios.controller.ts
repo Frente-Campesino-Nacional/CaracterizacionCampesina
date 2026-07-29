@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put, Request, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Request, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { UsuariosService } from './usuarios.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -21,7 +21,7 @@ export class UsuariosController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Obtener usuario por ID' })
-  findOne(@Request() req, @Param('id', ParseIntPipe) id: number) {
+  findOne(@Request() req, @Param('id') id: string) {
     return this.usuariosService.findOne(id, req.user);
   }
 
@@ -33,43 +33,43 @@ export class UsuariosController {
 
   @Put(':id')
   @ApiOperation({ summary: 'Actualizar usuario' })
-  update(@Param('id') id: number, @Body() updateUsuarioDto: UpdateUsuarioDto) {
+  update(@Param('id') id: string, @Body() updateUsuarioDto: UpdateUsuarioDto) {
     return this.usuariosService.update(id, updateUsuarioDto);
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Eliminar usuario' })
-  remove(@Param('id') id: number) {
+  remove(@Param('id') id: string) {
     return this.usuariosService.remove(id);
   }
 
   @Post(':id/foto-perfil')
-  @ApiOperation({ summary: 'Guardar imagen de perfil en Mongo opcional' })
+  @ApiOperation({ summary: 'Guardar imagen de perfil' })
   saveProfileImage(
-    @Param('id', ParseIntPipe) id: number,
+    @Param('id') id: string,
     @Body() saveProfileImageDto: SaveProfileImageDto,
   ) {
     return this.usuariosService.saveProfileImage(id, saveProfileImageDto);
   }
 
   @Get(':id/foto-perfil')
-  @ApiOperation({ summary: 'Obtener imagen de perfil en Mongo opcional' })
-  getProfileImage(@Param('id', ParseIntPipe) id: number) {
+  @ApiOperation({ summary: 'Obtener imagen de perfil' })
+  getProfileImage(@Param('id') id: string) {
     return this.usuariosService.getProfileImage(id);
   }
 
   @Put(':id/foto-perfil')
-  @ApiOperation({ summary: 'Actualizar imagen de perfil en Mongo opcional' })
+  @ApiOperation({ summary: 'Actualizar imagen de perfil' })
   updateProfileImage(
-    @Param('id', ParseIntPipe) id: number,
+    @Param('id') id: string,
     @Body() saveProfileImageDto: SaveProfileImageDto,
   ) {
     return this.usuariosService.saveProfileImage(id, saveProfileImageDto);
   }
 
   @Delete(':id/foto-perfil')
-  @ApiOperation({ summary: 'Eliminar imagen de perfil en Mongo opcional' })
-  deleteProfileImage(@Param('id', ParseIntPipe) id: number) {
+  @ApiOperation({ summary: 'Eliminar imagen de perfil' })
+  deleteProfileImage(@Param('id') id: string) {
     return this.usuariosService.deleteProfileImage(id);
   }
 }

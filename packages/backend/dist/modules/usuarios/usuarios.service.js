@@ -33,15 +33,17 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.UsuariosService = void 0;
+const crypto_1 = require("crypto");
 const common_1 = require("@nestjs/common");
-const mongo_optional_service_1 = require("../../database/mongo-optional.service");
+const client_1 = require("@prisma/client");
+const postgres_storage_service_1 = require("../../database/postgres-storage.service");
 const prisma_service_1 = require("../../database/prisma.service");
 const cedula_code_util_1 = require("../../common/utils/cedula-code.util");
 const bcrypt = __importStar(require("bcryptjs"));
 let UsuariosService = class UsuariosService {
-    constructor(prisma, mongoOptionalService) {
+    constructor(prisma, storageService) {
         this.prisma = prisma;
-        this.mongoOptionalService = mongoOptionalService;
+        this.storageService = storageService;
     }
     normalizeCatalogValue(value) {
         const normalized = value?.trim();
@@ -54,13 +56,97 @@ let UsuariosService = class UsuariosService {
         }
         return normalized;
     }
+    async resolveRoleId(role) {
+        const rows = await this.prisma.$queryRaw(client_1.Prisma.sql `
+      SELECT id_rol
+      FROM seguridad.roles
+      WHERE LOWER(tip_rol) = LOWER(${role})
+      ORDER BY id_rol
+      LIMIT 1
+    `);
+        if (rows[0]?.id_rol != null) {
+            return rows[0].id_rol;
+        }
+        const inserted = await this.prisma.$queryRaw(client_1.Prisma.sql `
+      INSERT INTO seguridad.roles (tip_rol, des_rol)
+      VALUES (${role}, ${role})
+      RETURNING id_rol
+    `);
+        return inserted[0]?.id_rol ?? 1;
+    }
+    async resolveConsejoUuid(value) {
+        if (value == null || value === '') {
+            return null;
+        }
+        const textValue = String(value).trim();
+        if (!textValue) {
+            return null;
+        }
+        const rows = await this.prisma.$queryRaw(client_1.Prisma.sql `
+      SELECT consejo_id
+      FROM operacional.consejos
+      WHERE consejo_id::text = ${textValue}
+      LIMIT 1
+    `);
+        return rows[0]?.consejo_id ?? null;
+    }
+    async findUsuarioRow(identifier) {
+        const textValue = String(identifier).trim();
+        const rows = await this.prisma.$queryRaw(client_1.Prisma.sql `
+      SELECT
+        u.id_usuario AS id,
+        p.tipo_cedula,
+        p.cedula,
+        u.nombre_usuario AS email,
+        p.nombre,
+        p.apellido,
+        r.tip_rol AS rol,
+        p.numero_telefonico AS numero_telefono,
+        p.fecha_nacimiento,
+        g.genero AS genero,
+        e.nombre_estado AS estado,
+        m.nombre_municipio AS municipio,
+        par.nombre_parroquia AS parroquia,
+        p.direccion_usuario AS direccion,
+        p.consejo_id AS consejo_id,
+        c.nombre_consejo AS consejo_nombre,
+        CASE WHEN u.sync_status = 'synced' THEN TRUE ELSE FALSE END AS activo,
+        p.created_at AS creado_en,
+        p.update_at AS actualizado_en
+      FROM seguridad.usuarios u
+      LEFT JOIN registros.personas p ON p.id_personas = u.id_usuario
+      LEFT JOIN seguridad.roles r ON r.id_rol = u.id_rol
+      LEFT JOIN operacional.consejos c ON c.consejo_id = p.consejo_id
+      LEFT JOIN catalogos.generos g ON g.id_genero = p.genero
+      LEFT JOIN catalogos.parroquias par ON par.id_parroquia = p.parroquia
+      LEFT JOIN catalogos.municipios m ON m.id_municipio = par.municipio
+      LEFT JOIN catalogos.estados e ON e.id_estados = m.estado
+      WHERE u.id_usuario::text = ${textValue}
+         OR u.nombre_usuario = ${textValue}
+      LIMIT 1
+    `);
+        return rows[0] ?? null;
+    }
     mapUsuario(usuario) {
-        const { rol, genero, consejo, ...rest } = usuario;
         return {
-            ...rest,
-            rol: rol.tipo_rol,
-            genero: genero?.tipo_gen || null,
-            consejo_nombre: consejo?.nombre || null,
+            id: usuario.id,
+            cedula: this.formatCedulaForResponse(usuario.tipo_cedula, usuario.cedula),
+            email: usuario.email,
+            nombre: usuario.nombre,
+            apellido: usuario.apellido,
+            rol: usuario.rol,
+            numero_telefono: usuario.numero_telefono,
+            fecha_nacimiento: usuario.fecha_nacimiento,
+            genero: usuario.genero || null,
+            estado: usuario.estado,
+            municipio: usuario.municipio,
+            parroquia: usuario.parroquia,
+            direccion: usuario.direccion,
+            consejo_id: usuario.consejo_id ?? null,
+            consejo_nombre: usuario.consejo_nombre || null,
+            activo: Boolean(usuario.activo),
+            creado_en: usuario.creado_en,
+            actualizado_en: usuario.actualizado_en ?? usuario.creado_en,
         };
     }
     normalizeDateInput(value) {
@@ -73,220 +159,291 @@ let UsuariosService = class UsuariosService {
         const parsed = new Date(value);
         return Number.isNaN(parsed.getTime()) ? undefined : parsed;
     }
+    isValidUsuarioCedula(value) {
+        return /^([VE]-\d{6,9}|[A-Z]\d{3}|\d{6,9})$/.test(value);
+    }
+    randomNoCedulaCode() {
+        const letter = String.fromCharCode(65 + Math.floor(Math.random() * 26));
+        const digits = Math.floor(Math.random() * 1000)
+            .toString()
+            .padStart(3, '0');
+        return `${letter}${digits}`;
+    }
+    parseCedulaData(value) {
+        if (!value) {
+            return { tipoCedula: 'NP', cedula: '' };
+        }
+        const normalized = (0, cedula_code_util_1.normalizeCedulaInput)(value);
+        const prefixedMatch = normalized.match(/^([VE])-(\d{6,9})$/);
+        if (prefixedMatch) {
+            return {
+                tipoCedula: prefixedMatch[1],
+                cedula: prefixedMatch[2],
+            };
+        }
+        if (/^[A-Z]\d{3}$/.test(normalized)) {
+            return { tipoCedula: 'NP', cedula: normalized };
+        }
+        if (/^\d{6,9}$/.test(normalized)) {
+            return { tipoCedula: 'V', cedula: normalized };
+        }
+        return { tipoCedula: 'NP', cedula: '' };
+    }
+    formatCedulaForResponse(tipoCedula, cedula) {
+        if (!cedula) {
+            return '';
+        }
+        if (tipoCedula === 'V' || tipoCedula === 'E') {
+            return `${tipoCedula}-${cedula}`;
+        }
+        return cedula;
+    }
     async findAll(requester) {
         if (this.normalizeRoleValue(requester.rol) !== 'administrador') {
             throw new common_1.ForbiddenException('Solo administradores pueden listar usuarios');
         }
-        const usuarios = await this.prisma.usuario.findMany({
-            include: {
-                rol: true,
-                genero: true,
-            },
-        });
+        const usuarios = await this.prisma.$queryRaw(client_1.Prisma.sql `
+      SELECT
+        u.id_usuario AS id,
+        p.tipo_cedula,
+        p.cedula,
+        u.nombre_usuario AS email,
+        p.nombre,
+        p.apellido,
+        r.tip_rol AS rol,
+        p.numero_telefonico AS numero_telefono,
+        p.fecha_nacimiento,
+        g.genero AS genero,
+        e.nombre_estado AS estado,
+        m.nombre_municipio AS municipio,
+        par.nombre_parroquia AS parroquia,
+        p.direccion_usuario AS direccion,
+        p.consejo_id AS consejo_id,
+        c.nombre_consejo AS consejo_nombre,
+        CASE WHEN u.sync_status = 'synced' THEN TRUE ELSE FALSE END AS activo,
+        p.created_at AS creado_en,
+        p.update_at AS actualizado_en
+      FROM seguridad.usuarios u
+      LEFT JOIN registros.personas p ON p.id_personas = u.id_usuario
+      LEFT JOIN seguridad.roles r ON r.id_rol = u.id_rol
+      LEFT JOIN operacional.consejos c ON c.consejo_id = p.consejo_id
+      LEFT JOIN catalogos.generos g ON g.id_genero = p.genero
+      LEFT JOIN catalogos.parroquias par ON par.id_parroquia = p.parroquia
+      LEFT JOIN catalogos.municipios m ON m.id_municipio = par.municipio
+      LEFT JOIN catalogos.estados e ON e.id_estados = m.estado
+      ORDER BY u.nombre_usuario
+    `);
         return usuarios.map((usuario) => this.mapUsuario(usuario));
     }
     async findOne(id, requester) {
         if (this.normalizeRoleValue(requester.rol) !== 'administrador') {
             throw new common_1.ForbiddenException('Solo administradores pueden ver perfiles de usuarios');
         }
-        const usuario = await this.prisma.usuario.findUnique({
-            where: { id },
-            include: {
-                rol: true,
-                genero: true,
-            },
-        });
+        const usuario = await this.findUsuarioRow(id);
         if (!usuario) {
             throw new common_1.NotFoundException('Usuario no encontrado');
         }
         return this.mapUsuario(usuario);
     }
     async create(createUsuarioDto) {
-        const existingUser = await this.prisma.usuario.findUnique({
-            where: { email: createUsuarioDto.email },
-        });
-        if (existingUser) {
-            throw new common_1.ConflictException('El email ya está registrado');
+        const desiredNombreUsuario = (createUsuarioDto.nombre_usuario || createUsuarioDto.email).trim();
+        const existingUser = await this.prisma.$queryRaw(client_1.Prisma.sql `
+      SELECT id_usuario FROM seguridad.usuarios WHERE nombre_usuario = ${desiredNombreUsuario} LIMIT 1
+    `);
+        if (existingUser[0]) {
+            throw new common_1.ConflictException('El nombre de usuario ya está registrado');
         }
         const hashedPassword = await bcrypt.hash(createUsuarioDto.password, 10);
-        let cedula = createUsuarioDto.cedula ? (0, cedula_code_util_1.normalizeCedulaInput)(createUsuarioDto.cedula) : '';
-        if (!cedula) {
-            cedula = await this.generateUniqueCedula();
+        const roleId = await this.resolveRoleId(this.normalizeRoleValue(createUsuarioDto.rol || 'encuestador'));
+        let tipoCedula;
+        let cedula;
+        if (createUsuarioDto.cedula) {
+            const normalizedCedula = (0, cedula_code_util_1.normalizeCedulaInput)(createUsuarioDto.cedula);
+            if (!this.isValidUsuarioCedula(normalizedCedula)) {
+                throw new common_1.BadRequestException('La cédula debe ser V-123456 (6-9 dígitos), E-123456 (6-9 dígitos) o NP como A123');
+            }
+            const parsedCedula = this.parseCedulaData(normalizedCedula);
+            tipoCedula = parsedCedula.tipoCedula;
+            cedula = parsedCedula.cedula;
         }
         else {
-            if (!(0, cedula_code_util_1.isValidCedulaCode)(cedula)) {
-                throw new common_1.BadRequestException('La cédula debe ser V-12345678, E-12345678 o un número de 9 dígitos');
-            }
-            const existingCédula = await this.prisma.usuario.findUnique({ where: { cedula } });
-            if (existingCédula) {
-                throw new common_1.ConflictException('La cédula ya está registrada');
-            }
+            tipoCedula = 'NP';
+            cedula = await this.generateUniqueCedula();
         }
-        const rolValue = this.normalizeRoleValue(createUsuarioDto.rol || 'encuestador');
-        const generoValue = this.normalizeCatalogValue(createUsuarioDto.genero);
-        const usuario = await this.prisma.usuario.create({
-            data: {
-                email: createUsuarioDto.email,
-                password_hash: hashedPassword,
-                cedula,
-                nombre: createUsuarioDto.nombre,
-                apellido: createUsuarioDto.apellido,
-                rol: {
-                    connectOrCreate: {
-                        where: { tipo_rol: rolValue },
-                        create: { tipo_rol: rolValue },
-                    },
-                },
-                numero_telefono: createUsuarioDto.numero_telefono,
-                fecha_nacimiento: this.normalizeDateInput(createUsuarioDto.fecha_nacimiento),
-                genero: generoValue
-                    ? {
-                        connectOrCreate: {
-                            where: { tipo_gen: generoValue },
-                            create: { tipo_gen: generoValue },
-                        },
-                    }
-                    : undefined,
-                estado: createUsuarioDto.estado,
-                municipio: createUsuarioDto.municipio,
-                direccion: createUsuarioDto.direccion,
-                consejo: createUsuarioDto.consejo_id
-                    ? {
-                        connect: { id: Number(createUsuarioDto.consejo_id) },
-                    }
-                    : undefined,
-                activo: createUsuarioDto.activo ?? true,
-                creado_en: createUsuarioDto.creado_en ? new Date(createUsuarioDto.creado_en) : undefined,
-            },
-            include: {
-                rol: true,
-                genero: true,
-                consejo: true,
-            },
+        const firstParroquia = await this.prisma.$queryRaw(client_1.Prisma.sql `
+      SELECT id_parroquia FROM catalogos.parroquias ORDER BY id_parroquia LIMIT 1
+    `);
+        const firstGenero = await this.prisma.$queryRaw(client_1.Prisma.sql `
+      SELECT id_genero FROM catalogos.generos ORDER BY id_genero LIMIT 1
+    `);
+        const sharedEntityId = (0, crypto_1.randomUUID)();
+        const birthDate = createUsuarioDto.fecha_nacimiento ? this.normalizeDateInput(createUsuarioDto.fecha_nacimiento) : null;
+        await this.prisma.$transaction(async (tx) => {
+            await tx.$queryRaw(client_1.Prisma.sql `
+        INSERT INTO registros.personas (
+          id_personas,
+          nombre,
+          apellido,
+          tipo_cedula,
+          cedula,
+          fecha_nacimiento,
+          parroquia,
+          direccion_usuario,
+          email,
+          numero_telefonico,
+          genero,
+          consejo_id
+        ) VALUES (
+          CAST(${sharedEntityId} AS uuid),
+          ${createUsuarioDto.nombre || ''},
+          ${createUsuarioDto.apellido || ''},
+          CAST(${tipoCedula} AS registros.tipo_cedula_enum),
+          ${cedula},
+          ${birthDate ?? new Date('1990-01-01T00:00:00.000Z')},
+          ${firstParroquia[0]?.id_parroquia ?? 1},
+          ${createUsuarioDto.direccion || ''},
+          ${createUsuarioDto.email},
+          ${createUsuarioDto.numero_telefono ?? null},
+          ${firstGenero[0]?.id_genero ?? 1},
+          NULL
+        )
+      `);
+            await tx.$queryRaw(client_1.Prisma.sql `
+        INSERT INTO seguridad.usuarios (
+          id_usuario,
+          nombre_usuario,
+          password_hash,
+          id_rol,
+          creado_por
+        ) VALUES (
+          CAST(${sharedEntityId} AS uuid),
+          ${desiredNombreUsuario},
+          ${hashedPassword},
+          ${roleId},
+          NULL
+        )
+      `);
         });
-        return this.mapUsuario(usuario);
+        return this.findUsuarioRow(sharedEntityId);
     }
     async update(id, updateUsuarioDto) {
-        const usuario = await this.prisma.usuario.findUnique({
-            where: { id },
-        });
+        const usuario = await this.findUsuarioRow(id);
         if (!usuario) {
             throw new common_1.NotFoundException('Usuario no encontrado');
         }
-        if (updateUsuarioDto.email && updateUsuarioDto.email !== usuario.email) {
-            const existingUser = await this.prisma.usuario.findUnique({
-                where: { email: updateUsuarioDto.email },
-            });
-            if (existingUser) {
-                throw new common_1.ConflictException('El email ya está registrado');
-            }
-        }
         const data = { ...updateUsuarioDto };
-        if (data.password) {
+        const currentUserId = usuario.id;
+        if (data.password !== undefined) {
+            if (typeof data.password !== 'string' || !data.password.trim()) {
+                throw new common_1.BadRequestException('La contraseña no puede estar vacía');
+            }
             data.password_hash = await bcrypt.hash(data.password, 10);
             delete data.password;
         }
-        delete data.creado_en;
-        delete data.actualizado_en;
-        if (typeof data.fecha_nacimiento === 'string') {
-            data.fecha_nacimiento = this.normalizeDateInput(data.fecha_nacimiento);
-        }
-        if ('cedula' in data) {
-            const cedulaValue = data.cedula ? (0, cedula_code_util_1.normalizeCedulaInput)(data.cedula) : '';
-            if (!cedulaValue) {
-                throw new common_1.BadRequestException('La cédula no puede estar vacía');
-            }
-            if (!(0, cedula_code_util_1.isValidCedulaCode)(cedulaValue)) {
-                throw new common_1.BadRequestException('La cédula debe ser V-12345678, E-12345678 o un número de 9 dígitos');
-            }
-            const existingCédula = await this.prisma.usuario.findUnique({ where: { cedula: cedulaValue } });
-            if (existingCédula && existingCédula.id !== id) {
-                throw new common_1.ConflictException('La cédula ya está registrada');
-            }
-            data.cedula = cedulaValue;
-        }
-        if ('rol' in data) {
-            const rolValue = this.normalizeRoleValue(data.rol);
-            if (rolValue) {
-                data.rol = {
-                    connectOrCreate: {
-                        where: { tipo_rol: rolValue },
-                        create: { tipo_rol: rolValue },
-                    },
-                };
-            }
-            else {
-                delete data.rol;
+        if (data.nombre_usuario && data.nombre_usuario !== usuario.email) {
+            const existingUser = await this.prisma.$queryRaw(client_1.Prisma.sql `
+        SELECT id_usuario FROM seguridad.usuarios WHERE nombre_usuario = ${data.nombre_usuario} AND id_usuario::text <> ${String(currentUserId)} LIMIT 1
+      `);
+            if (existingUser[0]) {
+                throw new common_1.ConflictException('El nombre de usuario ya está registrado');
             }
         }
-        if ('consejo_id' in data) {
-            const consejoId = data.consejo_id;
-            if (consejoId === null || consejoId === undefined || consejoId === '') {
-                data.consejo = { disconnect: true };
-            }
-            else {
-                data.consejo = {
-                    connect: { id: Number(consejoId) },
-                };
-            }
-            delete data.consejo_id;
+        if (data.nombre_usuario) {
+            await this.prisma.$queryRaw(client_1.Prisma.sql `
+        UPDATE seguridad.usuarios SET nombre_usuario = ${data.nombre_usuario} WHERE id_usuario::text = ${String(currentUserId)}
+      `);
+            delete data.nombre_usuario;
         }
-        if ('genero' in data) {
-            const generoValue = this.normalizeCatalogValue(data.genero);
-            if (generoValue) {
-                data.genero = {
-                    connectOrCreate: {
-                        where: { tipo_gen: generoValue },
-                        create: { tipo_gen: generoValue },
-                    },
-                };
+        if (data.email) {
+            const existing = await this.prisma.$queryRaw(client_1.Prisma.sql `
+        SELECT id_usuario FROM seguridad.usuarios WHERE nombre_usuario = ${data.email} AND id_usuario::text <> ${String(currentUserId)} LIMIT 1
+      `);
+            if (existing[0]) {
+                throw new common_1.ConflictException('El nombre de usuario ya está registrado');
             }
-            else {
-                data.genero = { disconnect: true };
-            }
+            await this.prisma.$transaction(async (tx) => {
+                await tx.$queryRaw(client_1.Prisma.sql `
+          UPDATE registros.personas SET email = ${data.email} WHERE id_personas::text = ${String(currentUserId)}
+        `);
+                await tx.$queryRaw(client_1.Prisma.sql `
+          UPDATE seguridad.usuarios SET nombre_usuario = ${data.email} WHERE id_usuario::text = ${String(currentUserId)}
+        `);
+            });
+            delete data.email;
         }
-        const updated = await this.prisma.usuario.update({
-            where: { id },
-            data,
-            include: {
-                rol: true,
-                genero: true,
-                consejo: true,
-            },
-        });
-        return this.mapUsuario(updated);
+        if (data.password_hash !== undefined) {
+            const passwordHashValue = typeof data.password_hash === 'string' ? data.password_hash.trim() : '';
+            if (!passwordHashValue) {
+                throw new common_1.BadRequestException('El hash de la contraseña no puede estar vacío');
+            }
+            const normalizedHash = passwordHashValue.startsWith('$2')
+                ? passwordHashValue
+                : await bcrypt.hash(passwordHashValue, 10);
+            await this.prisma.$queryRaw(client_1.Prisma.sql `
+        UPDATE seguridad.usuarios SET password_hash = ${normalizedHash} WHERE id_usuario::text = ${String(currentUserId)}
+      `);
+            delete data.password_hash;
+        }
+        if (data.rol) {
+            const roleId = await this.resolveRoleId(this.normalizeRoleValue(data.rol));
+            await this.prisma.$queryRaw(client_1.Prisma.sql `
+        UPDATE seguridad.usuarios SET id_rol = ${roleId} WHERE id_usuario::text = ${String(currentUserId)}
+      `);
+            delete data.rol;
+        }
+        if (data.nombre != null || data.apellido != null || data.direccion != null || data.numero_telefono != null || data.fecha_nacimiento != null || data.consejo_id != null) {
+            const normalizedBirthDate = data.fecha_nacimiento != null
+                ? (this.normalizeDateInput(data.fecha_nacimiento) ?? null)
+                : null;
+            const normalizedConsejoId = data.consejo_id != null
+                ? await this.resolveConsejoUuid(data.consejo_id)
+                : null;
+            await this.prisma.$queryRaw(client_1.Prisma.sql `
+        UPDATE registros.personas
+        SET
+          nombre = COALESCE(${data.nombre ?? null}, nombre),
+          apellido = COALESCE(${data.apellido ?? null}, apellido),
+          direccion_usuario = COALESCE(${data.direccion ?? null}, direccion_usuario),
+          numero_telefonico = COALESCE(${data.numero_telefono ?? null}, numero_telefonico),
+          fecha_nacimiento = COALESCE(${normalizedBirthDate}, fecha_nacimiento),
+          consejo_id = COALESCE(${normalizedConsejoId}, consejo_id)
+        WHERE id_personas::text = ${String(currentUserId)}
+      `);
+        }
+        return this.findUsuarioRow(id);
     }
     async generateUniqueCedula() {
         for (let attempt = 0; attempt < 10; attempt += 1) {
-            const candidate = (0, cedula_code_util_1.generateRandomCedulaCode)();
-            const existing = await this.prisma.usuario.findUnique({ where: { cedula: candidate } });
-            if (!existing) {
+            const candidate = this.randomNoCedulaCode();
+            const existing = await this.prisma.$queryRaw(client_1.Prisma.sql `
+        SELECT cedula FROM registros.personas WHERE cedula = ${candidate} LIMIT 1
+      `);
+            if (!existing[0]) {
                 return candidate;
             }
         }
-        throw new common_1.ConflictException('No se pudo generar un código de cédula único, intente nuevamente');
+        throw new common_1.ConflictException('No se pudo generar un código NP único, intente nuevamente');
     }
     async remove(id) {
-        const usuario = await this.prisma.usuario.findUnique({
-            where: { id },
-        });
+        const usuario = await this.findUsuarioRow(id);
         if (!usuario) {
             throw new common_1.NotFoundException('Usuario no encontrado');
         }
-        return this.prisma.usuario.delete({
-            where: { id },
-        });
+        await this.prisma.$queryRaw(client_1.Prisma.sql `
+      DELETE FROM seguridad.usuarios WHERE id_usuario::text = ${String(usuario.id)}
+    `);
+        await this.prisma.$queryRaw(client_1.Prisma.sql `
+      DELETE FROM registros.personas WHERE id_personas::text = ${String(usuario.id)}
+    `);
+        return { deleted: true };
     }
     async saveProfileImage(id, dto) {
-        const usuario = await this.prisma.usuario.findUnique({
-            where: { id },
-            select: { id: true },
-        });
+        const usuario = await this.findUsuarioRow(id);
         if (!usuario) {
             throw new common_1.NotFoundException('Usuario no encontrado');
         }
-        const mongoId = await this.mongoOptionalService.saveUsuarioPerfilImagen({
-            usuarioId: id,
+        const storageId = await this.storageService.saveUsuarioPerfilImagen({
+            usuarioId: usuario.id,
             contentType: dto.content_type,
             fileName: dto.file_name,
             sizeBytes: dto.size_bytes,
@@ -295,39 +452,33 @@ let UsuariosService = class UsuariosService {
             metadata: dto.metadata,
         });
         return {
-            usuario_id: id,
-            mongo_habilitado: this.mongoOptionalService.isEnabled(),
-            guardado_en_mongo: Boolean(mongoId),
-            mongo_id: mongoId,
+            usuario_id: usuario.id,
+            postgres_habilitado: this.storageService.isEnabled(),
+            guardado_en_postgres: Boolean(storageId),
+            registro_id: storageId,
         };
     }
     async getProfileImage(id) {
-        const usuario = await this.prisma.usuario.findUnique({
-            where: { id },
-            select: { id: true },
-        });
+        const usuario = await this.findUsuarioRow(id);
         if (!usuario) {
             throw new common_1.NotFoundException('Usuario no encontrado');
         }
-        const image = await this.mongoOptionalService.getUsuarioPerfilImagen(id);
+        const image = await this.storageService.getUsuarioPerfilImagen(usuario.id);
         return {
-            usuario_id: id,
-            mongo_habilitado: this.mongoOptionalService.isEnabled(),
+            usuario_id: usuario.id,
+            postgres_habilitado: this.storageService.isEnabled(),
             imagen: image,
         };
     }
     async deleteProfileImage(id) {
-        const usuario = await this.prisma.usuario.findUnique({
-            where: { id },
-            select: { id: true },
-        });
+        const usuario = await this.findUsuarioRow(id);
         if (!usuario) {
             throw new common_1.NotFoundException('Usuario no encontrado');
         }
-        const deleted = await this.mongoOptionalService.deleteUsuarioPerfilImagen(id);
+        const deleted = await this.storageService.deleteUsuarioPerfilImagen(usuario.id);
         return {
-            usuario_id: id,
-            mongo_habilitado: this.mongoOptionalService.isEnabled(),
+            usuario_id: usuario.id,
+            postgres_habilitado: this.storageService.isEnabled(),
             eliminado: deleted,
         };
     }
@@ -336,6 +487,6 @@ exports.UsuariosService = UsuariosService;
 exports.UsuariosService = UsuariosService = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
-        mongo_optional_service_1.MongoOptionalService])
+        postgres_storage_service_1.PostgresStorageService])
 ], UsuariosService);
 //# sourceMappingURL=usuarios.service.js.map

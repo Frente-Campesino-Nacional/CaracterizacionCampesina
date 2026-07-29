@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 
 const extra = (Constants.expoConfig?.extra || {}) as {
@@ -20,6 +21,18 @@ function buildFromExpoHostUri(port: number): string | undefined {
   return `http://${host}:${port}/api`;
 }
 
+function getFallbackHost(port: number): string {
+  if (Platform.OS === 'android') {
+    return `http://10.0.2.2:${port}/api`;
+  }
+
+  if (Platform.OS === 'ios') {
+    return `http://127.0.0.1:${port}/api`;
+  }
+
+  return `http://localhost:${port}/api`;
+}
+
 export function getApiBaseUrl(): string {
   const explicit = extra.apiBaseUrl;
   if (explicit && explicit.trim().length > 0) {
@@ -32,5 +45,5 @@ export function getApiBaseUrl(): string {
     return fromHostUri;
   }
 
-  return `http://localhost:${port}/api`;
+  return getFallbackHost(port);
 }

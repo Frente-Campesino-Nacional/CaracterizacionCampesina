@@ -28,30 +28,31 @@ export class UpdateCampesinDto {
   genero?: string;
 
   @IsOptional()
-  @IsString()
-  estado?: string;
+  @Type(() => Number)
+  @IsInt()
+  estado_id?: number;
 
   @IsOptional()
-  @IsString()
-  municipio?: string;
+  @Type(() => Number)
+  @IsInt()
+  municipio_id?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  parroquia_id?: number;
 
   @IsOptional()
   direccion?: string;
 
   @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  consejo_id?: number | null;
+  consejo_id?: string | number | null;
 
   @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  creado_por?: number | null;
+  creado_por?: string | number | null;
 
   @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  asignado_a?: number | null;
+  asignado_a?: string | number | null;
 
   @IsOptional()
   @IsBoolean()
@@ -61,11 +62,4 @@ export class UpdateCampesinDto {
   @IsObject()
   metadata?: Record<string, unknown>;
 
-  @IsOptional()
-  @IsDateString()
-  creado_en?: string;
-
-  @IsOptional()
-  @IsDateString()
-  actualizado_en?: string;
 }

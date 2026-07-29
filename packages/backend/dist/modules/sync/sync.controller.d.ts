@@ -4,52 +4,8 @@ import { UpdateSyncDto } from './dto/update-sync.dto';
 export declare class SyncController {
     private readonly syncService;
     constructor(syncService: SyncService);
-    findAll(): Promise<{
-        error: string;
-        id: number;
-        estado: string;
-        creado_en: Date;
-        entidad: string;
-        entidad_id: number;
-        operacion: string;
-        datos: import("@prisma/client/runtime/library").JsonValue;
-        intentos: number;
-        procesado_en: Date;
-    }[]>;
-    create(createSyncDto: CreateSyncDto): Promise<{
-        error: string;
-        id: number;
-        estado: string;
-        creado_en: Date;
-        entidad: string;
-        entidad_id: number;
-        operacion: string;
-        datos: import("@prisma/client/runtime/library").JsonValue;
-        intentos: number;
-        procesado_en: Date;
-    }>;
-    update(id: number, updateSyncDto: UpdateSyncDto): Promise<{
-        error: string;
-        id: number;
-        estado: string;
-        creado_en: Date;
-        entidad: string;
-        entidad_id: number;
-        operacion: string;
-        datos: import("@prisma/client/runtime/library").JsonValue;
-        intentos: number;
-        procesado_en: Date;
-    }>;
-    process(id: number): Promise<{
-        error: string;
-        id: number;
-        estado: string;
-        creado_en: Date;
-        entidad: string;
-        entidad_id: number;
-        operacion: string;
-        datos: import("@prisma/client/runtime/library").JsonValue;
-        intentos: number;
-        procesado_en: Date;
-    }>;
+    findAll(): Promise<any[]>;
+    create(createSyncDto: CreateSyncDto): Promise<any>;
+    update(id: string, updateSyncDto: UpdateSyncDto): Promise<any>;
+    process(id: string): Promise<any>;
 }

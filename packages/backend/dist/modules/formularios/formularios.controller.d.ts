@@ -6,58 +6,68 @@ export declare class FormulariosController {
     private readonly formulariosService;
     constructor(formulariosService: FormulariosService);
     findAll(): Promise<{
-        id: number;
-        titulo: string;
-        version: number;
-        estructura: import("@prisma/client/runtime/library").JsonValue;
-        activo: boolean;
-        creado_por: number;
-        creado_en: Date;
-        actualizado_en: Date;
+        id: any;
+        titulo: any;
+        version: any;
+        estructura: any;
+        activo: any;
+        creado_por: any;
+        creado_en: any;
+        actualizado_en: any;
     }[]>;
-    findOne(id: number): Promise<{
-        id: number;
-        titulo: string;
-        version: number;
-        estructura: import("@prisma/client/runtime/library").JsonValue;
-        activo: boolean;
-        creado_por: number;
-        creado_en: Date;
-        actualizado_en: Date;
+    listFilterQuestions(): Promise<{
+        formulario_id: string;
+        formulario_titulo: string;
+        pregunta_id: string;
+        pregunta_label: string;
+    }[]>;
+    listFilterResults(formularioId: string, preguntaId: string): Promise<{
+        campesino_id: any;
+        cedula: any;
+        nombre: any;
+        apellido: any;
+        consejo_nombre: any;
+        pregunta_id: string;
+        pregunta_label: string;
+        valor: string;
+        capturado_en: string;
+    }[]>;
+    findOne(id: string): Promise<{
+        id: any;
+        titulo: any;
+        version: any;
+        estructura: any;
+        activo: any;
+        creado_por: any;
+        creado_en: any;
+        actualizado_en: any;
     }>;
     create(createFormularioDto: CreateFormularioDto): Promise<{
-        id: number;
-        titulo: string;
-        version: number;
-        estructura: import("@prisma/client/runtime/library").JsonValue;
-        activo: boolean;
-        creado_por: number;
-        creado_en: Date;
-        actualizado_en: Date;
+        id: any;
+        titulo: any;
+        version: any;
+        estructura: any;
+        activo: any;
+        creado_por: any;
+        creado_en: any;
+        actualizado_en: any;
     }>;
-    update(id: number, updateFormularioDto: UpdateFormularioDto): Promise<{
-        id: number;
-        titulo: string;
-        version: number;
-        estructura: import("@prisma/client/runtime/library").JsonValue;
-        activo: boolean;
-        creado_por: number;
-        creado_en: Date;
-        actualizado_en: Date;
+    update(id: string, updateFormularioDto: UpdateFormularioDto): Promise<{
+        id: any;
+        titulo: any;
+        version: any;
+        estructura: any;
+        activo: any;
+        creado_por: any;
+        creado_en: any;
+        actualizado_en: any;
     }>;
-    remove(id: number): Promise<{
-        id: number;
-        titulo: string;
-        version: number;
-        estructura: import("@prisma/client/runtime/library").JsonValue;
-        activo: boolean;
-        creado_por: number;
-        creado_en: Date;
-        actualizado_en: Date;
+    remove(id: string): Promise<{
+        deleted: boolean;
     }>;
-    submitRespuesta(id: number, submitFormularioRespuestaDto: SubmitFormularioRespuestaDto): Promise<{
-        formulario_id: number;
-        guardado_en_mongo: boolean;
-        mongo_id: string;
+    submitRespuesta(req: any, id: string, submitFormularioRespuestaDto: SubmitFormularioRespuestaDto): Promise<{
+        formulario_id: any;
+        guardado_en_postgres: boolean;
+        registro_id: string;
     }>;
 }

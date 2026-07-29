@@ -6,14 +6,13 @@ export declare class CreateCampesinDto {
     correo?: string;
     fecha_nacimiento?: string;
     genero?: string;
-    estado?: string;
-    municipio?: string;
+    estado_id?: number;
+    municipio_id?: number;
+    parroquia_id?: number;
     direccion?: string;
-    consejo_id?: number;
-    creado_por?: number;
-    asignado_a?: number;
+    consejo_id?: string | number;
+    creado_por?: string | number;
+    asignado_a?: string | number;
     tiene_pendientes?: boolean;
     metadata?: Record<string, unknown>;
-    creado_en?: string;
-    actualizado_en?: string;
 }

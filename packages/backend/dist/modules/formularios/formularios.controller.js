@@ -27,6 +27,12 @@ let FormulariosController = class FormulariosController {
     findAll() {
         return this.formulariosService.findAll();
     }
+    listFilterQuestions() {
+        return this.formulariosService.listFilterQuestions();
+    }
+    listFilterResults(formularioId, preguntaId) {
+        return this.formulariosService.listFilterResults(formularioId, preguntaId);
+    }
     findOne(id) {
         return this.formulariosService.findOne(id);
     }
@@ -39,8 +45,8 @@ let FormulariosController = class FormulariosController {
     remove(id) {
         return this.formulariosService.remove(id);
     }
-    submitRespuesta(id, submitFormularioRespuestaDto) {
-        return this.formulariosService.submitRespuesta(id, submitFormularioRespuestaDto);
+    submitRespuesta(req, id, submitFormularioRespuestaDto) {
+        return this.formulariosService.submitRespuesta(id, submitFormularioRespuestaDto, req.user?.id);
     }
 };
 exports.FormulariosController = FormulariosController;
@@ -52,11 +58,27 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], FormulariosController.prototype, "findAll", null);
 __decorate([
+    (0, common_1.Get)('filtros/preguntas'),
+    (0, swagger_1.ApiOperation)({ summary: 'Listar preguntas de filtro' }),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], FormulariosController.prototype, "listFilterQuestions", null);
+__decorate([
+    (0, common_1.Get)('filtros/resultados'),
+    (0, swagger_1.ApiOperation)({ summary: 'Listar resultados de filtro' }),
+    __param(0, (0, common_1.Query)('formulario_id')),
+    __param(1, (0, common_1.Query)('pregunta_id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:returntype", void 0)
+], FormulariosController.prototype, "listFilterResults", null);
+__decorate([
     (0, common_1.Get)(':id'),
     (0, swagger_1.ApiOperation)({ summary: 'Obtener formulario por ID' }),
-    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    __param(0, (0, common_1.Param)('id')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Number]),
+    __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], FormulariosController.prototype, "findOne", null);
 __decorate([
@@ -70,27 +92,28 @@ __decorate([
 __decorate([
     (0, common_1.Put)(':id'),
     (0, swagger_1.ApiOperation)({ summary: 'Actualizar formulario' }),
-    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Number, update_formulario_dto_1.UpdateFormularioDto]),
+    __metadata("design:paramtypes", [String, update_formulario_dto_1.UpdateFormularioDto]),
     __metadata("design:returntype", void 0)
 ], FormulariosController.prototype, "update", null);
 __decorate([
     (0, common_1.Delete)(':id'),
     (0, swagger_1.ApiOperation)({ summary: 'Eliminar formulario' }),
-    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    __param(0, (0, common_1.Param)('id')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Number]),
+    __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], FormulariosController.prototype, "remove", null);
 __decorate([
     (0, common_1.Post)(':id/respuestas'),
-    (0, swagger_1.ApiOperation)({ summary: 'Guardar respuesta de formulario en MongoDB' }),
-    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
-    __param(1, (0, common_1.Body)()),
+    (0, swagger_1.ApiOperation)({ summary: 'Guardar respuesta de formulario en PostgreSQL' }),
+    __param(0, (0, common_1.Request)()),
+    __param(1, (0, common_1.Param)('id')),
+    __param(2, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Number, submit_formulario_respuesta_dto_1.SubmitFormularioRespuestaDto]),
+    __metadata("design:paramtypes", [Object, String, submit_formulario_respuesta_dto_1.SubmitFormularioRespuestaDto]),
     __metadata("design:returntype", void 0)
 ], FormulariosController.prototype, "submitRespuesta", null);
 exports.FormulariosController = FormulariosController = __decorate([

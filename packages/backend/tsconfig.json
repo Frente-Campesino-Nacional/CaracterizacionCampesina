@@ -10,8 +10,6 @@
     "sourceMap": true,
     "outDir": "./dist",
     "rootDir": "./src",
-    "baseUrl": "./",
-    "ignoreDeprecations": "5.0",
     "incremental": true,
     "skipLibCheck": true,
     "strictNullChecks": false,
@@ -21,8 +19,12 @@
     "noFallthroughCasesInSwitch": false,
     "esModuleInterop": true,
     "resolveJsonModule": true,
-    "typeRoots": ["./node_modules/@types", "../../node_modules/@types"]
+    "moduleResolution": "node",
+    "ignoreDeprecations": "5.0",
+    "types": ["node", "jest"],
+    "typeRoots": ["../../node_modules/@types", "./node_modules/@types"]
   },
   "include": ["src/**/*"],
+  "references": [],
   "exclude": ["node_modules", "dist"]
 }

@@ -4,143 +4,59 @@ import { UpdateConsejoDto } from './dto/update-consejo.dto';
 export declare class ConsejosController {
     private readonly consejosService;
     constructor(consejosService: ConsejosService);
-    findAll(): Promise<({
-        campesinos: {
-            id: number;
-            cedula: string;
-            nombre: string;
-            apellido: string;
-            telefono: string;
-            correo: string;
-            fecha_nacimiento: Date;
-            generoId: number;
-            estado: string;
-            municipio: string;
-            direccion: string;
-            consejo_id: number;
-            creado_por: number;
-            asignado_a: number;
-            tiene_pendientes: boolean;
-            metadata: import("@prisma/client/runtime/library").JsonValue;
-            creado_en: Date;
-            actualizado_en: Date;
-        }[];
-    } & {
-        id: number;
-        nombre: string;
-        estado: string;
-        municipio: string;
-        creado_en: Date;
-        actualizado_en: Date;
-        descripcion: string;
-        encargado_tipo: string;
-        encargado_id: number;
-    })[]>;
-    findOne(id: number): Promise<{
-        campesinos: {
-            id: number;
-            cedula: string;
-            nombre: string;
-            apellido: string;
-            telefono: string;
-            correo: string;
-            fecha_nacimiento: Date;
-            generoId: number;
-            estado: string;
-            municipio: string;
-            direccion: string;
-            consejo_id: number;
-            creado_por: number;
-            asignado_a: number;
-            tiene_pendientes: boolean;
-            metadata: import("@prisma/client/runtime/library").JsonValue;
-            creado_en: Date;
-            actualizado_en: Date;
-        }[];
-    } & {
-        id: number;
-        nombre: string;
-        estado: string;
-        municipio: string;
-        creado_en: Date;
-        actualizado_en: Date;
-        descripcion: string;
-        encargado_tipo: string;
-        encargado_id: number;
+    findAll(): Promise<{
+        id: any;
+        nombre: any;
+        descripcion: any;
+        estado: any;
+        municipio: any;
+        parroquia: any;
+        encargado_tipo: any;
+        encargado_id: any;
+        encargado_nombre: any;
+        creado_en: any;
+        actualizado_en: any;
+    }[]>;
+    findOne(id: string): Promise<{
+        id: any;
+        nombre: any;
+        descripcion: any;
+        estado: any;
+        municipio: any;
+        parroquia: any;
+        encargado_tipo: any;
+        encargado_id: any;
+        encargado_nombre: any;
+        creado_en: any;
+        actualizado_en: any;
     }>;
     create(createConsejoDto: CreateConsejoDto): Promise<{
-        campesinos: {
-            id: number;
-            cedula: string;
-            nombre: string;
-            apellido: string;
-            telefono: string;
-            correo: string;
-            fecha_nacimiento: Date;
-            generoId: number;
-            estado: string;
-            municipio: string;
-            direccion: string;
-            consejo_id: number;
-            creado_por: number;
-            asignado_a: number;
-            tiene_pendientes: boolean;
-            metadata: import("@prisma/client/runtime/library").JsonValue;
-            creado_en: Date;
-            actualizado_en: Date;
-        }[];
-    } & {
-        id: number;
-        nombre: string;
-        estado: string;
-        municipio: string;
-        creado_en: Date;
-        actualizado_en: Date;
-        descripcion: string;
-        encargado_tipo: string;
-        encargado_id: number;
+        id: any;
+        nombre: any;
+        descripcion: any;
+        estado: any;
+        municipio: any;
+        parroquia: any;
+        encargado_tipo: any;
+        encargado_id: any;
+        encargado_nombre: any;
+        creado_en: any;
+        actualizado_en: any;
     }>;
-    update(id: number, updateConsejoDto: UpdateConsejoDto): Promise<{
-        campesinos: {
-            id: number;
-            cedula: string;
-            nombre: string;
-            apellido: string;
-            telefono: string;
-            correo: string;
-            fecha_nacimiento: Date;
-            generoId: number;
-            estado: string;
-            municipio: string;
-            direccion: string;
-            consejo_id: number;
-            creado_por: number;
-            asignado_a: number;
-            tiene_pendientes: boolean;
-            metadata: import("@prisma/client/runtime/library").JsonValue;
-            creado_en: Date;
-            actualizado_en: Date;
-        }[];
-    } & {
-        id: number;
-        nombre: string;
-        estado: string;
-        municipio: string;
-        creado_en: Date;
-        actualizado_en: Date;
-        descripcion: string;
-        encargado_tipo: string;
-        encargado_id: number;
+    update(id: string, updateConsejoDto: UpdateConsejoDto): Promise<{
+        id: any;
+        nombre: any;
+        descripcion: any;
+        estado: any;
+        municipio: any;
+        parroquia: any;
+        encargado_tipo: any;
+        encargado_id: any;
+        encargado_nombre: any;
+        creado_en: any;
+        actualizado_en: any;
     }>;
-    remove(id: number): Promise<{
-        id: number;
-        nombre: string;
-        estado: string;
-        municipio: string;
-        creado_en: Date;
-        actualizado_en: Date;
-        descripcion: string;
-        encargado_tipo: string;
-        encargado_id: number;
+    remove(id: string): Promise<{
+        deleted: boolean;
     }>;
 }

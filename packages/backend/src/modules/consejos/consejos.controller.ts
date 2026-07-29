@@ -20,7 +20,7 @@ export class ConsejosController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Obtener consejo por ID' })
-  findOne(@Param('id') id: number) {
+  findOne(@Param('id') id: string) {
     return this.consejosService.findOne(id);
   }
 
@@ -32,13 +32,13 @@ export class ConsejosController {
 
   @Put(':id')
   @ApiOperation({ summary: 'Actualizar consejo' })
-  update(@Param('id') id: number, @Body() updateConsejoDto: UpdateConsejoDto) {
+  update(@Param('id') id: string, @Body() updateConsejoDto: UpdateConsejoDto) {
     return this.consejosService.update(id, updateConsejoDto);
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Eliminar consejo' })
-  remove(@Param('id') id: number) {
+  remove(@Param('id') id: string) {
     return this.consejosService.remove(id);
   }
 }

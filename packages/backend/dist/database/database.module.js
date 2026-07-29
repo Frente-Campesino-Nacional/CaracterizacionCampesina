@@ -8,7 +8,7 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.DatabaseModule = void 0;
 const common_1 = require("@nestjs/common");
-const mongo_optional_service_1 = require("./mongo-optional.service");
+const postgres_storage_service_1 = require("./postgres-storage.service");
 const prisma_service_1 = require("./prisma.service");
 const redis_service_1 = require("./redis.service");
 let DatabaseModule = class DatabaseModule {
@@ -17,8 +17,8 @@ exports.DatabaseModule = DatabaseModule;
 exports.DatabaseModule = DatabaseModule = __decorate([
     (0, common_1.Global)(),
     (0, common_1.Module)({
-        providers: [prisma_service_1.PrismaService, redis_service_1.RedisService, mongo_optional_service_1.MongoOptionalService],
-        exports: [prisma_service_1.PrismaService, redis_service_1.RedisService, mongo_optional_service_1.MongoOptionalService],
+        providers: [prisma_service_1.PrismaService, redis_service_1.RedisService, postgres_storage_service_1.PostgresStorageService],
+        exports: [prisma_service_1.PrismaService, redis_service_1.RedisService, postgres_storage_service_1.PostgresStorageService],
     })
 ], DatabaseModule);
 //# sourceMappingURL=database.module.js.map

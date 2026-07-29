@@ -10,22 +10,17 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SubmitFormularioRespuestaDto = void 0;
-const class_transformer_1 = require("class-transformer");
 const class_validator_1 = require("class-validator");
 class SubmitFormularioRespuestaDto {
 }
 exports.SubmitFormularioRespuestaDto = SubmitFormularioRespuestaDto;
 __decorate([
     (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsInt)(),
-    (0, class_transformer_1.Type)(() => Number),
-    __metadata("design:type", Number)
+    __metadata("design:type", Object)
 ], SubmitFormularioRespuestaDto.prototype, "campesino_id", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsInt)(),
-    (0, class_transformer_1.Type)(() => Number),
-    __metadata("design:type", Number)
+    __metadata("design:type", Object)
 ], SubmitFormularioRespuestaDto.prototype, "encuestador_id", void 0);
 __decorate([
     (0, class_validator_1.IsNotEmpty)(),

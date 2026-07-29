@@ -10,12 +10,12 @@ const api = axios.create({
 
 export interface LoginResponse {
   user: {
-    id: number;
+    id: string;
     email: string;
     nombre: string;
     apellido?: string;
     rol: string;
-    consejo_id?: number;
+    consejo_id?: string | null;
   };
   token: string;
 }
@@ -38,6 +38,7 @@ export const login = async (email: string, password: string): Promise<LoginRespo
       token,
       user: {
         ...data.user,
+        id: data.user?.id,
         apellido: data.user?.apellido || '',
       },
     };

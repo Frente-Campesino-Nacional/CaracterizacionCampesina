@@ -12,6 +12,7 @@ export interface FormQuestion {
   label: string;
   type: FormQuestionType;
   required: boolean;
+  useAsFilter?: boolean | undefined;
   placeholder?: string | undefined;
   options: FormQuestionOption[];
   selectionMode?: FormQuestionSelectionMode | undefined;
@@ -22,32 +23,32 @@ export interface FormStructure {
 }
 
 export interface SubmitFormularioRespuestaPayload {
-  campesino_id?: number | undefined;
-  encuestador_id?: number | undefined;
+  campesino_id?: string | undefined;
+  encuestador_id?: string | undefined;
   respuestas: Record<string, unknown>;
   metadata?: Record<string, unknown> | undefined;
   capturado_en?: string | undefined;
 }
 
 export interface CampesinoMetadataNormalized {
-  formularios_respondidos: number[];
+  formularios_respondidos: string[];
   [key: string]: unknown;
 }
 
 export interface QueuedFormularioSubmission {
-  campesinoId: number;
-  formularioId: number;
+  campesinoId: string;
+  formularioId: string;
   formularioTitulo: string;
   respuestas: Record<string, unknown>;
-  allActiveFormIds: number[];
-  encuestadorId?: number | undefined;
+  allActiveFormIds: string[];
+  encuestadorId?: string | undefined;
   capturedAtIso: string;
 }
 
 export interface SubmissionHistoryItem {
   id: string;
-  campesinoId: number;
-  formularioId: number;
+  campesinoId: string;
+  formularioId: string;
   formularioTitulo: string;
   status: 'enviado' | 'pendiente_offline' | 'sincronizado' | 'error';
   message: string;

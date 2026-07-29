@@ -1,16 +1,11 @@
-import { Type } from 'class-transformer';
-import { IsDateString, IsInt, IsNotEmpty, IsObject, IsOptional } from 'class-validator';
+import { IsDateString, IsNotEmpty, IsObject, IsOptional } from 'class-validator';
 
 export class SubmitFormularioRespuestaDto {
   @IsOptional()
-  @IsInt()
-  @Type(() => Number)
-  campesino_id?: number;
+  campesino_id?: string | number;
 
   @IsOptional()
-  @IsInt()
-  @Type(() => Number)
-  encuestador_id?: number;
+  encuestador_id?: string | number;
 
   @IsNotEmpty()
   @IsObject()

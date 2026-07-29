@@ -3,7 +3,5 @@ export declare class CreateFormularioDto {
     version?: number;
     estructura: object;
     activo?: boolean;
-    creado_por: number;
-    creado_en?: string;
-    actualizado_en?: string;
+    creado_por: string | number;
 }

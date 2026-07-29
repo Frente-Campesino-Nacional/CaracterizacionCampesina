@@ -3,7 +3,7 @@ export declare class GenerosController {
     private readonly generosService;
     constructor(generosService: GenerosService);
     findAll(): Promise<{
-        id_gen: number;
+        id_genero: number;
         tipo_gen: string;
     }[]>;
 }

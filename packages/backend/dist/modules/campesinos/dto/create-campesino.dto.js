@@ -49,35 +49,37 @@ __decorate([
 ], CreateCampesinDto.prototype, "genero", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsString)(),
-    __metadata("design:type", String)
-], CreateCampesinDto.prototype, "estado", void 0);
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsInt)(),
+    __metadata("design:type", Number)
+], CreateCampesinDto.prototype, "estado_id", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsString)(),
-    __metadata("design:type", String)
-], CreateCampesinDto.prototype, "municipio", void 0);
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsInt)(),
+    __metadata("design:type", Number)
+], CreateCampesinDto.prototype, "municipio_id", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsInt)(),
+    __metadata("design:type", Number)
+], CreateCampesinDto.prototype, "parroquia_id", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     __metadata("design:type", String)
 ], CreateCampesinDto.prototype, "direccion", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
-    (0, class_transformer_1.Type)(() => Number),
-    (0, class_validator_1.IsInt)(),
-    __metadata("design:type", Number)
+    __metadata("design:type", Object)
 ], CreateCampesinDto.prototype, "consejo_id", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
-    (0, class_transformer_1.Type)(() => Number),
-    (0, class_validator_1.IsInt)(),
-    __metadata("design:type", Number)
+    __metadata("design:type", Object)
 ], CreateCampesinDto.prototype, "creado_por", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
-    (0, class_transformer_1.Type)(() => Number),
-    (0, class_validator_1.IsInt)(),
-    __metadata("design:type", Number)
+    __metadata("design:type", Object)
 ], CreateCampesinDto.prototype, "asignado_a", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
@@ -89,14 +91,4 @@ __decorate([
     (0, class_validator_1.IsObject)(),
     __metadata("design:type", Object)
 ], CreateCampesinDto.prototype, "metadata", void 0);
-__decorate([
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsDateString)(),
-    __metadata("design:type", String)
-], CreateCampesinDto.prototype, "creado_en", void 0);
-__decorate([
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsDateString)(),
-    __metadata("design:type", String)
-], CreateCampesinDto.prototype, "actualizado_en", void 0);
 //# sourceMappingURL=create-campesino.dto.js.map

@@ -5,6 +5,24 @@ const path = require('path');
 
 require(path.resolve(__dirname, '../../../scripts/fix-anymatch-read.cjs'));
 
+function getExpoArgs({ mode = 'lan', selectedPort = 8081, clearCache = false } = {}) {
+  const normalizedMode = String(mode || 'lan').toLowerCase();
+  const args = ['start', '--go'];
+
+  if (normalizedMode === 'tunnel') {
+    args.push('--tunnel');
+  } else {
+    args.push('--lan');
+  }
+
+  if (clearCache) {
+    args.push('--clear');
+  }
+
+  args.push('-c', '--port', String(selectedPort), '--android');
+  return args;
+}
+
 function getLocalIPv4() {
   const nets = os.networkInterfaces();
   const ignored = ['loopback', 'vethernet', 'virtual', 'hyper-v', 'bluetooth', 'teredo'];
@@ -78,20 +96,37 @@ async function main() {
   console.log(`[expo-lan] API backend ${backendApiUrl}`);
 
   const expoCli = path.resolve(__dirname, '../../../node_modules/expo/bin/cli');
-  const child = spawn(process.execPath, [expoCli, 'start', '--go', '--lan', '-c', '--port', String(selectedPort)], {
+  const expoArgs = getExpoArgs({ mode: process.env.EXPO_START_MODE || 'lan', selectedPort, clearCache: process.env.EXPO_CLEAR_CACHE === '1' });
+  const child = spawn(process.execPath, [expoCli, ...expoArgs], {
     stdio: 'inherit',
     env: {
       ...process.env,
       REACT_NATIVE_PACKAGER_HOSTNAME: ip,
       EXPO_DEVTOOLS_LISTEN_ADDRESS: '0.0.0.0',
       EXPO_PUBLIC_API_BASE_URL: backendApiUrl,
+      EXPO_NO_DOTENV_IMPORT: '1',
     },
   });
 
-  child.on('exit', (code) => {
-    process.exit(code || 0);
+  child.on('exit', (code, signal) => {
+    // On Windows, some shell shutdown paths can surface as unsigned exit codes.
+    // Treat null/invalid code (or signal-based stop) as a clean stop.
+    if (signal || typeof code !== 'number' || Number.isNaN(code) || code < 0) {
+      process.exit(0);
+      return;
+    }
+
+    process.exit(code);
   });
 }
+
+module.exports = {
+  getExpoArgs,
+  getLocalIPv4,
+  canListen,
+  checkPortAvailable,
+  findAvailablePort,
+};
 
 main().catch((error) => {
   console.error('[expo-lan] Error iniciando Expo:', error);

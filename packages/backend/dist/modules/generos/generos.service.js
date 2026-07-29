@@ -11,21 +11,18 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.GenerosService = void 0;
 const common_1 = require("@nestjs/common");
+const client_1 = require("@prisma/client");
 const prisma_service_1 = require("../../database/prisma.service");
 let GenerosService = class GenerosService {
     constructor(prisma) {
         this.prisma = prisma;
     }
     async findAll() {
-        return this.prisma.genero.findMany({
-            select: {
-                id_gen: true,
-                tipo_gen: true,
-            },
-            orderBy: {
-                tipo_gen: 'asc',
-            },
-        });
+        return this.prisma.$queryRaw(client_1.Prisma.sql `
+      SELECT id_genero, genero AS tipo_gen
+      FROM catalogos.generos
+      ORDER BY genero ASC
+    `);
     }
 };
 exports.GenerosService = GenerosService;

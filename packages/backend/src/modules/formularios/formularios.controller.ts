@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, ParseIntPipe, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, Request, Query } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { FormulariosService } from './formularios.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -19,9 +19,24 @@ export class FormulariosController {
     return this.formulariosService.findAll();
   }
 
+  @Get('filtros/preguntas')
+  @ApiOperation({ summary: 'Listar preguntas de filtro' })
+  listFilterQuestions() {
+    return this.formulariosService.listFilterQuestions();
+  }
+
+  @Get('filtros/resultados')
+  @ApiOperation({ summary: 'Listar resultados de filtro' })
+  listFilterResults(
+    @Query('formulario_id') formularioId: string,
+    @Query('pregunta_id') preguntaId: string,
+  ) {
+    return this.formulariosService.listFilterResults(formularioId, preguntaId);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Obtener formulario por ID' })
-  findOne(@Param('id', ParseIntPipe) id: number) {
+  findOne(@Param('id') id: string) {
     return this.formulariosService.findOne(id);
   }
 
@@ -33,22 +48,23 @@ export class FormulariosController {
 
   @Put(':id')
   @ApiOperation({ summary: 'Actualizar formulario' })
-  update(@Param('id', ParseIntPipe) id: number, @Body() updateFormularioDto: UpdateFormularioDto) {
+  update(@Param('id') id: string, @Body() updateFormularioDto: UpdateFormularioDto) {
     return this.formulariosService.update(id, updateFormularioDto);
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Eliminar formulario' })
-  remove(@Param('id', ParseIntPipe) id: number) {
+  remove(@Param('id') id: string) {
     return this.formulariosService.remove(id);
   }
 
   @Post(':id/respuestas')
-  @ApiOperation({ summary: 'Guardar respuesta de formulario en MongoDB' })
+  @ApiOperation({ summary: 'Guardar respuesta de formulario en PostgreSQL' })
   submitRespuesta(
-    @Param('id', ParseIntPipe) id: number,
+    @Request() req,
+    @Param('id') id: string,
     @Body() submitFormularioRespuestaDto: SubmitFormularioRespuestaDto,
   ) {
-    return this.formulariosService.submitRespuesta(id, submitFormularioRespuestaDto);
+    return this.formulariosService.submitRespuesta(id, submitFormularioRespuestaDto, req.user?.id);
   }
 }

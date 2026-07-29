@@ -11,6 +11,7 @@ import { Theme } from '../../theme/colors';
 import { useAuthStore } from '../../store/authStore';
 import { getUsuarioProfileImage, listCampesinos } from '../../services/adminService';
 import { flushQueuedSubmissions, getFormulariosActivos, normalizeMetadata } from '../../services/encuestadorFormService';
+import { flushQueuedCampesinoCreates } from '../../services/encuestadorCampesinoOfflineService';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 
 export default function EncuestadorProfileScreen({ navigation }: any) {
@@ -25,6 +26,7 @@ export default function EncuestadorProfileScreen({ navigation }: any) {
   const loadStatistics = useCallback(async () => {
     if (!token || !user) return;
 
+    await flushQueuedCampesinoCreates(token);
     await flushQueuedSubmissions(token);
 
     const [campesinos, formulariosActivos] = await Promise.all([

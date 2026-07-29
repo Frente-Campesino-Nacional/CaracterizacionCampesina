@@ -20,8 +20,8 @@ __decorate([
 ], CreateSyncDto.prototype, "entidad", void 0);
 __decorate([
     (0, class_validator_1.IsNotEmpty)(),
-    (0, class_validator_1.IsInt)(),
-    __metadata("design:type", Number)
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
 ], CreateSyncDto.prototype, "entidad_id", void 0);
 __decorate([
     (0, class_validator_1.IsNotEmpty)(),

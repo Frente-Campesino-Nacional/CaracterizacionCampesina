@@ -3,11 +3,6 @@ declare const _default: () => {
     database: {
         url: string;
     };
-    mongodb: {
-        uri: string;
-        dbName: string;
-        optionalEnabled: boolean;
-    };
     redis: {
         host: string;
         port: number;

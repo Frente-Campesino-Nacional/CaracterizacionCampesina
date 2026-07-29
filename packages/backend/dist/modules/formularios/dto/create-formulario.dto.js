@@ -35,16 +35,6 @@ __decorate([
 ], CreateFormularioDto.prototype, "activo", void 0);
 __decorate([
     (0, class_validator_1.IsNotEmpty)(),
-    __metadata("design:type", Number)
+    __metadata("design:type", Object)
 ], CreateFormularioDto.prototype, "creado_por", void 0);
-__decorate([
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsDateString)(),
-    __metadata("design:type", String)
-], CreateFormularioDto.prototype, "creado_en", void 0);
-__decorate([
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsDateString)(),
-    __metadata("design:type", String)
-], CreateFormularioDto.prototype, "actualizado_en", void 0);
 //# sourceMappingURL=create-formulario.dto.js.map

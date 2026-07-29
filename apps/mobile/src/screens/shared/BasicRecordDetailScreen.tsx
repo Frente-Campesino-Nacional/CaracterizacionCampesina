@@ -4,12 +4,13 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { Card, Header } from '../../components';
 import { Theme } from '../../theme/colors';
+import { sharedScreenStyles } from '../../styles/sharedScreenStyles';
 import { useAuthStore } from '../../store/authStore';
 import { getCampesino, getUsuario, listConsejos, listUsuarios, CampesinoRecord, ConsejoRecord, UsuarioRecord } from '../../services/adminService';
 import { isAdminRole } from '../../utils/roles';
 
 type RootStackParamList = {
-  BasicRecordDetail: { recordType: 'usuario' | 'campesino'; recordId: number };
+  BasicRecordDetail: { recordType: 'usuario' | 'campesino'; recordId: string };
 };
 
 type Props = NativeStackScreenProps<RootStackParamList, 'BasicRecordDetail'>;
@@ -69,16 +70,16 @@ export default function BasicRecordDetailScreen({ route }: Props) {
 
   if (loading) {
     return (
-      <View style={styles.center}>
-        <Text style={styles.helperText}>Cargando detalle...</Text>
+      <View style={sharedScreenStyles.centered}>
+        <Text style={sharedScreenStyles.helperText}>Cargando detalle...</Text>
       </View>
     );
   }
 
   if (!record) {
     return (
-      <View style={styles.center}>
-        <Text style={styles.helperText}>No se encontró el registro.</Text>
+      <View style={sharedScreenStyles.centered}>
+        <Text style={sharedScreenStyles.helperText}>No se encontró el registro.</Text>
       </View>
     );
   }
@@ -86,9 +87,9 @@ export default function BasicRecordDetailScreen({ route }: Props) {
   const isUsuario = route.params.recordType === 'usuario';
 
   return (
-    <View style={styles.container}>
+    <View style={sharedScreenStyles.surfaceWhite}>
       <Header title={title} subtitle={isUsuario ? 'Información básica del usuario' : 'Información básica del campesino'} showBorder />
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={sharedScreenStyles.contentLg}>
         <Card variant="elevated" padding="lg" style={styles.headerCard}>
           <MaterialCommunityIcons name={isUsuario ? 'account-circle' : 'account-group'} size={72} color={Theme.colors.greenDark} />
           <Text style={styles.nameText}>{record.nombre} {'apellido' in record && record.apellido ? record.apellido : ''}</Text>
@@ -129,24 +130,17 @@ export default function BasicRecordDetailScreen({ route }: Props) {
 
 function Field({ label, value }: { label: string; value: string | number }) {
   return (
-    <View style={styles.fieldRow}>
-      <Text style={styles.fieldLabel}>{label}</Text>
-      <Text style={styles.fieldValue}>{String(value)}</Text>
+    <View style={sharedScreenStyles.fieldRow}>
+      <Text style={sharedScreenStyles.fieldLabel}>{label}</Text>
+      <Text style={sharedScreenStyles.fieldValue}>{String(value)}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Theme.colors.white },
-  content: { padding: Theme.spacing.lg, gap: Theme.spacing.lg, paddingBottom: Theme.spacing.xxl },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  helperText: { color: Theme.colors.mediumGray },
   headerCard: { alignItems: 'center', gap: Theme.spacing.sm },
   nameText: { fontSize: Theme.fontSize['2xl'], fontWeight: Theme.fontWeight.bold, color: Theme.colors.darkGray, textAlign: 'center' },
   subText: { color: Theme.colors.mediumGray, textAlign: 'center' },
   detailCard: { gap: Theme.spacing.sm },
   sectionTitle: { fontSize: Theme.fontSize.base, fontWeight: Theme.fontWeight.bold, color: Theme.colors.darkGray, marginBottom: Theme.spacing.sm },
-  fieldRow: { marginBottom: Theme.spacing.md },
-  fieldLabel: { color: Theme.colors.mediumGray, fontSize: Theme.fontSize.sm, marginBottom: Theme.spacing.xs },
-  fieldValue: { color: Theme.colors.darkGray, fontSize: Theme.fontSize.base, fontWeight: Theme.fontWeight.semibold },
 });

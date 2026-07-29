@@ -5,8 +5,8 @@ export class CreateSyncDto {
   entidad: string;
 
   @IsNotEmpty()
-  @IsInt()
-  entidad_id: number;
+  @IsString()
+  entidad_id: string;
 
   @IsNotEmpty()
   operacion: string;

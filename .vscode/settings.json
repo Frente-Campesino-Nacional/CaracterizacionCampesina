@@ -3,13 +3,34 @@
   "typescript.enablePromptUseWorkspaceTsdk": true,
   "js/ts.tsdk.path": "node_modules/typescript/lib",
   "files.associations": {
-    "packages/backend/prisma/migrations/**/migration.sql": "plaintext"
+    "packages/backend/prisma/migrations/**/migration.sql": "plaintext",
+    "*.sql": "plaintext"
   },
+  "mssql.connections": [],
   "mssql.intelliSense.enableErrorChecking": false,
   "files.exclude": {
     "**/node_modules": true
   },
   "search.exclude": {
     "**/node_modules": true
-  }
+  },
+  "java.compile.nullAnalysis.mode": "disabled",
+  "java.errors.incompleteClasspath": "warning",
+  "java.codeGeneration.hashCodeEquals.useJava7Objects": true,
+  "java.project.exclude": [
+    "**/node_modules/**",
+    "**/android/**",
+    "**/build/**"
+  ],
+  "java.project.importOnDemandEnabled": false,
+  "java.server.launchMode": "Standard",
+  "java.configuration.runtimes": [
+    {
+      "name": "JavaSE-21",
+      "path": "C:/Program Files/Eclipse Adoptium/jdk-21.0.8.9-hotspot"
+    }
+  ],
+  "java.import.generatesMetadataFilesAtProjectRoot": false,
+  "java.project.referencedLibraries": [],
+  "java.project.sourcePaths": []
 }

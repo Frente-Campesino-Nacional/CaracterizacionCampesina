@@ -1,9 +1,14 @@
-import { IsEmail, IsNotEmpty, MinLength, IsOptional, IsEnum, IsBoolean, IsDateString, IsString } from 'class-validator';
+import { IsEmail, IsNotEmpty, MinLength, IsOptional, IsBoolean, IsString } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class CreateUsuarioDto {
   @IsEmail()
   @IsNotEmpty()
   email: string;
+
+  @IsOptional()
+  @IsString()
+  nombre_usuario?: string;
 
   @IsOptional()
   @IsString()
@@ -20,41 +25,40 @@ export class CreateUsuarioDto {
   apellido: string;
 
   @IsOptional()
-  @IsEnum(['admin', 'administrador', 'encuestador'], { message: 'El rol debe ser administrador o encuestador' })
-  rol?: 'admin' | 'administrador' | 'encuestador';
+  @IsString()
+  rol?: string;
   
   @IsOptional()
   numero_telefono?: string;
 
   @IsOptional()
-  @IsDateString()
+  @IsString()
   fecha_nacimiento?: string;
 
   @IsOptional()
   genero?: string;
 
   @IsOptional()
-  estado?: string;
+  @Type(() => Number)
+  estado_id?: number;
 
   @IsOptional()
-  municipio?: string;
+  @Type(() => Number)
+  municipio_id?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  parroquia_id?: number;
 
   @IsOptional()
   direccion?: string;
 
   @IsOptional()
-  consejo_id?: number;
+  consejo_id?: string | number;
 
   @IsOptional()
   @IsBoolean()
   activo?: boolean;
 
-  @IsOptional()
-  @IsDateString()
-  creado_en?: string;
-
-  @IsOptional()
-  @IsDateString()
-  actualizado_en?: string;
 }
 

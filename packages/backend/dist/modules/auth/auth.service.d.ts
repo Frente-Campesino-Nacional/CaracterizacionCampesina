@@ -6,16 +6,23 @@ export declare class AuthService {
     private readonly prisma;
     private readonly jwtService;
     constructor(prisma: PrismaService, jwtService: JwtService);
+    private findUsuarioAuthRecord;
+    private resolveRoleId;
     private normalizeCatalogValue;
     private normalizeRoleValue;
     private mapUsuario;
+    private validatePassword;
+    private migratePlaintextPassword;
     login(loginDto: LoginDto): Promise<{
         access_token: string;
         user: {
-            id: number;
+            id: string;
             email: string;
             nombre: string;
+            apellido: string;
+            telefono: string;
             rol: string;
+            consejo_id: string;
             activo: boolean;
             creado_en: Date;
         };
@@ -23,24 +30,30 @@ export declare class AuthService {
     register(registerDto: RegisterDto): Promise<{
         access_token: string;
         user: {
-            id: number;
+            id: string;
             email: string;
             nombre: string;
+            apellido: string;
+            telefono: string;
             rol: string;
+            consejo_id: string;
             activo: boolean;
             creado_en: Date;
         };
     }>;
-    getProfile(userId: number): Promise<{
-        id: number;
+    getProfile(userId: string): Promise<{
+        id: string;
         email: string;
         nombre: string;
+        apellido: string;
+        telefono: string;
         rol: string;
+        consejo_id: string;
         activo: boolean;
         creado_en: Date;
     }>;
     validateUser(email: string, password: string): Promise<{
-        id: number;
+        id: string;
         email: string;
         rol: string;
     }>;

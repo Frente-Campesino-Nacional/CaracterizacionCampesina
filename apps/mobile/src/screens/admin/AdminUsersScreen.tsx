@@ -7,6 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, FlatList, Text } from 'react-native';
 import { Header, Card, Button } from '../../components';
 import { Theme } from '../../theme/colors';
+import { sharedScreenStyles } from '../../styles/sharedScreenStyles';
 
 interface User {
   id?: string;
@@ -54,7 +55,7 @@ export default function AdminUsersScreen() {
   );
 
   return (
-    <View style={styles.container}>
+    <View style={sharedScreenStyles.surfaceWhite}>
       <Header
         title="Usuarios"
         subtitle="Gestionar cuentas"
@@ -64,11 +65,11 @@ export default function AdminUsersScreen() {
       />
       <FlatList
         data={users}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={sharedScreenStyles.contentLg}
         renderItem={renderUserItem}
         keyExtractor={(item) => item.id ?? Math.random().toString()}
         ListEmptyComponent={
-          <View style={styles.emptyContainer}>
+          <View style={sharedScreenStyles.centered}>
             <Text style={styles.emptyText}>No hay usuarios registrados</Text>
             <Button
               label="Crear Usuario"
@@ -85,15 +86,6 @@ export default function AdminUsersScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Theme.colors.white,
-  },
-  listContent: {
-    padding: Theme.spacing.lg,
-    gap: Theme.spacing.lg,
-    paddingBottom: Theme.spacing.xxl,
-  },
   userName: {
     fontSize: Theme.fontSize.lg,
     fontWeight: Theme.fontWeight.bold,
@@ -114,12 +106,6 @@ const styles = StyleSheet.create({
   buttonRow: {
     flexDirection: 'row',
     gap: Theme.spacing.md,
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: Theme.spacing.xxl,
   },
   emptyText: {
     fontSize: Theme.fontSize.lg,

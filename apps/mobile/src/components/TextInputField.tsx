@@ -105,6 +105,8 @@ export const TextInputField: React.FC<CustomTextInputProps> = ({
   isPassword = false,
   value,
   onChangeText,
+  onBlur,
+  onFocus,
   ...props
 }) => {
   const [focused, setFocused] = useState(false);
@@ -123,6 +125,16 @@ export const TextInputField: React.FC<CustomTextInputProps> = ({
       ? 'eye-off-outline'
       : 'eye-outline'
     : rightIcon;
+
+  const handleFocus = (event: any) => {
+    setFocused(true);
+    onFocus?.(event);
+  };
+
+  const handleBlur = (event: any) => {
+    setFocused(false);
+    onBlur?.(event);
+  };
 
   return (
     <View style={[styles.container, containerStyle]}>
@@ -153,10 +165,14 @@ export const TextInputField: React.FC<CustomTextInputProps> = ({
           editable={!disabled}
           multiline={multiline}
           secureTextEntry={!showPassword && isPassword}
-          value={value}
+          value={value ?? ''}
           onChangeText={onChangeText}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
+          autoCorrect={false}
+          autoCapitalize={props.autoCapitalize ?? 'none'}
+          importantForAutofill="yes"
+          returnKeyType={props.returnKeyType ?? (isPassword ? 'done' : 'next')}
           {...props}
         />
 

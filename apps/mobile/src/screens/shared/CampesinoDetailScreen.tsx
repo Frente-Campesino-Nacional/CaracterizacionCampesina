@@ -5,13 +5,14 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { Card, Button, Header } from '../../components';
 import { Theme } from '../../theme/colors';
+import { sharedScreenStyles } from '../../styles/sharedScreenStyles';
 import { useAuthStore } from '../../store/authStore';
 import { CampesinoRecord, ConsejoRecord, UsuarioRecord, getCampesino, listConsejos, listUsuarios } from '../../services/adminService';
 import { isAdminRole } from '../../utils/roles';
 
 type RootStackParamList = {
-  CampesinoDetail: { campesinoId: number };
-  FormulariosPendientes: { campesinoId: number };
+  CampesinoDetail: { campesinoId: string };
+  FormulariosPendientes: { campesinoId: string };
 };
 
 type Props = NativeStackScreenProps<RootStackParamList, 'CampesinoDetail'>;
@@ -86,16 +87,16 @@ export default function CampesinoDetailScreen({ route, navigation }: Props) {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <Text style={styles.loadingText}>Cargando campesino...</Text>
+      <View style={sharedScreenStyles.centered}>
+        <Text style={sharedScreenStyles.helperText}>Cargando campesino...</Text>
       </View>
     );
   }
 
   if (!campesino) {
     return (
-      <View style={styles.loadingContainer}>
-        <Text style={styles.loadingText}>No se encontró el campesino.</Text>
+      <View style={sharedScreenStyles.centered}>
+        <Text style={sharedScreenStyles.helperText}>No se encontró el campesino.</Text>
       </View>
     );
   }
@@ -105,20 +106,20 @@ export default function CampesinoDetailScreen({ route, navigation }: Props) {
   };
 
   const renderField = (label: string, value?: string | number | boolean | null) => (
-    <View style={styles.fieldRow}>
-      <Text style={styles.fieldLabel}>{label}</Text>
-      <Text style={styles.fieldValue}>{value != null && value !== '' ? String(value) : 'N/A'}</Text>
+    <View style={sharedScreenStyles.fieldRow}>
+      <Text style={sharedScreenStyles.fieldLabel}>{label}</Text>
+      <Text style={sharedScreenStyles.fieldValue}>{value != null && value !== '' ? String(value) : 'N/A'}</Text>
     </View>
   );
 
   return (
-    <View style={styles.container}>
+    <View style={sharedScreenStyles.surfaceWhite}>
       <Header
         title="Detalle de Campesino"
         subtitle={`${campesino.nombre} ${campesino.apellido ?? ''}`.trim()}
         showBorder
       />
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={sharedScreenStyles.contentLg}>
         <Card variant="elevated" padding="lg" style={styles.profileCard}>
           <View style={styles.avatarContainer}>
             <MaterialCommunityIcons name="account-group" size={72} color={Theme.colors.greenDark} />
@@ -166,18 +167,11 @@ export default function CampesinoDetailScreen({ route, navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Theme.colors.white },
-  content: { padding: Theme.spacing.lg, gap: Theme.spacing.lg, paddingBottom: Theme.spacing.xxl },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Theme.colors.white },
-  loadingText: { color: Theme.colors.mediumGray, fontSize: Theme.fontSize.base },
   profileCard: { alignItems: 'center' },
   avatarContainer: { marginBottom: Theme.spacing.md },
   nameText: { fontSize: Theme.fontSize['2xl'], fontWeight: Theme.fontWeight.bold, color: Theme.colors.darkGray, textAlign: 'center' },
   subtitleText: { color: Theme.colors.mediumGray, marginTop: Theme.spacing.xs, textAlign: 'center' },
   detailsCard: { gap: Theme.spacing.sm },
-  fieldRow: { marginBottom: Theme.spacing.md },
-  fieldLabel: { color: Theme.colors.mediumGray, fontSize: Theme.fontSize.sm, marginBottom: Theme.spacing.xs },
-  fieldValue: { color: Theme.colors.darkGray, fontSize: Theme.fontSize.base, fontWeight: Theme.fontWeight.semibold },
   adminCard: { borderColor: Theme.colors.lightGray, borderWidth: 1 },
   adminTitle: { fontSize: Theme.fontSize.base, fontWeight: Theme.fontWeight.bold, color: Theme.colors.darkGray, marginBottom: Theme.spacing.sm },
 });

@@ -5,8 +5,8 @@ export class UpdateSyncDto {
   entidad?: string;
 
   @IsOptional()
-  @IsInt()
-  entidad_id?: number;
+  @IsString()
+  entidad_id?: string;
 
   @IsOptional()
   operacion?: string;

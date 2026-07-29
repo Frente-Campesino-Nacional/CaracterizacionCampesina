@@ -65,9 +65,9 @@ __decorate([
     (0, common_1.Get)(':id'),
     (0, swagger_1.ApiOperation)({ summary: 'Obtener usuario por ID' }),
     __param(0, (0, common_1.Request)()),
-    __param(1, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    __param(1, (0, common_1.Param)('id')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, Number]),
+    __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
 ], UsuariosController.prototype, "findOne", null);
 __decorate([
@@ -84,7 +84,7 @@ __decorate([
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Number, update_usuario_dto_1.UpdateUsuarioDto]),
+    __metadata("design:paramtypes", [String, update_usuario_dto_1.UpdateUsuarioDto]),
     __metadata("design:returntype", void 0)
 ], UsuariosController.prototype, "update", null);
 __decorate([
@@ -92,41 +92,41 @@ __decorate([
     (0, swagger_1.ApiOperation)({ summary: 'Eliminar usuario' }),
     __param(0, (0, common_1.Param)('id')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Number]),
+    __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], UsuariosController.prototype, "remove", null);
 __decorate([
     (0, common_1.Post)(':id/foto-perfil'),
-    (0, swagger_1.ApiOperation)({ summary: 'Guardar imagen de perfil en Mongo opcional' }),
-    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    (0, swagger_1.ApiOperation)({ summary: 'Guardar imagen de perfil' }),
+    __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Number, save_profile_image_dto_1.SaveProfileImageDto]),
+    __metadata("design:paramtypes", [String, save_profile_image_dto_1.SaveProfileImageDto]),
     __metadata("design:returntype", void 0)
 ], UsuariosController.prototype, "saveProfileImage", null);
 __decorate([
     (0, common_1.Get)(':id/foto-perfil'),
-    (0, swagger_1.ApiOperation)({ summary: 'Obtener imagen de perfil en Mongo opcional' }),
-    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    (0, swagger_1.ApiOperation)({ summary: 'Obtener imagen de perfil' }),
+    __param(0, (0, common_1.Param)('id')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Number]),
+    __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], UsuariosController.prototype, "getProfileImage", null);
 __decorate([
     (0, common_1.Put)(':id/foto-perfil'),
-    (0, swagger_1.ApiOperation)({ summary: 'Actualizar imagen de perfil en Mongo opcional' }),
-    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    (0, swagger_1.ApiOperation)({ summary: 'Actualizar imagen de perfil' }),
+    __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Number, save_profile_image_dto_1.SaveProfileImageDto]),
+    __metadata("design:paramtypes", [String, save_profile_image_dto_1.SaveProfileImageDto]),
     __metadata("design:returntype", void 0)
 ], UsuariosController.prototype, "updateProfileImage", null);
 __decorate([
     (0, common_1.Delete)(':id/foto-perfil'),
-    (0, swagger_1.ApiOperation)({ summary: 'Eliminar imagen de perfil en Mongo opcional' }),
-    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    (0, swagger_1.ApiOperation)({ summary: 'Eliminar imagen de perfil' }),
+    __param(0, (0, common_1.Param)('id')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Number]),
+    __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], UsuariosController.prototype, "deleteProfileImage", null);
 exports.UsuariosController = UsuariosController = __decorate([

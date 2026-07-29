@@ -1,45 +1,77 @@
 import { NestFactory } from '@nestjs/core';
-import { BadRequestException, ValidationError, ValidationPipe } from '@nestjs/common';
+import { BadRequestException, ValidationError, ValidationPipe, HttpException, HttpStatus } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
+
+function flattenValidationErrors(errors: ValidationError[], parentPath = ''): string[] {
+  const messages: string[] = [];
+
+  for (const error of errors) {
+    const currentPath = parentPath ? `${parentPath}.${error.property}` : error.property;
+
+    if (error.constraints) {
+      for (const constraintMessage of Object.values(error.constraints)) {
+        messages.push(`${currentPath}: ${constraintMessage}`);
+      }
+    }
+
+    if (error.children?.length) {
+      messages.push(...flattenValidationErrors(error.children, currentPath));
+    }
+  }
+
+  return messages;
+}
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  const flattenValidationErrors = (errors: ValidationError[], parentPath = ''): string[] => {
-    const messages: string[] = [];
+  app.useGlobalFilters({
+    catch(exception: unknown, host: any) {
+      const ctx = host.switchToHttp();
+      const response = ctx.getResponse();
+      const request = ctx.getRequest();
 
-    for (const error of errors) {
-      const currentPath = parentPath ? `${parentPath}.${error.property}` : error.property;
+      const status = exception instanceof HttpException ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
+      const responseBody = exception instanceof HttpException ? exception.getResponse() : { message: 'Error interno del servidor' };
 
-      if (error.constraints) {
-        for (const constraintMessage of Object.values(error.constraints)) {
-          messages.push(`${currentPath}: ${constraintMessage}`);
-        }
+      if (status >= 400 && status < 500) {
+        // eslint-disable-next-line no-console
+        console.error('[http-error]', {
+          status,
+          path: request?.url,
+          method: request?.method,
+          responseBody,
+        });
       }
 
-      if (error.children?.length) {
-        messages.push(...flattenValidationErrors(error.children, currentPath));
+      if (status >= 500) {
+        // eslint-disable-next-line no-console
+        console.error('[server-error]', {
+          status,
+          path: request?.url,
+          method: request?.method,
+          responseBody,
+          error: exception instanceof Error ? exception.message : 'Unknown error',
+          stack: exception instanceof Error ? exception.stack : undefined,
+        });
       }
-    }
 
-    return messages;
-  };
-
-  // Habilitar CORS
-  app.enableCors({
-    origin: ['http://localhost:3008', 'http://localhost:8080'],
-    credentials: true,
+      response.status(status).json(responseBody);
+    },
   });
 
-  // Validación global
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
-      forbidNonWhitelisted: true,
+      forbidNonWhitelisted: false,
       transform: true,
+      transformOptions: { enableImplicitConversion: true },
+      validationError: { target: false, value: false },
       exceptionFactory: (errors: ValidationError[]) => {
         const messages = flattenValidationErrors(errors);
+        // eslint-disable-next-line no-console
+        console.error('Validation errors:', messages);
         return new BadRequestException({
           message: 'Error de validacion',
           errors: messages,
@@ -48,10 +80,13 @@ async function bootstrap() {
     }),
   );
 
-  // Prefijo global para la API
+  app.enableCors({
+    origin: ['http://localhost:3008', 'http://localhost:8080'],
+    credentials: true,
+  });
+
   app.setGlobalPrefix('api', { exclude: [''] });
 
-  // Swagger Documentation
   const config = new DocumentBuilder()
     .setTitle('CensoCampesino API')
     .setDescription('API para el sistema de censo campesino')

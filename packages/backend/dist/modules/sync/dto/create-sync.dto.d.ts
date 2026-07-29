@@ -1,6 +1,6 @@
 export declare class CreateSyncDto {
     entidad: string;
-    entidad_id: number;
+    entidad_id: string;
     operacion: string;
     datos: object;
     estado?: string;

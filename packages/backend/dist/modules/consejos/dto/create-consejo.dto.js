@@ -10,6 +10,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CreateConsejoDto = void 0;
+const class_transformer_1 = require("class-transformer");
 const class_validator_1 = require("class-validator");
 class CreateConsejoDto {
 }
@@ -23,29 +24,29 @@ __decorate([
     __metadata("design:type", String)
 ], CreateConsejoDto.prototype, "descripcion", void 0);
 __decorate([
-    (0, class_validator_1.IsNotEmpty)(),
-    __metadata("design:type", String)
-], CreateConsejoDto.prototype, "estado", void 0);
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsInt)(),
+    __metadata("design:type", Number)
+], CreateConsejoDto.prototype, "estado_id", void 0);
 __decorate([
-    (0, class_validator_1.IsNotEmpty)(),
-    __metadata("design:type", String)
-], CreateConsejoDto.prototype, "municipio", void 0);
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsInt)(),
+    __metadata("design:type", Number)
+], CreateConsejoDto.prototype, "municipio_id", void 0);
 __decorate([
-    (0, class_validator_1.IsNotEmpty)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsInt)(),
+    __metadata("design:type", Number)
+], CreateConsejoDto.prototype, "parroquia_id", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
     __metadata("design:type", String)
 ], CreateConsejoDto.prototype, "encargado_tipo", void 0);
 __decorate([
-    (0, class_validator_1.IsNotEmpty)(),
-    __metadata("design:type", Number)
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", Object)
 ], CreateConsejoDto.prototype, "encargado_id", void 0);
-__decorate([
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsDateString)(),
-    __metadata("design:type", String)
-], CreateConsejoDto.prototype, "creado_en", void 0);
-__decorate([
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsDateString)(),
-    __metadata("design:type", String)
-], CreateConsejoDto.prototype, "actualizado_en", void 0);
 //# sourceMappingURL=create-consejo.dto.js.map

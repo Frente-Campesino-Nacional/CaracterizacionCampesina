@@ -3,7 +3,7 @@ import { Dimensions, ScrollView, StyleSheet, Text, View, FlatList } from 'react-
 import { PieChart } from 'react-native-chart-kit';
 import SearchBar from '../../components/SearchBar';
 import { Card } from '../../components';
-import { Theme } from '../../theme/colors';
+import { sharedScreenStyles } from '../../styles/sharedScreenStyles';
 import { CampesinoRecord, SyncRecord, listCampesinos, listSyncRecords } from '../../services/adminService';
 import { useAuthStore } from '../../store/authStore';
 
@@ -28,32 +28,10 @@ export default function AdminAuditoriaScreen() {
 
   const logs = useMemo(() => {
     const text = search.toLowerCase();
-    const capitalize = (s: string) => (s ? `${s.charAt(0).toUpperCase()}${s.slice(1)}` : s);
-    const mapOperation = (op: string) => {
-      const o = (op || '').toLowerCase();
-      if (o.includes('create')) return 'registrado';
-      if (o.includes('update')) return 'actualizado';
-      if (o.includes('delete')) return 'eliminado';
-      if (o.includes('sync')) return 'sincronizado';
-      return op;
-    };
 
     return syncItems
       .map((item) => {
-        const entidadLower = (item.entidad || '').toLowerCase();
-        let line = '';
-
-        if (entidadLower === 'campesino') {
-          const nombre = (item.datos && (item.datos as any).nombre) || (item.datos && (item.datos as any).nombre_completo) || '';
-          const opLabel = mapOperation(item.operacion);
-          const estadoLabel = capitalize(String(item.estado || ''));
-          line = nombre ? `Campesino (${nombre}) ${opLabel} (${estadoLabel})` : `Campesino #${item.entidad_id} ${opLabel} (${estadoLabel})`;
-        } else {
-          const opLabel = mapOperation(item.operacion);
-          const estadoLabel = capitalize(String(item.estado || ''));
-          line = `${capitalize(String(item.entidad || ''))} #${item.entidad_id} ${opLabel} (${estadoLabel})`;
-        }
-
+        const line = String((item as any).mensaje || '').trim() || `${item.entidad || 'Registro'} fue ${item.operacion || 'actualizado'}`;
         return { id: item.id, line, creado_en: item.creado_en };
       })
       .filter((item) => item.line.toLowerCase().includes(text));
@@ -91,12 +69,12 @@ export default function AdminAuditoriaScreen() {
   );
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>Auditoría</Text>
+    <ScrollView style={sharedScreenStyles.surfaceSoft} contentContainerStyle={sharedScreenStyles.contentMd}>
+      <Text style={sharedScreenStyles.cardTitleXl}>Auditoría</Text>
       <Text style={styles.subtitle}>Historial de movimientos y distribución por género.</Text>
 
-      <Card variant="elevated" padding="md" style={styles.chartBox}>
-        <Text style={styles.cardTitle}>Porcentaje de hombres y mujeres</Text>
+      <Card variant="elevated" padding="md" style={sharedScreenStyles.card}>
+        <Text style={sharedScreenStyles.cardTitleLg}>Porcentaje de hombres y mujeres</Text>
         <PieChart
           data={chartData}
           width={Dimensions.get('window').width - 40}
@@ -111,8 +89,8 @@ export default function AdminAuditoriaScreen() {
         <Text style={styles.percentLine}>Hombres: {genderCounts.menPct}% | Mujeres: {genderCounts.womenPct}%</Text>
       </Card>
 
-      <Card variant="elevated" padding="md" style={styles.logsBox}>
-        <Text style={styles.cardTitle}>Movimientos recientes</Text>
+      <Card variant="elevated" padding="md" style={sharedScreenStyles.card}>
+        <Text style={sharedScreenStyles.cardTitleLg}>Movimientos recientes</Text>
         <SearchBar value={search} onChangeText={setSearch} placeholder="Buscar en historial" />
         {logs.length ? (
           <FlatList
@@ -131,13 +109,7 @@ export default function AdminAuditoriaScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f7fb' },
-  content: { padding: 12, gap: 12 },
-  title: { fontSize: 24, fontWeight: '800', color: '#0f172a' },
   subtitle: { color: '#4b5563' },
-  chartBox: { backgroundColor: '#fff', borderRadius: 14, padding: 12 },
-  logsBox: { backgroundColor: '#fff', borderRadius: 14, padding: 12 },
-  cardTitle: { fontWeight: '800', marginBottom: 8, color: '#0f172a' },
   percentLine: { color: '#334155', fontWeight: '700', marginTop: 6 },
   logItem: { paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#eef2f7' },
   logText: { color: '#1f2937', fontSize: 13 },

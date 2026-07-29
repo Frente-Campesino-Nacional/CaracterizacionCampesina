@@ -26,13 +26,13 @@ export class SyncController {
 
   @Put(':id')
   @ApiOperation({ summary: 'Actualizar registro de sincronización' })
-  update(@Param('id') id: number, @Body() updateSyncDto: UpdateSyncDto) {
+  update(@Param('id') id: string, @Body() updateSyncDto: UpdateSyncDto) {
     return this.syncService.update(id, updateSyncDto);
   }
 
   @Post('process/:id')
   @ApiOperation({ summary: 'Procesar un registro de sincronización' })
-  process(@Param('id') id: number) {
+  process(@Param('id') id: string) {
     return this.syncService.process(id);
   }
 }

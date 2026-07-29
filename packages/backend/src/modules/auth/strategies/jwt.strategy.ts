@@ -2,6 +2,7 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../database/prisma.service';
 
 @Injectable()
@@ -17,12 +18,15 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  async validate(payload: { sub: number; email: string; rol: string }) {
-    const usuario = await this.prisma.usuario.findUnique({
-      where: { id: payload.sub },
-    });
+  async validate(payload: { sub: string; email: string; rol: string }) {
+    const usuario = await this.prisma.$queryRaw<Array<{ id_usuario: string }>>(Prisma.sql`
+      SELECT id_usuario
+      FROM seguridad.usuarios
+      WHERE id_usuario = CAST(${payload.sub} AS uuid)
+      LIMIT 1
+    `);
 
-    if (!usuario || !usuario.activo) {
+    if (!usuario[0]) {
       throw new UnauthorizedException('Usuario no válido');
     }
 

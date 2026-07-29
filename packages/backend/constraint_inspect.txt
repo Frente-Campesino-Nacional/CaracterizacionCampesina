@@ -1,0 +1,19 @@
+﻿auditoria|historial_cambios|35505|p|PRIMARY KEY (id)
+auditoria|historial_cambios|35616|f|FOREIGN KEY (usuario_id_reg) REFERENCES seguridad.usuarios(id) ON UPDATE CASCADE ON DELETE SET NULL
+operacional|campesinos|35469|p|PRIMARY KEY (id)
+operacional|campesinos|35576|f|FOREIGN KEY (genero) REFERENCES catalogos.generos(id_gen) ON UPDATE SET NULL ON DELETE SET NULL
+operacional|campesinos|35581|f|FOREIGN KEY (consejo_id) REFERENCES operacional.consejos(id) ON UPDATE CASCADE ON DELETE SET NULL
+operacional|campesinos|35586|f|FOREIGN KEY (creado_por) REFERENCES seguridad.usuarios(id) ON UPDATE CASCADE ON DELETE SET NULL
+operacional|campesinos|35591|f|FOREIGN KEY (asignado_a) REFERENCES seguridad.usuarios(id) ON UPDATE CASCADE ON DELETE SET NULL
+operacional|consejos|35445|p|PRIMARY KEY (id)
+operacional|formularios|35482|p|PRIMARY KEY (id)
+operacional|formularios|35596|f|FOREIGN KEY (creado_por) REFERENCES seguridad.usuarios(id) ON UPDATE CASCADE
+operacional|fotos_perfil|35526|p|PRIMARY KEY (id_fotos)
+respuestas|respuesta_form|35494|p|PRIMARY KEY (id)
+respuestas|respuesta_form|35601|f|FOREIGN KEY (formulario_id) REFERENCES operacional.formularios(id) ON UPDATE CASCADE ON DELETE CASCADE
+respuestas|respuesta_form|35606|f|FOREIGN KEY (campesino_id) REFERENCES operacional.campesinos(id) ON UPDATE CASCADE ON DELETE SET NULL
+respuestas|respuesta_form|35611|f|FOREIGN KEY (encuestador_id) REFERENCES seguridad.usuarios(id) ON UPDATE CASCADE ON DELETE SET NULL
+seguridad|usuarios|35457|p|PRIMARY KEY (id)
+seguridad|usuarios|35561|f|FOREIGN KEY (rol) REFERENCES seguridad.roles(id_rol) ON UPDATE RESTRICT ON DELETE RESTRICT
+seguridad|usuarios|35566|f|FOREIGN KEY (genero) REFERENCES catalogos.generos(id_gen) ON UPDATE SET NULL ON DELETE SET NULL
+seguridad|usuarios|35571|f|FOREIGN KEY (consejo_id) REFERENCES operacional.consejos(id) ON UPDATE CASCADE ON DELETE SET NULL

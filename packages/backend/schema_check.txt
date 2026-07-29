@@ -1,0 +1,138 @@
+table_schema|table_name|column_name|data_type|is_nullable|coalesce
+auditoria|historial_cambios|id|integer|NO|nextval('auditoria.historial_cambios_id_seq'::regclass)
+auditoria|historial_cambios|usuario_id_reg|integer|YES|NULL
+auditoria|historial_cambios|tabla_nombre|text|NO|NULL
+auditoria|historial_cambios|registro_id|integer|NO|NULL
+auditoria|historial_cambios|accion|text|NO|NULL
+auditoria|historial_cambios|valores_anteriores|jsonb|YES|NULL
+auditoria|historial_cambios|valores_nuevos|jsonb|YES|NULL
+auditoria|historial_cambios|origen|text|NO|'WEB_DIRECTO'::text
+auditoria|historial_cambios|created_at|timestamp without time zone|NO|CURRENT_TIMESTAMP
+operacional|campesinos|id|integer|NO|nextval('operacional.campesinos_id_seq'::regclass)
+operacional|campesinos|uuid|uuid|NO|gen_random_uuid()
+operacional|campesinos|cedula|text|NO|NULL
+operacional|campesinos|nombre|text|NO|NULL
+operacional|campesinos|apellido|text|YES|NULL
+operacional|campesinos|telefono|text|YES|NULL
+operacional|campesinos|correo|text|YES|NULL
+operacional|campesinos|fecha_nacimiento|timestamp without time zone|YES|NULL
+operacional|campesinos|genero|integer|YES|NULL
+operacional|campesinos|estado|text|YES|NULL
+operacional|campesinos|municipio|text|YES|NULL
+operacional|campesinos|parroquia|text|YES|NULL
+operacional|campesinos|direccion|text|YES|NULL
+operacional|campesinos|consejo_id|integer|YES|NULL
+operacional|campesinos|creado_por|integer|YES|NULL
+operacional|campesinos|asignado_a|integer|YES|NULL
+operacional|campesinos|tiene_pendientes|boolean|NO|false
+operacional|campesinos|metadata|jsonb|YES|NULL
+operacional|campesinos|creado_en|timestamp without time zone|NO|CURRENT_TIMESTAMP
+operacional|campesinos|actualizado_en|timestamp without time zone|NO|NULL
+operacional|consejos|id|integer|NO|nextval('operacional.consejos_id_seq'::regclass)
+operacional|consejos|uuid|uuid|NO|gen_random_uuid()
+operacional|consejos|nombre|text|NO|NULL
+operacional|consejos|descripcion|text|YES|NULL
+operacional|consejos|estado|text|NO|NULL
+operacional|consejos|municipio|text|NO|NULL
+operacional|consejos|parroquia|text|YES|NULL
+operacional|consejos|encargado_tipo|text|NO|NULL
+operacional|consejos|encargado_id|integer|NO|NULL
+operacional|consejos|creado_en|timestamp without time zone|NO|CURRENT_TIMESTAMP
+operacional|consejos|actualizado_en|timestamp without time zone|NO|NULL
+operacional|formularios|id|integer|NO|nextval('operacional.formularios_id_seq'::regclass)
+operacional|formularios|uuid|uuid|NO|gen_random_uuid()
+operacional|formularios|titulo|text|NO|NULL
+operacional|formularios|version|integer|NO|1
+operacional|formularios|estructura|jsonb|NO|NULL
+operacional|formularios|activo|boolean|NO|true
+operacional|formularios|creado_por|integer|NO|NULL
+operacional|formularios|creado_en|timestamp without time zone|NO|CURRENT_TIMESTAMP
+operacional|formularios|actualizado_en|timestamp without time zone|NO|NULL
+operacional|fotos_perfil|id_fotos|text|NO|NULL
+operacional|fotos_perfil|persona_id|integer|NO|NULL
+operacional|fotos_perfil|url_nube|text|NO|NULL
+operacional|fotos_perfil|created_at|timestamp without time zone|NO|CURRENT_TIMESTAMP
+operacional|fotos_perfil|updated_at|timestamp without time zone|NO|NULL
+operacional|fotos_perfil|sync_status|text|NO|'pending'::text
+operacional|fotos_perfil|sync_attempts|integer|NO|0
+operacional|fotos_perfil|last_synced_at|timestamp without time zone|YES|NULL
+operacional|fotos_perfil|sync_error|text|YES|NULL
+registros|personas|id_personas|uuid|NO|gen_random_uuid()
+registros|personas|nombre|text|NO|NULL
+registros|personas|apellido|text|NO|NULL
+registros|personas|tipo_cedula|USER-DEFINED|NO|NULL
+registros|personas|cedula|character varying|NO|NULL
+registros|personas|fecha_nacimiento|date|NO|NULL
+registros|personas|parroquia|integer|NO|NULL
+registros|personas|direccion_usuario|text|NO|NULL
+registros|personas|email|character varying|YES|NULL
+registros|personas|numero_telefonico|character varying|YES|NULL
+registros|personas|genero|integer|NO|NULL
+registros|personas|consejo_id|integer|YES|NULL
+registros|personas|created_at|timestamp without time zone|NO|CURRENT_TIMESTAMP
+registros|personas|update_at|timestamp without time zone|NO|CURRENT_TIMESTAMP
+registros|personas|sync_status|text|NO|'pending'::text
+registros|personas|sync_attempts|integer|NO|0
+registros|personas|last_synced_at|timestamp with time zone|YES|NULL
+registros|personas|sync_error|text|YES|NULL
+respuestas|respuesta_form|id|integer|NO|nextval('respuestas.respuesta_form_id_seq'::regclass)
+respuestas|respuesta_form|uuid|uuid|NO|gen_random_uuid()
+respuestas|respuesta_form|formulario_id|integer|NO|NULL
+respuestas|respuesta_form|campesino_id|integer|YES|NULL
+respuestas|respuesta_form|encuestador_id|integer|YES|NULL
+respuestas|respuesta_form|respuestas|jsonb|NO|NULL
+respuestas|respuesta_form|metadata|jsonb|YES|NULL
+respuestas|respuesta_form|capturado_en|timestamp without time zone|YES|NULL
+respuestas|respuesta_form|guardado_en_postgres|boolean|NO|true
+respuestas|respuesta_form|registro_id|text|YES|NULL
+respuestas|respuesta_form|creado_en|timestamp without time zone|NO|CURRENT_TIMESTAMP
+respuestas|respuesta_form|actualizado_en|timestamp without time zone|NO|NULL
+seguridad|usuarios|id|integer|NO|nextval('seguridad.usuarios_id_seq'::regclass)
+seguridad|usuarios|uuid|uuid|NO|gen_random_uuid()
+seguridad|usuarios|email|text|NO|NULL
+seguridad|usuarios|password_hash|text|NO|NULL
+seguridad|usuarios|cedula|text|YES|NULL
+seguridad|usuarios|rol|integer|NO|NULL
+seguridad|usuarios|nombre|text|NO|NULL
+seguridad|usuarios|apellido|text|NO|NULL
+seguridad|usuarios|numero_telefono|text|YES|NULL
+seguridad|usuarios|fecha_nacimiento|timestamp without time zone|YES|NULL
+seguridad|usuarios|genero|integer|YES|NULL
+seguridad|usuarios|estado|text|YES|NULL
+seguridad|usuarios|municipio|text|YES|NULL
+seguridad|usuarios|parroquia|text|YES|NULL
+seguridad|usuarios|direccion|text|YES|NULL
+seguridad|usuarios|consejo_id|integer|YES|NULL
+seguridad|usuarios|activo|boolean|NO|true
+seguridad|usuarios|creado_en|timestamp without time zone|NO|CURRENT_TIMESTAMP
+seguridad|usuarios|actualizado_en|timestamp without time zone|NO|NULL
+(107 rows)
+nspname|relname|conname|contype|pg_get_constraintdef
+auditoria|historial_cambios|historial_cambios_usuario_id_reg_fkey|f|FOREIGN KEY (usuario_id_reg) REFERENCES seguridad.usuarios(id) ON UPDATE CASCADE ON DELETE SET NULL
+auditoria|historial_cambios|historial_cambios_pkey|p|PRIMARY KEY (id)
+operacional|campesinos|campesinos_asignado_a_fkey|f|FOREIGN KEY (asignado_a) REFERENCES seguridad.usuarios(id) ON UPDATE CASCADE ON DELETE SET NULL
+operacional|campesinos|campesinos_consejo_id_fkey|f|FOREIGN KEY (consejo_id) REFERENCES operacional.consejos(id) ON UPDATE CASCADE ON DELETE SET NULL
+operacional|campesinos|campesinos_creado_por_fkey|f|FOREIGN KEY (creado_por) REFERENCES seguridad.usuarios(id) ON UPDATE CASCADE ON DELETE SET NULL
+operacional|campesinos|campesinos_genero_fkey|f|FOREIGN KEY (genero) REFERENCES catalogos.generos(id_gen) ON UPDATE SET NULL ON DELETE SET NULL
+operacional|campesinos|campesinos_pkey|p|PRIMARY KEY (id)
+operacional|consejos|consejos_pkey|p|PRIMARY KEY (id)
+operacional|formularios|formularios_creado_por_fkey|f|FOREIGN KEY (creado_por) REFERENCES seguridad.usuarios(id) ON UPDATE CASCADE
+operacional|formularios|formularios_pkey|p|PRIMARY KEY (id)
+operacional|fotos_perfil|fotos_perfil_pkey|p|PRIMARY KEY (id_fotos)
+registros|personas|chk_tipo_cedula|c|CHECK ((((tipo_cedula = ANY (ARRAY['V'::registros.tipo_cedula_enum, 'E'::registros.tipo_cedula_enum])) AND ((cedula)::text ~ '^\\d{6,9}$'::text)) OR ((tipo_cedula = 'NP'::registros.tipo_cedula_enum) AND ((cedula)::text ~ '^[A-Z]\\d{3}$'::text))))
+registros|personas|personas_sync_status_chk|c|CHECK ((sync_status = ANY (ARRAY['pending'::text, 'synced'::text, 'failed'::text])))
+registros|personas|consejo_id_fkey|f|FOREIGN KEY (consejo_id) REFERENCES operacional.consejos(id) ON UPDATE CASCADE ON DELETE SET NULL
+registros|personas|genero_fkey|f|FOREIGN KEY (genero) REFERENCES catalogos.generos(id_gen)
+registros|personas|parroquia_fkey|f|FOREIGN KEY (parroquia) REFERENCES catalogos.parroquias(id_parroquia) ON UPDATE CASCADE ON DELETE RESTRICT
+registros|personas|id_personas_pkey|p|PRIMARY KEY (id_personas)
+registros|personas|cedula_unique|u|UNIQUE (cedula)
+registros|personas|email_unique|u|UNIQUE (email)
+respuestas|respuesta_form|respuesta_form_campesino_id_fkey|f|FOREIGN KEY (campesino_id) REFERENCES operacional.campesinos(id) ON UPDATE CASCADE ON DELETE SET NULL
+respuestas|respuesta_form|respuesta_form_encuestador_id_fkey|f|FOREIGN KEY (encuestador_id) REFERENCES seguridad.usuarios(id) ON UPDATE CASCADE ON DELETE SET NULL
+respuestas|respuesta_form|respuesta_form_formulario_id_fkey|f|FOREIGN KEY (formulario_id) REFERENCES operacional.formularios(id) ON UPDATE CASCADE ON DELETE CASCADE
+respuestas|respuesta_form|respuesta_form_pkey|p|PRIMARY KEY (id)
+seguridad|usuarios|usuarios_consejo_id_fkey|f|FOREIGN KEY (consejo_id) REFERENCES operacional.consejos(id) ON UPDATE CASCADE ON DELETE SET NULL
+seguridad|usuarios|usuarios_genero_fkey|f|FOREIGN KEY (genero) REFERENCES catalogos.generos(id_gen) ON UPDATE SET NULL ON DELETE SET NULL
+seguridad|usuarios|usuarios_rol_fkey|f|FOREIGN KEY (rol) REFERENCES seguridad.roles(id_rol) ON UPDATE RESTRICT ON DELETE RESTRICT
+seguridad|usuarios|usuarios_pkey|p|PRIMARY KEY (id)
+(27 rows)

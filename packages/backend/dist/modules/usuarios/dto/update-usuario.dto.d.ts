@@ -1,18 +1,18 @@
 export declare class UpdateUsuarioDto {
     email?: string;
+    nombre_usuario?: string;
     cedula?: string;
     password?: string;
     nombre?: string;
     apellido?: string;
-    rol?: 'admin' | 'administrador' | 'encuestador';
+    rol?: string;
     numero_telefono?: string;
     fecha_nacimiento?: string;
     genero?: string;
-    estado?: string;
-    municipio?: string;
+    estado_id?: number;
+    municipio_id?: number;
+    parroquia_id?: number;
     direccion?: string;
     activo?: boolean;
-    consejo_id?: number;
-    creado_en?: string;
-    actualizado_en?: string;
+    consejo_id?: string | number | null;
 }

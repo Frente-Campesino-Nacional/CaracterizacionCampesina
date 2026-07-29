@@ -52,7 +52,7 @@ __decorate([
     (0, swagger_1.ApiOperation)({ summary: 'Obtener consejo por ID' }),
     __param(0, (0, common_1.Param)('id')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Number]),
+    __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], ConsejosController.prototype, "findOne", null);
 __decorate([
@@ -69,7 +69,7 @@ __decorate([
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Number, update_consejo_dto_1.UpdateConsejoDto]),
+    __metadata("design:paramtypes", [String, update_consejo_dto_1.UpdateConsejoDto]),
     __metadata("design:returntype", void 0)
 ], ConsejosController.prototype, "update", null);
 __decorate([
@@ -77,7 +77,7 @@ __decorate([
     (0, swagger_1.ApiOperation)({ summary: 'Eliminar consejo' }),
     __param(0, (0, common_1.Param)('id')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Number]),
+    __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], ConsejosController.prototype, "remove", null);
 exports.ConsejosController = ConsejosController = __decorate([

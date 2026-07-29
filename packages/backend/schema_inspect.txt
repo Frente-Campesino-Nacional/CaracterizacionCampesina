@@ -1,0 +1,107 @@
+﻿auditoria|historial_cambios|id|integer|nextval('auditoria.historial_cambios_id_seq'::regclass)|NO
+auditoria|historial_cambios|usuario_id_reg|integer|\N|YES
+auditoria|historial_cambios|tabla_nombre|text|\N|NO
+auditoria|historial_cambios|registro_id|integer|\N|NO
+auditoria|historial_cambios|accion|text|\N|NO
+auditoria|historial_cambios|valores_anteriores|jsonb|\N|YES
+auditoria|historial_cambios|valores_nuevos|jsonb|\N|YES
+auditoria|historial_cambios|origen|text|'WEB_DIRECTO'::text|NO
+auditoria|historial_cambios|created_at|timestamp without time zone|CURRENT_TIMESTAMP|NO
+operacional|campesinos|id|integer|nextval('operacional.campesinos_id_seq'::regclass)|NO
+operacional|campesinos|uuid|uuid|gen_random_uuid()|NO
+operacional|campesinos|cedula|text|\N|NO
+operacional|campesinos|nombre|text|\N|NO
+operacional|campesinos|apellido|text|\N|YES
+operacional|campesinos|telefono|text|\N|YES
+operacional|campesinos|correo|text|\N|YES
+operacional|campesinos|fecha_nacimiento|timestamp without time zone|\N|YES
+operacional|campesinos|genero|integer|\N|YES
+operacional|campesinos|estado|text|\N|YES
+operacional|campesinos|municipio|text|\N|YES
+operacional|campesinos|parroquia|text|\N|YES
+operacional|campesinos|direccion|text|\N|YES
+operacional|campesinos|consejo_id|integer|\N|YES
+operacional|campesinos|creado_por|integer|\N|YES
+operacional|campesinos|asignado_a|integer|\N|YES
+operacional|campesinos|tiene_pendientes|boolean|false|NO
+operacional|campesinos|metadata|jsonb|\N|YES
+operacional|campesinos|creado_en|timestamp without time zone|CURRENT_TIMESTAMP|NO
+operacional|campesinos|actualizado_en|timestamp without time zone|\N|NO
+operacional|consejos|id|integer|nextval('operacional.consejos_id_seq'::regclass)|NO
+operacional|consejos|uuid|uuid|gen_random_uuid()|NO
+operacional|consejos|nombre|text|\N|NO
+operacional|consejos|descripcion|text|\N|YES
+operacional|consejos|estado|text|\N|NO
+operacional|consejos|municipio|text|\N|NO
+operacional|consejos|parroquia|text|\N|YES
+operacional|consejos|encargado_tipo|text|\N|NO
+operacional|consejos|encargado_id|integer|\N|NO
+operacional|consejos|creado_en|timestamp without time zone|CURRENT_TIMESTAMP|NO
+operacional|consejos|actualizado_en|timestamp without time zone|\N|NO
+operacional|formularios|id|integer|nextval('operacional.formularios_id_seq'::regclass)|NO
+operacional|formularios|uuid|uuid|gen_random_uuid()|NO
+operacional|formularios|titulo|text|\N|NO
+operacional|formularios|version|integer|1|NO
+operacional|formularios|estructura|jsonb|\N|NO
+operacional|formularios|activo|boolean|true|NO
+operacional|formularios|creado_por|integer|\N|NO
+operacional|formularios|creado_en|timestamp without time zone|CURRENT_TIMESTAMP|NO
+operacional|formularios|actualizado_en|timestamp without time zone|\N|NO
+operacional|fotos_perfil|id_fotos|text|\N|NO
+operacional|fotos_perfil|persona_id|integer|\N|NO
+operacional|fotos_perfil|url_nube|text|\N|NO
+operacional|fotos_perfil|created_at|timestamp without time zone|CURRENT_TIMESTAMP|NO
+operacional|fotos_perfil|updated_at|timestamp without time zone|\N|NO
+operacional|fotos_perfil|sync_status|text|'pending'::text|NO
+operacional|fotos_perfil|sync_attempts|integer|0|NO
+operacional|fotos_perfil|last_synced_at|timestamp without time zone|\N|YES
+operacional|fotos_perfil|sync_error|text|\N|YES
+registros|personas|id_personas|uuid|gen_random_uuid()|NO
+registros|personas|nombre|text|\N|NO
+registros|personas|apellido|text|\N|NO
+registros|personas|tipo_cedula|USER-DEFINED|\N|NO
+registros|personas|cedula|character varying|\N|NO
+registros|personas|fecha_nacimiento|date|\N|NO
+registros|personas|parroquia|integer|\N|NO
+registros|personas|direccion_usuario|text|\N|NO
+registros|personas|email|character varying|\N|YES
+registros|personas|numero_telefonico|character varying|\N|YES
+registros|personas|genero|integer|\N|NO
+registros|personas|consejo_id|integer|\N|YES
+registros|personas|created_at|timestamp without time zone|CURRENT_TIMESTAMP|NO
+registros|personas|update_at|timestamp without time zone|CURRENT_TIMESTAMP|NO
+registros|personas|sync_status|text|'pending'::text|NO
+registros|personas|sync_attempts|integer|0|NO
+registros|personas|last_synced_at|timestamp with time zone|\N|YES
+registros|personas|sync_error|text|\N|YES
+respuestas|respuesta_form|id|integer|nextval('respuestas.respuesta_form_id_seq'::regclass)|NO
+respuestas|respuesta_form|uuid|uuid|gen_random_uuid()|NO
+respuestas|respuesta_form|formulario_id|integer|\N|NO
+respuestas|respuesta_form|campesino_id|integer|\N|YES
+respuestas|respuesta_form|encuestador_id|integer|\N|YES
+respuestas|respuesta_form|respuestas|jsonb|\N|NO
+respuestas|respuesta_form|metadata|jsonb|\N|YES
+respuestas|respuesta_form|capturado_en|timestamp without time zone|\N|YES
+respuestas|respuesta_form|guardado_en_postgres|boolean|true|NO
+respuestas|respuesta_form|registro_id|text|\N|YES
+respuestas|respuesta_form|creado_en|timestamp without time zone|CURRENT_TIMESTAMP|NO
+respuestas|respuesta_form|actualizado_en|timestamp without time zone|\N|NO
+seguridad|usuarios|id|integer|nextval('seguridad.usuarios_id_seq'::regclass)|NO
+seguridad|usuarios|uuid|uuid|gen_random_uuid()|NO
+seguridad|usuarios|email|text|\N|NO
+seguridad|usuarios|password_hash|text|\N|NO
+seguridad|usuarios|cedula|text|\N|YES
+seguridad|usuarios|rol|integer|\N|NO
+seguridad|usuarios|nombre|text|\N|NO
+seguridad|usuarios|apellido|text|\N|NO
+seguridad|usuarios|numero_telefono|text|\N|YES
+seguridad|usuarios|fecha_nacimiento|timestamp without time zone|\N|YES
+seguridad|usuarios|genero|integer|\N|YES
+seguridad|usuarios|estado|text|\N|YES
+seguridad|usuarios|municipio|text|\N|YES
+seguridad|usuarios|parroquia|text|\N|YES
+seguridad|usuarios|direccion|text|\N|YES
+seguridad|usuarios|consejo_id|integer|\N|YES
+seguridad|usuarios|activo|boolean|true|NO
+seguridad|usuarios|creado_en|timestamp without time zone|CURRENT_TIMESTAMP|NO
+seguridad|usuarios|actualizado_en|timestamp without time zone|\N|NO

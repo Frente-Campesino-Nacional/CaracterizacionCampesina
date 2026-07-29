@@ -3,11 +3,6 @@ export default () => ({
   database: {
     url: process.env.DATABASE_URL,
   },
-  mongodb: {
-    uri: process.env.MONGODB_URI,
-    dbName: process.env.MONGODB_DB_NAME || 'censo_campesino_responses',
-    optionalEnabled: process.env.MONGODB_OPTIONAL_ENABLED === 'true',
-  },
   redis: {
     host: process.env.REDIS_HOST || 'localhost',
     port: parseInt(process.env.REDIS_PORT || '6379', 10),

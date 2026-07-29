@@ -3,7 +3,7 @@ export declare class GenerosService {
     private prisma;
     constructor(prisma: PrismaService);
     findAll(): Promise<{
-        id_gen: number;
+        id_genero: number;
         tipo_gen: string;
     }[]>;
 }

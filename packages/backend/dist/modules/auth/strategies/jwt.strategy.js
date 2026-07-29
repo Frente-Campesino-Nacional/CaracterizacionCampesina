@@ -14,6 +14,7 @@ const common_1 = require("@nestjs/common");
 const passport_1 = require("@nestjs/passport");
 const passport_jwt_1 = require("passport-jwt");
 const config_1 = require("@nestjs/config");
+const client_1 = require("@prisma/client");
 const prisma_service_1 = require("../../../database/prisma.service");
 let JwtStrategy = class JwtStrategy extends (0, passport_1.PassportStrategy)(passport_jwt_1.Strategy) {
     constructor(configService, prisma) {
@@ -26,10 +27,13 @@ let JwtStrategy = class JwtStrategy extends (0, passport_1.PassportStrategy)(pas
         this.prisma = prisma;
     }
     async validate(payload) {
-        const usuario = await this.prisma.usuario.findUnique({
-            where: { id: payload.sub },
-        });
-        if (!usuario || !usuario.activo) {
+        const usuario = await this.prisma.$queryRaw(client_1.Prisma.sql `
+      SELECT id_usuario
+      FROM seguridad.usuarios
+      WHERE id_usuario = CAST(${payload.sub} AS uuid)
+      LIMIT 1
+    `);
+        if (!usuario[0]) {
             throw new common_1.UnauthorizedException('Usuario no válido');
         }
         return { id: payload.sub, email: payload.email, rol: payload.rol };

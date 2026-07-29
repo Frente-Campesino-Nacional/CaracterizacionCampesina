@@ -17,6 +17,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { Card, Header } from '../../components';
 import { Theme } from '../../theme/colors';
+import { sharedScreenStyles } from '../../styles/sharedScreenStyles';
 import { useAuthStore } from '../../store/authStore';
 import { listCampesinos, listFormularios, listSyncRecords, listUsuarios, SyncRecord } from '../../services/adminService';
 
@@ -105,30 +106,72 @@ export default function AdminDashboard({ navigation }: any) {
     return 'history';
   };
 
-  const formatActivityTitle = (item: SyncRecord) =>
-    (() => {
-      const capitalize = (s: string) => (s ? `${s.charAt(0).toUpperCase()}${s.slice(1)}` : s);
-      const mapOperation = (op: string) => {
-        const o = (op || '').toLowerCase();
-        if (o.includes('create')) return 'registrado';
-        if (o.includes('update')) return 'actualizado';
-        if (o.includes('delete')) return 'eliminado';
-        if (o.includes('sync')) return 'sincronizado';
-        return op;
-      };
+  const formatActivityTitle = (item: SyncRecord) => {
+    const mensaje = String((item as any).mensaje || '').trim();
+    if (mensaje) {
+      return mensaje;
+    }
 
-      const entidadLower = (item.entidad || '').toLowerCase();
-      const estadoLabel = capitalize(String(item.estado || ''));
+    const capitalize = (s: string) => (s ? `${s.charAt(0).toUpperCase()}${s.slice(1)}` : s);
+    const mapOperation = (op: string) => {
+      const o = (op || '').toString().trim().toLowerCase();
+      if (o.includes('create') || o.includes('insert') || o.includes('registro') || o.includes('registr')) return 'registrado';
+      if (o.includes('update') || o.includes('edit') || o.includes('modif')) return 'actualizado';
+      if (o.includes('delete') || o.includes('remove')) return 'eliminado';
+      if (o.includes('sync') || o.includes('proces')) return 'sincronizado';
+      return 'actualizado';
+    };
 
-      if (entidadLower === 'campesino') {
-        const nombre = (item.datos && (item.datos as any).nombre) || (item.datos && (item.datos as any).nombre_completo) || '';
-        const opLabel = mapOperation(item.operacion);
-        return nombre ? `Campesino (${nombre}) ${opLabel} (${estadoLabel})` : `Campesino #${item.entidad_id} ${opLabel} (${estadoLabel})`;
+    const entidadLower = (item.entidad || '').toLowerCase();
+    const opLabel = mapOperation(item.operacion || item.estado);
+    const getEntityLabel = () => {
+      if (entidadLower === 'campesino') return 'Campesino';
+      if (entidadLower === 'usuario') return 'Usuario';
+      if (entidadLower === 'formulario') return 'Formulario';
+      if (entidadLower === 'consejo') return 'Consejo';
+      return capitalize(String(item.entidad || '')) || 'Registro';
+    };
+    const getDisplayName = () => {
+      const datos = (item.datos || {}) as any;
+      const directName = (item as any).target_nombre || datos.nombre || datos.nombre_completo || datos.nombre_persona || datos.titulo || datos.nombre_consejo || datos.nombre_usuario || datos.email;
+      if (directName) return String(directName);
+
+      const firstName = datos.nombre || datos.nombre_persona;
+      const lastName = datos.apellido || datos.apellido_persona;
+      if (firstName || lastName) {
+        return [firstName, lastName].filter(Boolean).join(' ').trim();
       }
 
-      const opLabel = mapOperation(item.operacion);
-      return `${capitalize(String(item.entidad || ''))} #${item.entidad_id} ${opLabel} (${estadoLabel})`;
-    })();
+      return '';
+    };
+    const getActorName = () => {
+      const datos = (item.datos || {}) as any;
+      const actorName = (item as any).actor_nombre || datos.usuario_nombre || datos.admin_nombre || datos.usuario || datos.realizado_por || datos.creado_por || datos.nombre_admin;
+      if (actorName && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(actorName))) {
+        return String(actorName);
+      }
+      return '';
+    };
+
+    const entityLabel = getEntityLabel();
+    const displayName = getDisplayName();
+    const actorName = getActorName();
+
+    if (['campesino', 'usuario', 'formulario', 'consejo'].includes(entidadLower)) {
+      if (displayName && actorName) {
+        return `${entityLabel} ${displayName} fue ${opLabel} por ${actorName}`;
+      }
+      if (displayName) {
+        return `${entityLabel} ${displayName} fue ${opLabel}`;
+      }
+      if (actorName) {
+        return `${entityLabel} fue ${opLabel} por ${actorName}`;
+      }
+      return `${entityLabel} fue ${opLabel}`;
+    }
+
+    return actorName ? `${entityLabel} fue ${opLabel} por ${actorName}` : `${entityLabel} fue ${opLabel}`;
+  };
 
   const formatActivityTime = (createdAt: string) => {
     const date = new Date(createdAt);
@@ -258,7 +301,7 @@ export default function AdminDashboard({ navigation }: any) {
   }, [loadData]);
 
   return (
-    <View style={styles.container}>
+    <View style={sharedScreenStyles.surfaceWhite}>
       <Header
         title="Dashboard"
         subtitle={`Bienvenido, ${user?.nombre?.split(' ')[0]}`}
@@ -266,7 +309,7 @@ export default function AdminDashboard({ navigation }: any) {
       />
 
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={sharedScreenStyles.contentLg}
         showsVerticalScrollIndicator={false}
       >
         {/* Bienvenida */}
@@ -329,14 +372,6 @@ export default function AdminDashboard({ navigation }: any) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Theme.colors.white,
-  },
-  scrollContent: {
-    padding: Theme.spacing.lg,
-    gap: Theme.spacing.lg,
-  },
   welcomeCard: {
     alignItems: 'center',
     borderLeftWidth: 4,

@@ -11,6 +11,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CreateUsuarioDto = void 0;
 const class_validator_1 = require("class-validator");
+const class_transformer_1 = require("class-transformer");
 class CreateUsuarioDto {
 }
 exports.CreateUsuarioDto = CreateUsuarioDto;
@@ -19,6 +20,11 @@ __decorate([
     (0, class_validator_1.IsNotEmpty)(),
     __metadata("design:type", String)
 ], CreateUsuarioDto.prototype, "email", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CreateUsuarioDto.prototype, "nombre_usuario", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
@@ -39,7 +45,7 @@ __decorate([
 ], CreateUsuarioDto.prototype, "apellido", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsEnum)(['admin', 'administrador', 'encuestador'], { message: 'El rol debe ser administrador o encuestador' }),
+    (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], CreateUsuarioDto.prototype, "rol", void 0);
 __decorate([
@@ -48,7 +54,7 @@ __decorate([
 ], CreateUsuarioDto.prototype, "numero_telefono", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsDateString)(),
+    (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], CreateUsuarioDto.prototype, "fecha_nacimiento", void 0);
 __decorate([
@@ -57,33 +63,30 @@ __decorate([
 ], CreateUsuarioDto.prototype, "genero", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
-    __metadata("design:type", String)
-], CreateUsuarioDto.prototype, "estado", void 0);
+    (0, class_transformer_1.Type)(() => Number),
+    __metadata("design:type", Number)
+], CreateUsuarioDto.prototype, "estado_id", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
-    __metadata("design:type", String)
-], CreateUsuarioDto.prototype, "municipio", void 0);
+    (0, class_transformer_1.Type)(() => Number),
+    __metadata("design:type", Number)
+], CreateUsuarioDto.prototype, "municipio_id", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
+    __metadata("design:type", Number)
+], CreateUsuarioDto.prototype, "parroquia_id", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     __metadata("design:type", String)
 ], CreateUsuarioDto.prototype, "direccion", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
-    __metadata("design:type", Number)
+    __metadata("design:type", Object)
 ], CreateUsuarioDto.prototype, "consejo_id", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
 ], CreateUsuarioDto.prototype, "activo", void 0);
-__decorate([
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsDateString)(),
-    __metadata("design:type", String)
-], CreateUsuarioDto.prototype, "creado_en", void 0);
-__decorate([
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsDateString)(),
-    __metadata("design:type", String)
-], CreateUsuarioDto.prototype, "actualizado_en", void 0);
 //# sourceMappingURL=create-usuario.dto.js.map

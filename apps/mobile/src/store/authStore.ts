@@ -3,13 +3,13 @@ import { persist } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface User {
-  id: number;
+  id: string;
   email: string;
   nombre: string;
   apellido?: string;
-  telefono?: string;
+  telefono?: string | null;
   rol: string;
-  consejo_id?: number;
+  consejo_id?: string | null;
 }
 
 interface AuthState {

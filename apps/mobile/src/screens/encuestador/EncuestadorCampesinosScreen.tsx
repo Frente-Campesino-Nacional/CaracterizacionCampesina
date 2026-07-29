@@ -6,18 +6,23 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import DatePickerField from '../../components/DatePickerField';
 import PendingDot from '../../components/PendingDot';
 import SearchBar from '../../components/SearchBar';
-import { Card, OptionSelector, GENDER_OPTIONS, LookupSelectField } from '../../components';
+import { Card, OptionSelector, GENDER_OPTIONS, LookupSelectField, RoleSectionHeader, FormModalSheet, StatusPill } from '../../components';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import StateMunicipioPicker from '../../components/StateMunicipioPicker';
 import { Theme } from '../../theme/colors';
 import { CampesinoPayload, CampesinoRecord, ConsejoRecord, GeneroRecord, createCampesino, listCampesinos, listConsejos, listGeneros } from '../../services/adminService';
 import { flushQueuedSubmissions } from '../../services/encuestadorFormService';
+import {
+  createCampesinoWithOfflineFallback,
+  flushQueuedCampesinoCreates,
+  loadCampesinosForEncuestador,
+} from '../../services/encuestadorCampesinoOfflineService';
 import { useAuthStore } from '../../store/authStore';
 import { FlatList } from 'react-native';
 
 type RootStackParamList = {
-  CampesinoDetail: { campesinoId: number };
-  FormulariosPendientes: { campesinoId: number };
+  CampesinoDetail: { campesinoId: string };
+  FormulariosPendientes: { campesinoId: string };
 };
 
 type CampesinoFormState = {
@@ -29,15 +34,18 @@ type CampesinoFormState = {
   correo: string;
   fecha_nacimiento: string;
   genero: string;
-  estado: string;
-  municipio: string;
+  estado_id: string;
+  estado_nombre: string;
+  municipio_id: string;
+  municipio_nombre: string;
+  parroquia_id: string;
+  parroquia_nombre: string;
   direccion: string;
   consejo_id: string;
   tiene_pendientes: boolean;
-  creado_en: string;
 };
 
-function defaultForm(consejoId?: number | null): CampesinoFormState {
+function defaultForm(consejoId?: string | null): CampesinoFormState {
   return {
     cedulaMode: 'none',
     cedula: '',
@@ -47,12 +55,15 @@ function defaultForm(consejoId?: number | null): CampesinoFormState {
     correo: '',
     fecha_nacimiento: '',
     genero: '',
-    estado: '',
-    municipio: '',
+    estado_id: '',
+    estado_nombre: '',
+    municipio_id: '',
+    municipio_nombre: '',
+    parroquia_id: '',
+    parroquia_nombre: '',
     direccion: '',
     consejo_id: consejoId != null ? String(consejoId) : '',
     tiene_pendientes: true,
-    creado_en: '',
   };
 }
 
@@ -122,8 +133,8 @@ function getRequestErrorMessage(error: unknown, fallback: string): string {
 export default function EncuestadorCampesinosScreen() {
   const { token, user } = useAuthStore();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const currentUserId = Number(user?.id);
-  const currentCouncilId = Number(user?.consejo_id);
+  const currentUserId = user?.id ?? '';
+  const currentCouncilId = user?.consejo_id ?? null;
   const [items, setItems] = useState<CampesinoRecord[]>([]);
   const [consejos, setConsejos] = useState<ConsejoRecord[]>([]);
   const [genderOptions, setGenderOptions] = useState(GENDER_OPTIONS);
@@ -131,11 +142,12 @@ export default function EncuestadorCampesinosScreen() {
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState<CampesinoFormState>(defaultForm(user?.consejo_id));
   const [syncedCount, setSyncedCount] = useState(0);
+  const [offlineSavedCount, setOfflineSavedCount] = useState(0);
 
   const load = async () => {
-    if (!token || !user || !Number.isFinite(currentUserId)) return;
-    const all = await listCampesinos(token);
-    setItems(all.filter((item) => item.asignado_a === currentUserId || item.creado_por === currentUserId));
+    if (!token || !user || !currentUserId) return;
+    const all = await loadCampesinosForEncuestador(token, currentUserId);
+    setItems(all);
   };
 
   useEffect(() => {
@@ -177,10 +189,12 @@ export default function EncuestadorCampesinosScreen() {
         return () => undefined;
       }
 
-      flushQueuedSubmissions(token)
-        .then((count) => {
-          setSyncedCount(count);
-          return load();
+      flushQueuedCampesinoCreates(token)
+        .then(async (campesinoCount) => {
+          setOfflineSavedCount(campesinoCount);
+          const formCount = await flushQueuedSubmissions(token);
+          setSyncedCount(formCount);
+          await load();
         })
         .catch(() => undefined);
 
@@ -194,7 +208,7 @@ export default function EncuestadorCampesinosScreen() {
   }, [items, search]);
 
   const save = async () => {
-    if (!token || !user || !Number.isFinite(currentUserId)) return;
+    if (!token || !user || !currentUserId) return;
     if (form.cedulaMode !== 'none' && !form.cedula) {
       Alert.alert('Validación', 'La cédula es obligatoria cuando se selecciona un tipo');
       return;
@@ -213,15 +227,15 @@ export default function EncuestadorCampesinosScreen() {
       telefono: toOptionalString(form.telefono),
       correo: toOptionalString(form.correo),
       fecha_nacimiento: toOptionalIsoDate(form.fecha_nacimiento),
+      estado_id: toOptionalNumber(form.estado_id),
       genero: toOptionalString(form.genero),
-      estado: toOptionalString(form.estado),
-      municipio: toOptionalString(form.municipio),
+      municipio_id: toOptionalNumber(form.municipio_id),
+      parroquia_id: toOptionalNumber(form.parroquia_id),
       direccion: toOptionalString(form.direccion),
-      consejo_id: toOptionalNumber(form.consejo_id),
+      consejo_id: toOptionalString(form.consejo_id),
       creado_por: currentUserId,
       asignado_a: currentUserId,
       tiene_pendientes: form.tiene_pendientes,
-      creado_en: toOptionalString(form.creado_en),
     };
 
     if (cedulaValue) {
@@ -229,10 +243,17 @@ export default function EncuestadorCampesinosScreen() {
     }
 
     try {
-      await createCampesino(token, payload);
+      const result = await createCampesinoWithOfflineFallback(token, payload);
       setModal(false);
-      setForm(defaultForm(Number.isFinite(currentCouncilId) ? currentCouncilId : undefined));
+      setForm(defaultForm(currentCouncilId || undefined));
       await load();
+
+      if (result.queuedOffline) {
+        Alert.alert(
+          'Guardado offline',
+          'El campesino se registro sin internet y se sincronizara automaticamente cuando vuelva la conexion.',
+        );
+      }
     } catch (error: any) {
       Alert.alert('Error', getRequestErrorMessage(error, 'No se pudo crear campesino'));
     }
@@ -241,17 +262,16 @@ export default function EncuestadorCampesinosScreen() {
   return (
     <View style={styles.container}>
       {syncedCount > 0 ? <Text style={styles.syncedText}>Se sincronizaron {syncedCount} formularios guardados offline.</Text> : null}
-      <View style={styles.headerRow}> 
-        <View style={styles.headerTextWrapper}>
-          <Text style={styles.sectionTitle}>Campesinos</Text>
-          <Text style={styles.sectionSubtitle}>Tus campesinos asignados</Text>
-        </View>
-        <View style={styles.actionButtonsRow}>
+      {offlineSavedCount > 0 ? <Text style={styles.syncedText}>Se sincronizaron {offlineSavedCount} campesinos creados offline.</Text> : null}
+      <RoleSectionHeader
+        title="Campesinos"
+        subtitle="Tus campesinos asignados"
+        actions={
           <TouchableOpacity style={styles.primaryButton} onPress={() => setModal(true)}>
             <Text style={styles.primaryButtonText}>Registrar</Text>
           </TouchableOpacity>
-        </View>
-      </View>
+        }
+      />
 
       <FlatList
         data={filtered}
@@ -273,9 +293,7 @@ export default function EncuestadorCampesinosScreen() {
                 </TouchableOpacity>
               </View>
               <View style={styles.itemRight}>
-                <View style={[styles.statusBadge, item.tiene_pendientes ? styles.statusWarning : styles.statusActive]}>
-                  <Text style={styles.statusText}>{item.tiene_pendientes ? 'Pendientes' : 'Sin pendientes'}</Text>
-                </View>
+                <StatusPill label={item.tiene_pendientes ? 'Pendientes' : 'Sin pendientes'} tone={item.tiene_pendientes ? 'warning' : 'success'} />
                 <View style={styles.iconRow}>
                   <TouchableOpacity
                     disabled={!item.tiene_pendientes}
@@ -296,11 +314,7 @@ export default function EncuestadorCampesinosScreen() {
         )}
       />
 
-      <Modal visible={modal} animationType="slide" transparent onRequestClose={() => setModal(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <ScrollView>
-              <Text style={styles.modalTitle}>Nuevo campesino</Text>
+      <FormModalSheet visible={modal} title="Nuevo campesino" onClose={() => setModal(false)} onSave={save}>
               <View style={styles.filterRow}>
                 {([
                   { key: 'none', label: 'No posee cédula' },
@@ -349,25 +363,28 @@ export default function EncuestadorCampesinosScreen() {
                 clearLabel="Sin consejo asignado"
               />
               <StateMunicipioPicker
-                estado={form.estado}
-                municipio={form.municipio}
-                onEstadoChange={(value) => setForm((s) => ({ ...s, estado: value }))}
-                onMunicipioChange={(value) => setForm((s) => ({ ...s, municipio: value }))}
+                estado={form.estado_nombre}
+                municipio={form.municipio_nombre}
+                parroquia={form.parroquia_nombre}
+                onEstadoChange={(value) => setForm((s) => ({ ...s, estado_nombre: value, estado_id: '' }))}
+                onMunicipioChange={(value) => setForm((s) => ({ ...s, municipio_nombre: value, municipio_id: '' }))}
+                onParroquiaChange={(value) => setForm((s) => ({ ...s, parroquia_nombre: value, parroquia_id: '' }))}
+                onSelectionChange={({ estadoId, estadoNombre, municipioId, municipioNombre, parroquiaId, parroquiaNombre }) => setForm((s) => ({
+                  ...s,
+                  estado_id: estadoId != null ? String(estadoId) : '',
+                  estado_nombre: estadoNombre,
+                  municipio_id: municipioId != null ? String(municipioId) : '',
+                  municipio_nombre: municipioNombre,
+                  parroquia_id: parroquiaId != null ? String(parroquiaId) : '',
+                  parroquia_nombre: parroquiaNombre,
+                }))}
               />
               <TextInput value={form.direccion} onChangeText={(value) => setForm((s) => ({ ...s, direccion: value }))} style={[styles.input, styles.textArea]} placeholder="Dirección" multiline numberOfLines={3} />
               <View style={styles.switchRow}>
                 <Text>Tiene pendientes</Text>
                 <Switch value={form.tiene_pendientes} onValueChange={(value) => setForm((s) => ({ ...s, tiene_pendientes: value }))} />
               </View>
-              <TextInput value={form.creado_en} onChangeText={(value) => setForm((s) => ({ ...s, creado_en: value }))} style={styles.input} placeholder="Creado en (ISO opcional)" autoCapitalize="none" />
-              <View style={styles.modalActions}>
-                <TouchableOpacity onPress={() => setModal(false)}><Text>Cancelar</Text></TouchableOpacity>
-                <TouchableOpacity onPress={save}><Text style={styles.save}>Guardar</Text></TouchableOpacity>
-              </View>
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
+      </FormModalSheet>
     </View>
   );
 }
@@ -375,11 +392,6 @@ export default function EncuestadorCampesinosScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 12, backgroundColor: '#f5f7fb' },
   syncedText: { color: '#047857', fontWeight: '700', marginBottom: 10 },
-  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, gap: 12 },
-  headerTextWrapper: { flex: 1 },
-  sectionTitle: { fontSize: 22, fontWeight: '800', color: '#0f172a' },
-  sectionSubtitle: { color: '#475569', marginTop: 4 },
-  actionButtonsRow: { flexDirection: 'row', gap: 10 },
   primaryButton: { backgroundColor: '#0f766e', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12, justifyContent: 'center', alignItems: 'center' },
   primaryButtonText: { color: '#fff', fontWeight: '700' },
   smallButton: { backgroundColor: '#e2e8f0', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, justifyContent: 'center', alignItems: 'center' },
@@ -392,15 +404,10 @@ const styles = StyleSheet.create({
   nameLink: { color: '#1d4ed8', fontWeight: '700' },
   actionLink: { color: '#1d4ed8', fontWeight: '700' },
   actionDisabled: { color: '#6b7280' },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', padding: 16 },
-  modalCard: { backgroundColor: '#fff', borderRadius: 14, padding: 16 },
-  modalTitle: { fontSize: 18, fontWeight: '800', marginBottom: 12 },
   input: { borderWidth: 1, borderColor: '#d1d5db', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 9, marginBottom: 10 },
   textArea: { minHeight: 80, textAlignVertical: 'top' },
   textAreaLarge: { minHeight: 130, textAlignVertical: 'top' },
   switchRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12, alignItems: 'center' },
-  modalActions: { flexDirection: 'row', justifyContent: 'space-between' },
-  save: { color: '#0f766e', fontWeight: '700' },
   listContent: { paddingBottom: 120, gap: 10 },
   emptyText: { color: '#64748b', textAlign: 'center', paddingVertical: 24 },
   itemCard: { marginBottom: 8 },
@@ -409,10 +416,6 @@ const styles = StyleSheet.create({
   itemTitleGroup: { flex: 1 },
   itemTitle: { color: '#0f172a', fontSize: 16, fontWeight: '800' },
   itemSubtitle: { color: '#475569', marginTop: 2 },
-  statusBadge: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
-  statusActive: { backgroundColor: '#dcfce7' },
-  statusWarning: { backgroundColor: '#fef3c7' },
-  statusText: { fontSize: 12, fontWeight: '700', color: '#1f2937' },
   itemMetaRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 },
   metaLabel: { color: '#64748b', fontWeight: '600' },
   metaValue: { color: '#0f172a', fontWeight: '700' },

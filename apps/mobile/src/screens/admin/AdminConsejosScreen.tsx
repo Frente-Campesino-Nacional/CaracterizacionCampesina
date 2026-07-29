@@ -7,6 +7,14 @@ import { ConsejoPayload, ConsejoRecord, UsuarioRecord, createConsejo, deleteCons
 import { useAuthStore } from '../../store/authStore';
 import { exportTableToPdf } from '../../utils/pdfExport';
 import { LookupSelectField } from '../../components';
+import { sharedFormStyles } from '../../styles/sharedFormStyles';
+
+function toOptionalNumber(value: string): number | undefined {
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
 
 export default function AdminConsejosScreen() {
   const { token } = useAuthStore();
@@ -15,7 +23,7 @@ export default function AdminConsejosScreen() {
   const [search, setSearch] = useState('');
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState<ConsejoRecord | null>(null);
-  const [form, setForm] = useState({ nombre: '', descripcion: '', estado: '', municipio: '', encargado_tipo: 'admin', encargado_id: '' });
+  const [form, setForm] = useState({ nombre: '', descripcion: '', estado_id: '', estado_nombre: '', municipio_id: '', municipio_nombre: '', parroquia_id: '', parroquia_nombre: '', encargado_tipo: 'admin', encargado_id: '' });
 
   const load = async () => {
     if (!token) return;
@@ -41,30 +49,31 @@ export default function AdminConsejosScreen() {
 
   const openCreate = () => {
     setEditing(null);
-    setForm({ nombre: '', descripcion: '', estado: '', municipio: '', encargado_tipo: 'admin', encargado_id: '' });
+    setForm({ nombre: '', descripcion: '', estado_id: '', estado_nombre: '', municipio_id: '', municipio_nombre: '', parroquia_id: '', parroquia_nombre: '', encargado_tipo: 'admin', encargado_id: '' });
     setModal(true);
   };
 
   const openEdit = (item: ConsejoRecord) => {
     setEditing(item);
-    setForm({ nombre: item.nombre, descripcion: item.descripcion || '', estado: item.estado, municipio: item.municipio, encargado_tipo: item.encargado_tipo, encargado_id: String(item.encargado_id) });
+    setForm({ nombre: item.nombre, descripcion: item.descripcion || '', estado_id: '', estado_nombre: item.estado, municipio_id: '', municipio_nombre: item.municipio, parroquia_id: '', parroquia_nombre: item.parroquia || '', encargado_tipo: item.encargado_tipo, encargado_id: item.encargado_id ? String(item.encargado_id) : '' });
     setModal(true);
   };
 
   const save = async () => {
     if (!token) return;
-    if (!form.nombre || !form.estado || !form.municipio || !form.encargado_id) {
-      Alert.alert('Validación', 'Completa todos los campos requeridos');
+    if (!form.nombre || !form.estado_nombre || !form.municipio_nombre || !form.parroquia_nombre) {
+      Alert.alert('Validación', 'Completa los campos básicos del consejo');
       return;
     }
 
     const payload: ConsejoPayload = {
       nombre: form.nombre,
       descripcion: form.descripcion || undefined,
-      estado: form.estado,
-      municipio: form.municipio,
+      estado_id: toOptionalNumber(form.estado_id),
+      municipio_id: toOptionalNumber(form.municipio_id),
+      parroquia_id: toOptionalNumber(form.parroquia_id),
       encargado_tipo: form.encargado_tipo,
-      encargado_id: Number(form.encargado_id),
+      encargado_id: form.encargado_id || undefined,
     };
 
     try {
@@ -140,9 +149,9 @@ export default function AdminConsejosScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={sharedFormStyles.pageContainer}>
       <SearchBar value={search} onChangeText={setSearch} placeholder="Buscar por nombre o municipio" />
-      <TouchableOpacity style={styles.createButton} onPress={openCreate}><Text style={styles.createButtonText}>Crear Consejo</Text></TouchableOpacity>
+      <TouchableOpacity style={sharedFormStyles.primaryButton} onPress={openCreate}><Text style={sharedFormStyles.primaryButtonText}>Crear Consejo</Text></TouchableOpacity>
       <TouchableOpacity style={styles.pdfButton} onPress={exportPdf}><Text style={styles.pdfButtonText}>Descargar PDF</Text></TouchableOpacity>
 
       <DataTable
@@ -151,15 +160,15 @@ export default function AdminConsejosScreen() {
           { key: 'nombre', title: 'Nombre', flex: 1.4, render: (item) => <Text>{item.nombre}</Text> },
           { key: 'estado', title: 'Estado', render: (item) => <Text>{item.estado}</Text> },
           { key: 'municipio', title: 'Municipio', render: (item) => <Text>{item.municipio}</Text> },
-          { key: 'encargado', title: 'Encargado', render: (item) => <Text>{userNameById.get(item.encargado_id) || item.encargado_id}</Text> },
+          { key: 'encargado', title: 'Encargado', render: (item) => <Text>{userNameById.get(item.encargado_id) || item.encargado_id || 'Sin encargado'}</Text> },
           {
             key: 'acciones',
             title: 'Acciones',
             flex: 1.2,
             render: (item) => (
               <View style={styles.actions}>
-                <TouchableOpacity onPress={() => openEdit(item)}><Text style={styles.link}>Editar</Text></TouchableOpacity>
-                <TouchableOpacity onPress={() => remove(item)}><Text style={[styles.link, styles.danger]}>Eliminar</Text></TouchableOpacity>
+                <TouchableOpacity onPress={() => openEdit(item)}><Text style={sharedFormStyles.linkText}>Editar</Text></TouchableOpacity>
+                <TouchableOpacity onPress={() => remove(item)}><Text style={[sharedFormStyles.linkText, sharedFormStyles.dangerText]}>Eliminar</Text></TouchableOpacity>
               </View>
             ),
           },
@@ -167,16 +176,27 @@ export default function AdminConsejosScreen() {
       />
 
       <Modal visible={modal} animationType="slide" transparent onRequestClose={() => setModal(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>{editing ? 'Editar consejo' : 'Nuevo consejo'}</Text>
-            <TextInput value={form.nombre} onChangeText={(value) => setForm((s) => ({ ...s, nombre: value }))} style={styles.input} placeholder="Nombre" />
-            <TextInput value={form.descripcion} onChangeText={(value) => setForm((s) => ({ ...s, descripcion: value }))} style={styles.input} placeholder="Descripción" />
+        <View style={sharedFormStyles.modalOverlay}>
+          <View style={sharedFormStyles.modalCard}>
+            <Text style={sharedFormStyles.modalTitle}>{editing ? 'Editar consejo' : 'Nuevo consejo'}</Text>
+            <TextInput value={form.nombre} onChangeText={(value) => setForm((s) => ({ ...s, nombre: value }))} style={sharedFormStyles.input} placeholder="Nombre" />
+            <TextInput value={form.descripcion} onChangeText={(value) => setForm((s) => ({ ...s, descripcion: value }))} style={sharedFormStyles.input} placeholder="Descripción" />
             <StateMunicipioPicker
-              estado={form.estado}
-              municipio={form.municipio}
-              onEstadoChange={(value) => setForm((s) => ({ ...s, estado: value }))}
-              onMunicipioChange={(value) => setForm((s) => ({ ...s, municipio: value }))}
+              estado={form.estado_nombre}
+              municipio={form.municipio_nombre}
+              parroquia={form.parroquia_nombre}
+              onEstadoChange={(value) => setForm((s) => ({ ...s, estado_nombre: value, estado_id: '' }))}
+              onMunicipioChange={(value) => setForm((s) => ({ ...s, municipio_nombre: value, municipio_id: '' }))}
+              onParroquiaChange={(value) => setForm((s) => ({ ...s, parroquia_nombre: value, parroquia_id: '' }))}
+              onSelectionChange={({ estadoId, estadoNombre, municipioId, municipioNombre, parroquiaId, parroquiaNombre }) => setForm((s) => ({
+                ...s,
+                estado_id: estadoId != null ? String(estadoId) : '',
+                estado_nombre: estadoNombre,
+                municipio_id: municipioId != null ? String(municipioId) : '',
+                municipio_nombre: municipioNombre,
+                parroquia_id: parroquiaId != null ? String(parroquiaId) : '',
+                parroquia_nombre: parroquiaNombre,
+              }))}
             />
             <LookupSelectField
               label="Encargado"
@@ -187,9 +207,9 @@ export default function AdminConsejosScreen() {
               searchPlaceholder="Buscar usuario..."
             />
             <Text style={styles.helperText}>Tipo de encargado: {form.encargado_tipo || 'N/A'}</Text>
-            <View style={styles.modalActions}>
+            <View style={sharedFormStyles.modalActions}>
               <TouchableOpacity onPress={() => setModal(false)}><Text>Cancelar</Text></TouchableOpacity>
-              <TouchableOpacity onPress={save}><Text style={styles.save}>Guardar</Text></TouchableOpacity>
+              <TouchableOpacity onPress={save}><Text style={sharedFormStyles.saveText}>Guardar</Text></TouchableOpacity>
             </View>
           </View>
         </View>
@@ -199,19 +219,8 @@ export default function AdminConsejosScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 12, backgroundColor: '#f5f7fb' },
-  createButton: { backgroundColor: '#0f766e', padding: 10, borderRadius: 10, alignItems: 'center', marginBottom: 10 },
-  createButtonText: { color: '#fff', fontWeight: '700' },
   pdfButton: { backgroundColor: '#334155', padding: 10, borderRadius: 10, alignItems: 'center', marginBottom: 10 },
   pdfButtonText: { color: '#fff', fontWeight: '700' },
   actions: { flexDirection: 'row', gap: 10 },
-  link: { color: '#1d4ed8', fontWeight: '700' },
-  danger: { color: '#b91c1c' },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', padding: 16 },
-  modalCard: { backgroundColor: '#fff', borderRadius: 14, padding: 16 },
-  modalTitle: { fontSize: 18, fontWeight: '800', marginBottom: 12 },
-  input: { borderWidth: 1, borderColor: '#d1d5db', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 9, marginBottom: 10 },
   helperText: { color: '#475569', marginBottom: 10, fontWeight: '600' },
-  modalActions: { flexDirection: 'row', justifyContent: 'space-between' },
-  save: { color: '#0f766e', fontWeight: '700' },
 });

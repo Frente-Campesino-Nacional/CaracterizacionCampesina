@@ -1,11 +1,11 @@
 import { Global, Module } from '@nestjs/common';
-import { MongoOptionalService } from './mongo-optional.service';
+import { PostgresStorageService } from './postgres-storage.service';
 import { PrismaService } from './prisma.service';
 import { RedisService } from './redis.service';
 
 @Global()
 @Module({
-  providers: [PrismaService, RedisService, MongoOptionalService],
-  exports: [PrismaService, RedisService, MongoOptionalService],
+  providers: [PrismaService, RedisService, PostgresStorageService],
+  exports: [PrismaService, RedisService, PostgresStorageService],
 })
 export class DatabaseModule {}

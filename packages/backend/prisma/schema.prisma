@@ -1,143 +1,279 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+  engineType      = "library"
 }
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-}
-
-// ==================== MODELOS ====================
-
-model Consejo {
-  id             Int      @id @default(autoincrement())
-  nombre         String   @unique
-  descripcion    String?
-  estado         String
-  municipio      String
-  encargado_tipo String
-  encargado_id   Int
-
-  creado_en      DateTime @default(now())
-  actualizado_en DateTime @updatedAt
-
-  usuarios       Usuario[]
-  campesinos     Campesino[]
-
-  @@map("consejos")
+  schemas  = ["_prisma", "auditoria", "catalogos", "operacional", "registros", "respuestas", "seguridad"]
 }
 
 model Rol {
-  id_rol   Int      @id @default(autoincrement()) @map("id_rol")
-  tipo_rol String   @unique
-
+  id_rol   Int       @id(map: "id_rol_pkey") @default(autoincrement())
+  tipo_rol String    @map("tip_rol")
+  des_rol  String
   usuarios Usuario[]
 
   @@map("roles")
+  @@schema("seguridad")
 }
 
 model Genero {
-  id_gen   Int      @id @default(autoincrement()) @map("id_gen")
-  tipo_gen String   @unique
-
-  usuarios   Usuario[]
-  campesinos Campesino[]
+  id_genero Int        @id(map: "id_genero_pkey") @default(autoincrement())
+  tipo_gen  String     @map("genero")
+  personas  personas[]
 
   @@map("generos")
+  @@schema("catalogos")
+}
+
+model Estado {
+  id_estados    Int         @id(map: "id_edo_pkey") @default(autoincrement())
+  nombre_estado String
+  municipios    Municipio[]
+
+  @@map("estados")
+  @@schema("catalogos")
+}
+
+model Municipio {
+  id_municipio       Int         @id(map: "id_municipio_pkey") @default(autoincrement())
+  estado             Int
+  nombre_municipio   String
+  id_estados_estados Int?
+  estadoRel          Estado      @relation(fields: [estado], references: [id_estados], onDelete: NoAction, map: "id_estado_fkey")
+  parroquias         Parroquia[]
+
+  @@index([estado], map: "idx_municipios_estado")
+  @@map("municipios")
+  @@schema("catalogos")
+}
+
+model Parroquia {
+  id_parroquia     Int        @id(map: "id_parroquia_pkey") @default(autoincrement())
+  nombre_parroquia String
+  municipio        Int?
+  municipioRel     Municipio? @relation(fields: [municipio], references: [id_municipio], onDelete: NoAction, map: "id_municipios_pkey")
+  consejos         Consejo[]
+  personas         personas[]
+
+  @@index([municipio], map: "idx_parroquias_municipio")
+  @@map("parroquias")
+  @@schema("catalogos")
+}
+
+model Consejo {
+  consejo_id     String     @id(map: "consejo_id_pkey") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nombre_consejo String
+  descripcion    String?
+  parrroquia     Int
+  direccion_csj  String?
+  encargado_id   String?    @db.Uuid
+  created_at     DateTime   @default(now()) @db.Timestamp(6)
+  updated_at     DateTime   @default(now()) @db.Timestamp(6)
+  usuarios       Usuario?   @relation(fields: [encargado_id], references: [id_usuario], map: "encargado_fkey")
+  parroquias     Parroquia  @relation(fields: [parrroquia], references: [id_parroquia], onDelete: NoAction, map: "parroquia_fkey")
+  personas       personas[]
+
+  @@index([parrroquia], map: "idx_consejos_parrroquia")
+  @@map("consejos")
+  @@schema("operacional")
 }
 
 model Usuario {
-  id                 Int      @id @default(autoincrement())
-  email              String   @unique
-  password_hash      String
-  cedula             String?  @unique
-  rolId              Int      @map("rol")
-  rol                Rol      @relation(fields: [rolId], references: [id_rol], onDelete: Restrict)
+  id_usuario          String            @id(map: "id_usu_pkey") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nombre_usuario      String            @unique(map: "nombre_usuario") @db.VarChar(254)
+  password_hash       String
+  id_rol              Int
+  creado_por          String?           @db.Uuid
+  sync_status         String            @default("pending")
+  sync_attempts       Int               @default(0)
+  last_synced_at      DateTime?         @db.Timestamptz(6)
+  sync_error          String?
+  historialCambios    HistorialCambio[] @relation("HistorialUsuario")
+  campesinosAsignados Campesino[]       @relation("AsignadoA")
+  campesinosCreados   Campesino[]       @relation("CreadoPor")
+  consejos            Consejo[]
+  formularios         Formulario[]      @relation("FormularioCreador")
+  respuesta_form      RespuestaForm[]
+  usuarios            Usuario?          @relation("usuariosTousuarios", fields: [creado_por], references: [id_usuario], map: "creado_por_fkey")
+  other_usuarios      Usuario[]         @relation("usuariosTousuarios")
+  roles               Rol               @relation(fields: [id_rol], references: [id_rol], onDelete: NoAction, onUpdate: NoAction, map: "id_rol_fkey")
+  personas            personas          @relation(fields: [id_usuario], references: [id_personas], onDelete: Cascade, map: "id_usuarios_fky")
 
-  nombre             String
-  apellido           String
-  numero_telefono    String?
-  fecha_nacimiento   DateTime?
-  generoId           Int?     @map("genero")
-  genero             Genero?  @relation(fields: [generoId], references: [id_gen], onDelete: SetNull)
-  estado             String?
-  municipio          String?
-  direccion          String?
-
-  consejo_id         Int?
-  consejo            Consejo? @relation(fields: [consejo_id], references: [id], onDelete: SetNull)
-
-  activo             Boolean  @default(true)
-
-  creado_en          DateTime @default(now())
-  actualizado_en     DateTime @updatedAt
-
-  campesinosCreados  Campesino[] @relation("CreadoPor")
-  campesinosAsignados Campesino[] @relation("AsignadoA")
-  formularios        Formulario[]
-
+  @@index([id_rol], map: "idx_usuarios_id_rol")
+  @@index([nombre_usuario], map: "idx_usuarios_nombre_usuario")
+  @@index([sync_status], map: "idx_usuarios_sync_status")
   @@map("usuarios")
+  @@schema("seguridad")
 }
 
 model Campesino {
-  id                Int      @id @default(autoincrement())
-  cedula            String   @unique
-  nombre            String
-  apellido          String?
-  telefono          String?
-  correo            String?
-  fecha_nacimiento  DateTime?
-  generoId          Int?     @map("genero")
-  genero            Genero?  @relation(fields: [generoId], references: [id_gen], onDelete: SetNull)
-  estado            String?
-  municipio         String?
-  direccion         String?
+  id_campesinos          String    @id(map: "id_campesinos_pkey") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  creado_por             String?   @db.Uuid
+  asignado_a             String?   @db.Uuid
+  formularios_pendientes Boolean   @default(false)
+  sync_status            String    @default("pending")
+  sync_attempts          Int       @default(0)
+  last_synced_at         DateTime? @db.Timestamptz(6)
+  sync_error             String?
+  asignadoA              Usuario?  @relation("AsignadoA", fields: [asignado_a], references: [id_usuario], map: "asignado_a_fkey")
+  creadoPor              Usuario?  @relation("CreadoPor", fields: [creado_por], references: [id_usuario], map: "creado_por_fkey")
+  personas               personas  @relation(fields: [id_campesinos], references: [id_personas], onDelete: Cascade, map: "id_campesinos_fkey")
 
-  consejo_id        Int?
-  consejo           Consejo? @relation(fields: [consejo_id], references: [id], onDelete: SetNull)
-
-  creado_por        Int?
-  creadoPor         Usuario? @relation("CreadoPor", fields: [creado_por], references: [id])
-
-  asignado_a        Int?
-  asignadoA         Usuario? @relation("AsignadoA", fields: [asignado_a], references: [id])
-
-  tiene_pendientes  Boolean  @default(false)
-  metadata          Json?
-
-  creado_en         DateTime @default(now())
-  actualizado_en    DateTime @updatedAt
-
+  @@index([creado_por], map: "idx_campesinos_creado_por")
+  @@index([asignado_a], map: "idx_campesinos_asignado_a")
+  @@index([sync_status], map: "idx_campesinos_sync_status")
   @@map("campesinos")
+  @@schema("operacional")
 }
 
 model Formulario {
-  id             Int    @id @default(autoincrement())
+  id_formulario  String          @id(map: "id_formularios_pkey") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   titulo         String
-  version        Int    @default(1)
-  estructura     Json   // JSONB para preguntas dinámicas
-  activo         Boolean @default(true)
-
-  creado_por     Int
-  creadoPor      Usuario @relation(fields: [creado_por], references: [id])
-
-  creado_en      DateTime @default(now())
-  actualizado_en DateTime @updatedAt
+  version        Int             @default(1)
+  estructura     Json
+  activo         Boolean         @default(true)
+  creado_por     String          @db.Uuid
+  created_at     DateTime        @default(now()) @db.Timestamp(6)
+  update_at      DateTime        @default(now()) @db.Timestamp(6)
+  creador        Usuario         @relation("FormularioCreador", fields: [creado_por], references: [id_usuario], onDelete: SetNull, map: "creado_por_fkey")
+  respuesta_form RespuestaForm[]
 
   @@map("formularios")
+  @@schema("operacional")
+}
+
+model RespuestaForm {
+  id_respuesta   String     @id(map: "id_respuesta_pkey") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id_formulario  String     @db.Uuid
+  respuestas     Json
+  llenado_por    String     @db.Uuid
+  created_at     DateTime   @default(now()) @db.Timestamp(6)
+  update_at      DateTime   @default(now()) @db.Timestamp(6)
+  sync_status    String     @default("pending")
+  sync_attempts  Int        @default(0)
+  last_synced_at DateTime?  @db.Timestamptz(6)
+  sync_error     String?
+  formularios    Formulario @relation(fields: [id_formulario], references: [id_formulario], onDelete: Cascade, map: "formulario_id_pkey")
+  usuarios       Usuario    @relation(fields: [llenado_por], references: [id_usuario], onDelete: SetNull, map: "llenado_por_fkey")
+
+  @@index([id_formulario], map: "idx_respuesta_form_formulario")
+  @@index([llenado_por], map: "idx_respuesta_form_llenado_por")
+  @@index([sync_status], map: "idx_respuesta_form_sync_status")
+  @@map("respuesta_form")
+  @@schema("respuestas")
+}
+
+model HistorialCambio {
+  id_historial       String   @id(map: "id_auditoria_fkey") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  usuario_id_reg     String?  @db.Uuid
+  tabla_nombre       String   @db.VarChar(63)
+  registro_id        String   @db.Uuid
+  accion             String   @db.VarChar(10)
+  valores_anteriores Json?
+  valores_nuevos     Json?
+  origen             String   @default("WEB_DIRECTO") @db.VarChar(20)
+  created_at         DateTime @default(now()) @db.Timestamptz(6)
+  usuario            Usuario? @relation("HistorialUsuario", fields: [usuario_id_reg], references: [id_usuario], map: "usuario_id_reg_fkey")
+
+  @@index([tabla_nombre, registro_id], map: "idx_historial_tabla_registro")
+  @@map("historial_cambios")
+  @@schema("auditoria")
+}
+
+model FotoPerfil {
+  id_fotos       String    @id(map: "id_fotos_pky") @db.VarChar(36)
+  persona_id     String    @unique(map: "persona_id_unq") @db.Uuid
+  url_nube       String
+  created_at     DateTime  @default(now()) @db.Timestamp(6)
+  updated_at     DateTime  @default(now()) @updatedAt @db.Timestamp(6)
+  sync_status    String    @default("pending")
+  sync_attempts  Int       @default(0)
+  last_synced_at DateTime? @db.Timestamptz(6)
+  sync_error     String?
+  personas       personas  @relation(fields: [persona_id], references: [id_personas], onDelete: Cascade, map: "persona_id_fkey")
+
+  @@index([sync_status], map: "idx_fotos_perfil_sync_status")
+  @@map("fotos_perfil")
+  @@schema("operacional")
 }
 
 model Sincronizacion {
-  id            Int      @id @default(autoincrement())
-  entidad       String   // "campesino", "consejo", etc.
-  entidad_id    Int
-  operacion     String   // "CREATE", "UPDATE", "DELETE"
-  datos         Json
-  estado        String   @default("PENDIENTE")
-  intentos      Int      @default(0)
-  error         String?
-  creado_en     DateTime @default(now())
-  procesado_en  DateTime?
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  entidad      String
+  entidad_id   String
+  operacion    String
+  datos        Json
+  estado       String   @default("PENDIENTE")
+  intentos     Int      @default(0)
+  error        String?
+  creado_en    DateTime @default(now()) @db.Timestamp(3)
+  procesado_en DateTime? @db.Timestamp(3)
 
   @@map("sincronizaciones")
+  @@schema("operacional")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model prisma_migrations {
+  id_prisma           String    @id(map: "_prisma_pkey") @db.VarChar(36)
+  checksum            String    @db.VarChar(64)
+  finished_at         DateTime? @db.Timestamp(6)
+  migration_name      String    @db.VarChar(225)
+  logs                String?
+  rolled_back_at      DateTime? @db.Timestamp(6)
+  started_at          DateTime  @db.Timestamp(6)
+  applied_steps_count Int
+
+  @@map("_prisma_migrations")
+  @@schema("_prisma")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model personas {
+  id_personas       String           @id(map: "id_personas_pkey") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nombre            String
+  apellido          String
+  tipo_cedula       tipo_cedula_enum
+  cedula            String           @unique(map: "cedula_unique") @db.VarChar(15)
+  fecha_nacimiento  DateTime         @db.Date
+  parroquia         Int
+  direccion_usuario String
+  email             String?          @unique(map: "email_unique") @db.VarChar(254)
+  numero_telefonico String?          @db.VarChar(12)
+  genero            Int
+  consejo_id        String?          @db.Uuid
+  created_at        DateTime         @default(now()) @db.Timestamp(6)
+  update_at         DateTime         @default(now()) @db.Timestamp(6)
+  sync_status       String           @default("pending")
+  sync_attempts     Int              @default(0)
+  last_synced_at    DateTime?        @db.Timestamptz(6)
+  sync_error        String?
+  campesinos        Campesino?
+  fotos_perfil      FotoPerfil?
+  consejos          Consejo?         @relation(fields: [consejo_id], references: [consejo_id], map: "consejo_id_fkey")
+  generos           Genero           @relation(fields: [genero], references: [id_genero], onDelete: NoAction, onUpdate: NoAction, map: "genero_fkey")
+  parroquias        Parroquia        @relation(fields: [parroquia], references: [id_parroquia], map: "parroquia_fkey")
+  usuarios          Usuario?
+
+  @@index([cedula], map: "idx_personas_cedula")
+  @@index([consejo_id], map: "idx_personas_consejo_id")
+  @@index([email], map: "idx_personas_email")
+  @@index([genero], map: "idx_personas_genero")
+  @@index([parroquia], map: "idx_personas_parroquia")
+  @@index([sync_status], map: "idx_personas_sync_status")
+  @@schema("registros")
+}
+
+/// This enum is commented in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+enum tipo_cedula_enum {
+  V
+  E
+  NP
+
+  @@schema("registros")
 }

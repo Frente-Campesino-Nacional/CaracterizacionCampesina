@@ -1,23 +1,20 @@
-## Guardado en Mongo para respuestas de formularios
+## Guardado en PostgreSQL para respuestas de formularios
 
-Para que las respuestas de formularios se guarden en MongoDB, el backend debe arrancar con estas variables configuradas:
+Para que las respuestas de formularios se guarden en PostgreSQL, el backend debe arrancar con la conexión correcta a `DATABASE_URL`:
 
-- `MONGODB_URI`
-- `MONGODB_DB_NAME`
-- `MONGODB_OPTIONAL_ENABLED=true`
+- `DATABASE_URL`
 
 Flujo recomendado en Windows:
 
-1. Arranca MongoDB y confirma que responde en el puerto configurado.
-2. Copia [packages/backend/.env.example](../packages/backend/.env.example) a `packages/backend/.env`.
-3. Ajusta `MONGODB_URI` y, si aplica, `DATABASE_URL` y `JWT_SECRET`.
-4. Ejecuta `npm run dev:backend` desde la raíz del repo.
-5. Ejecuta `npm run android --workspace=mobile` para abrir la app en el emulador.
-6. Envía un formulario desde la app.
-7. Si Mongo está disponible, el backend responde con `guardado_en_mongo: true`.
+1. Configura [packages/backend/.env](../packages/backend/.env) con la base de datos nueva.
+2. Asegura que `DATABASE_URL` apunte a la instancia `db_producir_vencer`.
+3. Ejecuta `npm run dev:backend` desde la raíz del repo.
+4. Ejecuta `npm run android --workspace=mobile` para abrir la app en el emulador.
+5. Envía un formulario desde la app.
+6. El backend responde con `guardado_en_postgres: true` como confirmacion de que la respuesta quedo persistida.
 
 Comportamiento actual:
 
-- Si Mongo no está disponible, la app móvil sigue guardando el borrador y la cola localmente.
+- Si el backend no está disponible, la app móvil sigue guardando el borrador y la cola localmente.
 - Cuando vuelves a entrar a las pantallas de encuestador, la app reintenta sincronizar.
-- El backend solo persiste la respuesta final en Mongo cuando `MongoOptionalService` está activo.
+- El backend persiste la respuesta final en PostgreSQL.

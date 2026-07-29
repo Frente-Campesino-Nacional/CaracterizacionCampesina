@@ -12,7 +12,7 @@ export function isValidCedulaCode(value: string): boolean {
 export function normalizeCedulaInput(value: string): string {
   const cleaned = value.trim().replace(/[\s.]+/g, '').toUpperCase();
 
-  const venezuelaMatch = cleaned.match(/^([VE])[-]?(\d{8})$/);
+  const venezuelaMatch = cleaned.match(/^([VE])[-]?(\d{6,9})$/);
   if (venezuelaMatch) {
     return `${venezuelaMatch[1]}-${venezuelaMatch[2]}`;
   }

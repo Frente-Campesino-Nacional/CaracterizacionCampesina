@@ -19,3 +19,6 @@ export { default as LookupSelectField } from './LookupSelectField';
 export { default as PendingDot } from './PendingDot';
 export { default as SearchBar } from './SearchBar';
 export { default as StateMunicipioPicker } from './StateMunicipioPicker';
+export { default as RoleSectionHeader } from './RoleSectionHeader';
+export { default as FormModalSheet } from './FormModalSheet';
+export { default as StatusPill } from './StatusPill';

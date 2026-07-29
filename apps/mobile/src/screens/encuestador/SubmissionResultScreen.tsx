@@ -4,10 +4,11 @@ import { useNavigation, useRoute, NavigatorScreenParams, RouteProp } from '@reac
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { SubmissionHistoryItem } from '../../types/formularios';
 import { getSubmissionHistoryByCampesino } from '../../services/encuestadorFormService';
+import { sharedScreenStyles } from '../../styles/sharedScreenStyles';
 
 type RouteParams = {
-  campesinoId: number;
-  formularioId: number;
+  campesinoId: string;
+  formularioId: string;
   formularioTitulo: string;
   status: 'enviado' | 'pendiente_offline';
   message: string;
@@ -15,7 +16,7 @@ type RouteParams = {
 
 type EncuestadorTabParamList = {
   EncuestadorDashboard: undefined;
-  FormulariosPendientes: { campesinoId: number };
+  FormulariosPendientes: { campesinoId: string };
   EncuestadorPerfil: undefined;
 };
 
@@ -40,17 +41,17 @@ export default function SubmissionResultScreen() {
   }, [params.campesinoId]);
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <View style={styles.resultCard}>
-        <Text style={styles.title}>Resultado del envío</Text>
+    <ScrollView style={sharedScreenStyles.surfaceSoft} contentContainerStyle={sharedScreenStyles.contentMd}>
+      <View style={sharedScreenStyles.card}>
+        <Text style={sharedScreenStyles.cardTitleXl}>Resultado del envío</Text>
         <Text style={styles.formTitle}>{params.formularioTitulo}</Text>
-        <Text style={[styles.status, params.status === 'enviado' ? styles.sent : styles.queued]}>
+        <Text style={[styles.status, params.status === 'enviado' ? sharedScreenStyles.statusSuccess : sharedScreenStyles.statusWarning]}>
           {params.status === 'enviado' ? 'Enviado al servidor' : 'Guardado offline'}
         </Text>
         <Text style={styles.message}>{params.message}</Text>
       </View>
 
-      <View style={styles.historyCard}>
+      <View style={sharedScreenStyles.card}>
         <Text style={styles.historyTitle}>Historial de envíos</Text>
         {history.length ? (
           history.map((item) => (
@@ -67,7 +68,7 @@ export default function SubmissionResultScreen() {
       </View>
 
       <TouchableOpacity
-        style={styles.primaryButton}
+        style={sharedScreenStyles.primaryButton}
         onPress={() =>
           navigation.navigate('EncuestadorTabs', {
             screen: 'FormulariosPendientes',
@@ -75,34 +76,27 @@ export default function SubmissionResultScreen() {
           })
         }
       >
-        <Text style={styles.primaryButtonText}>Volver a pendientes</Text>
+        <Text style={sharedScreenStyles.primaryButtonText}>Volver a pendientes</Text>
       </TouchableOpacity>
 
       <TouchableOpacity
-        style={styles.secondaryButton}
+        style={sharedScreenStyles.secondaryButton}
         onPress={() =>
           navigation.navigate('EncuestadorTabs', {
             screen: 'EncuestadorDashboard',
           })
         }
       >
-        <Text style={styles.secondaryButtonText}>Ir al listado de campesinos</Text>
+        <Text style={sharedScreenStyles.secondaryButtonText}>Ir al listado de campesinos</Text>
       </TouchableOpacity>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f7fb' },
-  content: { padding: 12, gap: 10 },
-  resultCard: { backgroundColor: '#fff', borderRadius: 14, padding: 14 },
-  title: { fontSize: 22, fontWeight: '800', color: '#0f172a', marginBottom: 8 },
   formTitle: { color: '#1f2937', fontWeight: '700', marginBottom: 6 },
   status: { fontWeight: '800', marginBottom: 6 },
-  sent: { color: '#047857' },
-  queued: { color: '#b45309' },
   message: { color: '#475569' },
-  historyCard: { backgroundColor: '#fff', borderRadius: 14, padding: 14 },
   historyTitle: { fontSize: 16, fontWeight: '800', color: '#0f172a', marginBottom: 8 },
   historyItem: { borderBottomWidth: 1, borderBottomColor: '#e2e8f0', paddingBottom: 8, marginBottom: 8 },
   itemTitle: { fontWeight: '700', color: '#1f2937' },
@@ -110,8 +104,4 @@ const styles = StyleSheet.create({
   itemMessage: { color: '#64748b' },
   itemDate: { color: '#94a3b8', fontSize: 12, marginTop: 2 },
   empty: { color: '#64748b' },
-  primaryButton: { backgroundColor: '#1d4ed8', borderRadius: 10, alignItems: 'center', paddingVertical: 11 },
-  primaryButtonText: { color: '#fff', fontWeight: '700' },
-  secondaryButton: { backgroundColor: '#e2e8f0', borderRadius: 10, alignItems: 'center', paddingVertical: 11 },
-  secondaryButtonText: { color: '#1f2937', fontWeight: '700' },
 });

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   ScrollView,
@@ -13,6 +13,7 @@ import axios from 'axios';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuthStore } from '../../store/authStore';
+import { sharedScreenStyles } from '../../styles/sharedScreenStyles';
 import {
   buildDefaultAnswers,
   clearDraftAnswers,
@@ -27,15 +28,15 @@ import {
 import { FormQuestion } from '../../types/formularios';
 
 type DynamicFormRouteParams = {
-  campesinoId: number;
-  formularioId: number;
-  allActiveFormIds: number[];
+  campesinoId: string;
+  formularioId: string;
+  allActiveFormIds: string[];
 };
 
 type RootStackParamList = {
   SubmissionResult: {
-    campesinoId: number;
-    formularioId: number;
+    campesinoId: string;
+    formularioId: string;
     formularioTitulo: string;
     status: 'enviado' | 'pendiente_offline';
     message: string;
@@ -52,6 +53,7 @@ export default function DynamicFormScreen() {
   const [answers, setAnswers] = useState<Record<string, unknown>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const saveDraftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const loadForm = async () => {
@@ -91,7 +93,19 @@ export default function DynamicFormScreen() {
       return;
     }
 
-    saveDraftAnswers(params.campesinoId, params.formularioId, answers).catch(() => undefined);
+    if (saveDraftTimerRef.current) {
+      clearTimeout(saveDraftTimerRef.current);
+    }
+
+    saveDraftTimerRef.current = setTimeout(() => {
+      saveDraftAnswers(params.campesinoId, params.formularioId, answers).catch(() => undefined);
+    }, 300);
+
+    return () => {
+      if (saveDraftTimerRef.current) {
+        clearTimeout(saveDraftTimerRef.current);
+      }
+    };
   }, [answers, params.campesinoId, params.formularioId, questions.length]);
 
   const setAnswer = (questionId: string, value: unknown) => {
@@ -156,19 +170,13 @@ export default function DynamicFormScreen() {
           formularioTitulo: title,
           status: 'pendiente_offline',
           message:
-            'Se guardo offline y se sincronizara al recuperar conexion o cuando Mongo vuelva a estar disponible.',
+            'Se guardo offline y se sincronizara al recuperar conexion o cuando el backend vuelva a estar disponible.',
         });
         return;
       }
 
       const message = error instanceof Error ? error.message : 'No se pudo guardar el formulario';
-      navigation.navigate('SubmissionResult', {
-        campesinoId: params.campesinoId,
-        formularioId: params.formularioId,
-        formularioTitulo: title,
-        status: 'pendiente_offline',
-        message,
-      });
+      Alert.alert('Error al guardar', message);
     } finally {
       setSaving(false);
     }
@@ -176,15 +184,15 @@ export default function DynamicFormScreen() {
 
   if (loading) {
     return (
-      <View style={styles.centered}>
-        <Text style={styles.loadingText}>Cargando formulario...</Text>
+      <View style={sharedScreenStyles.centered}>
+        <Text style={sharedScreenStyles.helperText}>Cargando formulario...</Text>
       </View>
     );
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>{title}</Text>
+    <ScrollView style={sharedScreenStyles.surfaceSoft} contentContainerStyle={sharedScreenStyles.contentMd}>
+      <Text style={sharedScreenStyles.cardTitleXl}>{title}</Text>
       <Text style={styles.subtitle}>Completa todos los campos requeridos antes de guardar.</Text>
 
       {questions.map((question) => (
@@ -282,11 +290,6 @@ function renderQuestionInput(
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f7fb' },
-  content: { padding: 12, gap: 10 },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  loadingText: { color: '#334155', fontWeight: '600' },
-  title: { fontSize: 22, fontWeight: '800', color: '#0f172a' },
   subtitle: { color: '#4b5563', marginBottom: 8 },
   questionCard: { backgroundColor: '#fff', borderRadius: 14, padding: 12 },
   questionLabel: { fontWeight: '700', color: '#0f172a', marginBottom: 8 },

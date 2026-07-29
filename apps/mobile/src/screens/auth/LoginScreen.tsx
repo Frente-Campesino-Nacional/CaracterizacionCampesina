@@ -14,22 +14,12 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { useForm, Controller } from 'react-hook-form';
-import { yupResolver } from '@hookform/resolvers/yup';
-import * as yup from 'yup';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useAuthStore } from '../../store/authStore';
 import { login } from '../../services/authService';
 import { Button, TextInputField, Card } from '../../components';
 import { Theme } from '../../theme/colors';
-
-const schema = yup.object({
-  email: yup.string().email('Email inválido').required('Email requerido'),
-  password: yup
-    .string()
-    .min(8, 'Mínimo 8 caracteres')
-    .required('Contraseña requerida'),
-});
+import { sharedScreenStyles } from '../../styles/sharedScreenStyles';
 
 interface LoginForm {
   email: string;
@@ -38,20 +28,44 @@ interface LoginForm {
 
 export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
+  const [form, setForm] = useState<LoginForm>({ email: '', password: '' });
+  const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
   const { login: loginStore } = useAuthStore();
 
-  const {
-    control,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<LoginForm>({
-    resolver: yupResolver(schema),
-  });
+  const validateForm = (values: LoginForm) => {
+    const nextErrors: { email?: string; password?: string } = {};
 
-  const onSubmit = async (data: LoginForm) => {
+    if (!values.email.trim()) {
+      nextErrors.email = 'Email requerido';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email)) {
+      nextErrors.email = 'Email inválido';
+    }
+
+    if (!values.password.trim()) {
+      nextErrors.password = 'Contraseña requerida';
+    } else if (values.password.length < 8) {
+      nextErrors.password = 'Mínimo 8 caracteres';
+    }
+
+    setErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
+  };
+
+  const handleFieldChange = (field: keyof LoginForm, value: string) => {
+    setForm((prev) => ({ ...prev, [field]: value }));
+    if (errors[field]) {
+      setErrors((prev) => ({ ...prev, [field]: undefined }));
+    }
+  };
+
+  const onSubmit = async () => {
+    if (!validateForm(form)) {
+      return;
+    }
+
     setLoading(true);
     try {
-      const response = await login(data.email, data.password);
+      const response = await login(form.email, form.password);
       loginStore(response.user, response.token);
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Error al iniciar sesión');
@@ -69,6 +83,7 @@ export default function LoginScreen() {
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
           {/* Encabezado */}
           <View style={styles.headerContainer}>
@@ -87,52 +102,44 @@ export default function LoginScreen() {
 
           {/* Card del Formulario */}
           <Card variant="elevated" padding="lg" style={styles.formCard}>
-            <Text style={styles.formTitle}>Inicia sesión</Text>
+            <Text style={sharedScreenStyles.cardTitleLg}>Inicia sesión</Text>
             <Text style={styles.formSubtitle}>
               Ingresa tus credenciales para continuar
             </Text>
 
             {/* Email */}
-            <Controller
-              control={control}
-              name="email"
-              render={({ field: { onChange, value } }) => (
-                <TextInputField
-                  label="Correo Electrónico"
-                  placeholder="tu.email@ejemplo.com"
-                  icon="email-outline"
-                  value={value}
-                  onChangeText={onChange}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  error={errors.email?.message ?? undefined}
-                  containerStyle={styles.fieldContainer}
-                />
-              )}
+            <TextInputField
+              label="Correo Electrónico"
+              placeholder="tu.email@ejemplo.com"
+              icon="email-outline"
+              value={form.email}
+              onChangeText={(text) => handleFieldChange('email', text)}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoComplete="email"
+              textContentType="emailAddress"
+              error={errors.email}
+              containerStyle={styles.fieldContainer}
             />
 
             {/* Password */}
-            <Controller
-              control={control}
-              name="password"
-              render={({ field: { onChange, value } }) => (
-                <TextInputField
-                  label="Contraseña"
-                  placeholder="••••••••"
-                  icon="lock-outline"
-                  value={value}
-                  onChangeText={onChange}
-                  isPassword={true}
-                  error={errors.password?.message ?? undefined}
-                  containerStyle={styles.fieldContainer}
-                />
-              )}
+            <TextInputField
+              label="Contraseña"
+              placeholder="••••••••"
+              icon="lock-outline"
+              value={form.password}
+              onChangeText={(text) => handleFieldChange('password', text)}
+              isPassword={true}
+              autoComplete="password"
+              textContentType="password"
+              error={errors.password}
+              containerStyle={styles.fieldContainer}
             />
 
             {/* Botón Login */}
             <Button
               label={loading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
-              onPress={handleSubmit(onSubmit)}
+              onPress={onSubmit}
               variant="primary"
               size="lg"
               icon="login"
@@ -159,10 +166,7 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: Theme.colors.white,
-  },
+  safeArea: sharedScreenStyles.surfaceWhite,
   keyboardAvoid: {
     flex: 1,
   },

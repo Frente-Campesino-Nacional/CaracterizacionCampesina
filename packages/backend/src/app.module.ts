@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import * as path from 'path';
 import configuration from './config/configuration';
 import { DatabaseModule } from './database/database.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -8,6 +9,7 @@ import { RolesModule } from './modules/roles/roles.module';
 import { ConsejosModule } from './modules/consejos/consejos.module';
 import { CampesinosModule } from './modules/campesinos/campesinos.module';
 import { GenerosModule } from './modules/generos/generos.module';
+import { CatalogosModule } from './modules/catalogos/catalogos.module';
 import { FormulariosModule } from './modules/formularios/formularios.module';
 import { SyncModule } from './modules/sync/sync.module';
 import { AppController } from './app.controller';
@@ -16,6 +18,8 @@ import { AppController } from './app.controller';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      envFilePath: path.resolve(__dirname, '../.env'),
+      ignoreEnvFile: false,
       load: [configuration],
     }),
     DatabaseModule,
@@ -25,6 +29,7 @@ import { AppController } from './app.controller';
     ConsejosModule,
     CampesinosModule,
     GenerosModule,
+    CatalogosModule,
     FormulariosModule,
     SyncModule,
   ],

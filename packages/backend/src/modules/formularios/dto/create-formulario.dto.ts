@@ -17,13 +17,6 @@ export class CreateFormularioDto {
   activo?: boolean;
 
   @IsNotEmpty()
-  creado_por: number;
+  creado_por: string | number;
 
-  @IsOptional()
-  @IsDateString()
-  creado_en?: string;
-
-  @IsOptional()
-  @IsDateString()
-  actualizado_en?: string;
 }

@@ -8,6 +8,7 @@ import * as yup from 'yup';
 import { deleteUsuarioProfileImage, getUsuarioProfileImage, saveUsuarioProfileImage, updateUsuario, UsuarioProfileImageRecord } from '../../services/adminService';
 import { useAuthStore } from '../../store/authStore';
 import { Theme } from '../../theme/colors';
+import { sharedScreenStyles } from '../../styles/sharedScreenStyles';
 
 const schema = yup.object({
   password: yup.string().min(8, 'Mínimo 8 caracteres').required('Contraseña requerida'),
@@ -110,14 +111,14 @@ export default function ProfileScreen({ title }: ProfileScreenProps) {
 
   if (!user) {
     return (
-      <View style={styles.center}>
+      <View style={sharedScreenStyles.centered}>
         <Text>No hay sesión activa.</Text>
       </View>
     );
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView style={sharedScreenStyles.surfaceWhite} contentContainerStyle={sharedScreenStyles.contentLg}>
       {navigation.canGoBack?.() ? (
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
           <MaterialCommunityIcons name="chevron-left" size={24} color={Theme.colors.greenDark} />
@@ -138,7 +139,7 @@ export default function ProfileScreen({ title }: ProfileScreenProps) {
 
       <View style={styles.infoCard}>
         <Text style={styles.sectionTitle}>Foto de perfil</Text>
-        <Text style={styles.fieldLabel}>URL</Text>
+        <Text style={sharedScreenStyles.fieldLabel}>URL</Text>
         <TextInput
           value={photoUrl}
           onChangeText={setPhotoUrl}
@@ -146,7 +147,7 @@ export default function ProfileScreen({ title }: ProfileScreenProps) {
           autoCapitalize="none"
           style={styles.input}
         />
-        <Text style={styles.fieldLabel}>Base64 opcional</Text>
+        <Text style={sharedScreenStyles.fieldLabel}>Base64 opcional</Text>
         <TextInput
           value={photoBase64}
           onChangeText={setPhotoBase64}
@@ -168,22 +169,22 @@ export default function ProfileScreen({ title }: ProfileScreenProps) {
       <View style={styles.infoCard}>
         <Text style={styles.sectionTitle}>{title || 'Perfil'}</Text>
         <View style={styles.fieldRow}>
-          <Text style={styles.fieldLabel}>Nombre</Text>
-          <Text style={styles.fieldValue}>{user.nombre} {user.apellido}</Text>
+          <Text style={sharedScreenStyles.fieldLabel}>Nombre</Text>
+          <Text style={sharedScreenStyles.fieldValue}>{user.nombre} {user.apellido}</Text>
         </View>
         <View style={styles.fieldRow}>
-          <Text style={styles.fieldLabel}>Email</Text>
-          <Text style={styles.fieldValue}>{user.email}</Text>
+          <Text style={sharedScreenStyles.fieldLabel}>Email</Text>
+          <Text style={sharedScreenStyles.fieldValue}>{user.email}</Text>
         </View>
         <View style={styles.fieldRow}>
-          <Text style={styles.fieldLabel}>Rol</Text>
-          <Text style={styles.fieldValue}>{user.rol}</Text>
+          <Text style={sharedScreenStyles.fieldLabel}>Rol</Text>
+          <Text style={sharedScreenStyles.fieldValue}>{user.rol}</Text>
         </View>
       </View>
 
       <View style={styles.infoCard}>
         <Text style={styles.sectionTitle}>Cambiar contraseña</Text>
-        <Text style={styles.fieldLabel}>Nueva contraseña</Text>
+        <Text style={sharedScreenStyles.fieldLabel}>Nueva contraseña</Text>
         <TextInput
           value={watch('password')}
           onChangeText={(value) => setValue('password', value)}
@@ -206,8 +207,6 @@ export default function ProfileScreen({ title }: ProfileScreenProps) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Theme.colors.white },
-  content: { padding: Theme.spacing.lg, gap: Theme.spacing.lg, paddingBottom: Theme.spacing.xxl },
   backButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -219,7 +218,6 @@ const styles = StyleSheet.create({
     fontWeight: Theme.fontWeight.semibold,
     fontSize: Theme.fontSize.base,
   },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   headerCard: {
     backgroundColor: Theme.colors.greenLightTransparent,
     borderRadius: Theme.borderRadius.xl,
@@ -267,16 +265,6 @@ const styles = StyleSheet.create({
   },
   fieldRow: {
     marginBottom: Theme.spacing.md,
-  },
-  fieldLabel: {
-    color: Theme.colors.mediumGray,
-    fontSize: Theme.fontSize.sm,
-    marginBottom: Theme.spacing.xs,
-  },
-  fieldValue: {
-    color: Theme.colors.darkGray,
-    fontSize: Theme.fontSize.base,
-    fontWeight: Theme.fontWeight.semibold,
   },
   input: {
     borderWidth: 1,

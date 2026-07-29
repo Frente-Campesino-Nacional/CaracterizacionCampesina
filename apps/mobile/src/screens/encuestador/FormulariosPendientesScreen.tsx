@@ -4,6 +4,7 @@ import { RouteProp, useFocusEffect, useNavigation, useRoute } from '@react-navig
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { CampesinoRecord, FormularioRecord } from '../../services/adminService';
 import { useAuthStore } from '../../store/authStore';
+import { sharedScreenStyles } from '../../styles/sharedScreenStyles';
 import {
   flushQueuedSubmissions,
   getCampesinoById,
@@ -11,13 +12,14 @@ import {
   getPendingFormularios,
   normalizeMetadata,
 } from '../../services/encuestadorFormService';
+import { flushQueuedCampesinoCreates } from '../../services/encuestadorCampesinoOfflineService';
 
 type RootStackParamList = {
-  FormulariosPendientes: { campesinoId: number } | undefined;
+  FormulariosPendientes: { campesinoId: string } | undefined;
   DynamicForm: {
-    campesinoId: number;
-    formularioId: number;
-    allActiveFormIds: number[];
+    campesinoId: string;
+    formularioId: string;
+    allActiveFormIds: string[];
   };
 };
 
@@ -38,6 +40,7 @@ export default function FormulariosPendientesScreen() {
       return;
     }
 
+    await flushQueuedCampesinoCreates(token);
     const [campesinoData, formulariosData, flushed] = await Promise.all([
       getCampesinoById(token, campesinoId),
       getFormulariosActivos(token),
@@ -67,7 +70,7 @@ export default function FormulariosPendientesScreen() {
 
   const metadata = normalizeMetadata(campesino?.metadata ?? undefined);
 
-  const openForm = (formularioId: number) => {
+  const openForm = (formularioId: string) => {
     if (campesinoId == null) {
       return;
     }
@@ -81,45 +84,45 @@ export default function FormulariosPendientesScreen() {
 
   if (campesinoId == null) {
     return (
-      <View style={styles.centered}>
-        <Text style={styles.infoText}>Selecciona un campesino desde la pestaña Campesinos para ver sus formularios pendientes.</Text>
+      <View style={sharedScreenStyles.centered}>
+        <Text style={sharedScreenStyles.helperText}>Selecciona un campesino desde la pestaña Campesinos para ver sus formularios pendientes.</Text>
       </View>
     );
   }
 
   if (!campesino) {
     return (
-      <View style={styles.centered}>
-        <Text style={styles.infoText}>Cargando información del campesino...</Text>
+      <View style={sharedScreenStyles.centered}>
+        <Text style={sharedScreenStyles.helperText}>Cargando información del campesino...</Text>
       </View>
     );
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <View style={styles.headerCard}>
-        <Text style={styles.title}>Formularios Pendientes</Text>
-        <Text style={styles.subtitle}>Campesino: {campesino.nombre} {campesino.apellido || ''}</Text>
-        <Text style={styles.meta}>Cédula: {campesino.cedula}</Text>
-        <Text style={styles.meta}>Completados: {metadata.formularios_respondidos.length}</Text>
-        <Text style={styles.meta}>Pendientes: {pendingForms.length}</Text>
-        {syncCount > 0 ? <Text style={styles.sync}>Se sincronizaron {syncCount} respuestas locales.</Text> : null}
+    <ScrollView style={sharedScreenStyles.surfaceSoft} contentContainerStyle={sharedScreenStyles.contentMd}>
+      <View style={sharedScreenStyles.card}>
+        <Text style={sharedScreenStyles.cardTitleXl}>Formularios Pendientes</Text>
+        <Text style={sharedScreenStyles.subtitleStrong}>Campesino: {campesino.nombre} {campesino.apellido || ''}</Text>
+        <Text style={sharedScreenStyles.metaText}>Cédula: {campesino.cedula}</Text>
+        <Text style={sharedScreenStyles.metaText}>Completados: {metadata.formularios_respondidos.length}</Text>
+        <Text style={sharedScreenStyles.metaText}>Pendientes: {pendingForms.length}</Text>
+        {syncCount > 0 ? <Text style={sharedScreenStyles.statusSuccess}>Se sincronizaron {syncCount} respuestas locales.</Text> : null}
       </View>
 
       {pendingForms.length ? (
         pendingForms.map((formulario) => (
-          <View key={formulario.id} style={styles.formCard}>
+          <View key={formulario.id} style={sharedScreenStyles.card}>
             <Text style={styles.formTitle}>{formulario.titulo}</Text>
             <Text style={styles.formDetail}>Versión: {formulario.version}</Text>
-            <TouchableOpacity style={styles.fillButton} onPress={() => openForm(formulario.id)}>
-              <Text style={styles.fillButtonText}>Llenar formulario</Text>
+            <TouchableOpacity style={sharedScreenStyles.primaryButton} onPress={() => openForm(formulario.id)}>
+              <Text style={sharedScreenStyles.primaryButtonText}>Llenar formulario</Text>
             </TouchableOpacity>
           </View>
         ))
       ) : (
-        <View style={styles.emptyCard}>
-          <Text style={styles.emptyTitle}>No hay formularios pendientes</Text>
-          <Text style={styles.emptySubtitle}>Este campesino ya completó todos los formularios activos.</Text>
+        <View style={sharedScreenStyles.emptyCard}>
+          <Text style={sharedScreenStyles.emptyTitle}>No hay formularios pendientes</Text>
+          <Text style={sharedScreenStyles.emptySubtitle}>Este campesino ya completó todos los formularios activos.</Text>
         </View>
       )}
     </ScrollView>
@@ -127,21 +130,6 @@ export default function FormulariosPendientesScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f7fb' },
-  content: { padding: 12, gap: 10 },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 16 },
-  infoText: { color: '#334155', fontWeight: '600' },
-  headerCard: { backgroundColor: '#fff', borderRadius: 14, padding: 14 },
-  title: { fontSize: 22, fontWeight: '800', color: '#0f172a', marginBottom: 6 },
-  subtitle: { color: '#1f2937', fontWeight: '700', marginBottom: 4 },
-  meta: { color: '#475569', marginBottom: 2 },
-  sync: { color: '#047857', marginTop: 6, fontWeight: '700' },
-  formCard: { backgroundColor: '#fff', borderRadius: 14, padding: 14 },
   formTitle: { fontSize: 16, fontWeight: '800', color: '#0f172a', marginBottom: 4 },
   formDetail: { color: '#4b5563', marginBottom: 10 },
-  fillButton: { backgroundColor: '#1d4ed8', paddingVertical: 10, borderRadius: 10, alignItems: 'center' },
-  fillButtonText: { color: '#fff', fontWeight: '700' },
-  emptyCard: { backgroundColor: '#fff', borderRadius: 14, padding: 14, alignItems: 'center' },
-  emptyTitle: { fontWeight: '800', color: '#0f172a', marginBottom: 4 },
-  emptySubtitle: { color: '#64748b', textAlign: 'center' },
 });

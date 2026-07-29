@@ -1,4 +1,5 @@
-import { IsNotEmpty, IsOptional, IsEnum, IsDateString } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsNotEmpty, IsOptional, IsEnum, IsDateString, IsInt } from 'class-validator';
 
 export class CreateConsejoDto {
   @IsNotEmpty()
@@ -7,23 +8,25 @@ export class CreateConsejoDto {
   @IsOptional()
   descripcion?: string;
 
-  @IsNotEmpty()
-  estado: string;
-
-  @IsNotEmpty()
-  municipio: string;
-
-  @IsNotEmpty()
-  encargado_tipo: string;
-
-  @IsNotEmpty()
-  encargado_id: number;
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  estado_id?: number;
 
   @IsOptional()
-  @IsDateString()
-  creado_en?: string;
+  @Type(() => Number)
+  @IsInt()
+  municipio_id?: number;
 
   @IsOptional()
-  @IsDateString()
-  actualizado_en?: string;
+  @Type(() => Number)
+  @IsInt()
+  parroquia_id?: number;
+
+  @IsOptional()
+  encargado_tipo?: string;
+
+  @IsOptional()
+  encargado_id?: string | number;
+
 }

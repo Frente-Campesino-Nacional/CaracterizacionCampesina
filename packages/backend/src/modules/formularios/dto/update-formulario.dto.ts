@@ -17,13 +17,6 @@ export class UpdateFormularioDto {
   activo?: boolean;
 
   @IsOptional()
-  creado_por?: number;
+  creado_por?: string | number;
 
-  @IsOptional()
-  @IsDateString()
-  creado_en?: string;
-
-  @IsOptional()
-  @IsDateString()
-  actualizado_en?: string;
 }

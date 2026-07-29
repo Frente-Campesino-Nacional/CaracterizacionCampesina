@@ -5,18 +5,20 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import DatePickerField from '../../components/DatePickerField';
 import SearchBar from '../../components/SearchBar';
-import { Card, OptionSelector, GENDER_OPTIONS, LookupSelectField } from '../../components';
+import { Card, OptionSelector, GENDER_OPTIONS, LookupSelectField, RoleSectionHeader, FormModalSheet, StatusPill } from '../../components';
 import { Theme } from '../../theme/colors';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import StateMunicipioPicker from '../../components/StateMunicipioPicker';
 import { ConsejoRecord, GeneroRecord, RoleRecord, UserRole, UsuarioPayload, UsuarioRecord, createUsuario, deleteUsuario, deleteUsuarioProfileImage, getUsuarioProfileImage, listConsejos, listGeneros, listRoles, listUsuarios, saveUsuarioProfileImage, updateUsuario } from '../../services/adminService';
 import { useAuthStore } from '../../store/authStore';
 import { exportTableToPdf } from '../../utils/pdfExport';
+import { sharedFormStyles } from '../../styles/sharedFormStyles';
 
 const roleFallbacks: Array<'admin' | 'encuestador'> = ['admin', 'encuestador'];
 
 type UserFormState = {
   cedulaMode: 'manual' | 'foreign' | 'venezolano' | 'none';
+  nombre_usuario: string;
   email: string;
   password: string;
   rol: UserRole;
@@ -26,8 +28,12 @@ type UserFormState = {
   numero_telefono: string;
   fecha_nacimiento: string;
   genero: string;
-  estado: string;
-  municipio: string;
+  estado_id: string;
+  estado_nombre: string;
+  municipio_id: string;
+  municipio_nombre: string;
+  parroquia_id: string;
+  parroquia_nombre: string;
   direccion: string;
   consejo_id: string;
   activo: boolean;
@@ -37,6 +43,7 @@ type UserFormState = {
 function defaultUserForm(): UserFormState {
   return {
     cedulaMode: 'none',
+    nombre_usuario: '',
     email: '',
     password: '',
     rol: 'encuestador',
@@ -46,8 +53,12 @@ function defaultUserForm(): UserFormState {
     numero_telefono: '',
     fecha_nacimiento: '',
     genero: '',
-    estado: '',
-    municipio: '',
+    estado_id: '',
+    estado_nombre: '',
+    municipio_id: '',
+    municipio_nombre: '',
+    parroquia_id: '',
+    parroquia_nombre: '',
     direccion: '',
     consejo_id: '',
     activo: true,
@@ -162,6 +173,7 @@ export default function AdminUsuariosScreen() {
     setForm({
       cedulaMode: item.cedula ? (/^V-/.test(item.cedula) ? 'venezolano' : /^E-/.test(item.cedula) ? 'foreign' : 'manual') : 'none',
       cedula: item.cedula || '',
+      nombre_usuario: item.email || '',
       email: item.email,
       password: '',
       rol: item.rol,
@@ -170,10 +182,14 @@ export default function AdminUsuariosScreen() {
       numero_telefono: item.numero_telefono || '',
       fecha_nacimiento: item.fecha_nacimiento ? String(item.fecha_nacimiento).slice(0, 10) : '',
       genero: item.genero || '',
-      estado: item.estado || '',
-      municipio: item.municipio || '',
+      estado_id: '',
+      estado_nombre: item.estado || '',
+      municipio_id: '',
+      municipio_nombre: item.municipio || '',
+      parroquia_id: '',
+      parroquia_nombre: item.parroquia || '',
       direccion: item.direccion || '',
-      consejo_id: item.consejo_id != null ? String(item.consejo_id) : '',
+      consejo_id: item.consejo_id || '',
       activo: item.activo,
       creado_en: item.creado_en ? String(item.creado_en) : '',
     });
@@ -183,12 +199,13 @@ export default function AdminUsuariosScreen() {
 
   const save = async () => {
     if (!token) return;
-    if (!form.email || !form.nombre || !form.apellido || (!editing && !form.password)) {
+      if (!form.nombre_usuario || !form.email || !form.nombre || !form.apellido || (!editing && !form.password)) {
       Alert.alert('Validación', 'Completa los campos requeridos');
       return;
     }
 
     const payload: UsuarioPayload = {
+      nombre_usuario: form.nombre_usuario.trim(),
       email: form.email.trim(),
       password: toOptionalString(form.password),
       cedula: buildCedulaValue(form.cedulaMode, form.cedula),
@@ -197,11 +214,12 @@ export default function AdminUsuariosScreen() {
       rol: form.rol,
       numero_telefono: toOptionalString(form.numero_telefono),
       fecha_nacimiento: toOptionalIsoDate(form.fecha_nacimiento),
+      estado_id: toOptionalNumber(form.estado_id),
       genero: toOptionalString(form.genero),
-      estado: toOptionalString(form.estado),
-      municipio: toOptionalString(form.municipio),
+      municipio_id: toOptionalNumber(form.municipio_id),
+      parroquia_id: toOptionalNumber(form.parroquia_id),
       direccion: toOptionalString(form.direccion),
-      consejo_id: toOptionalNumber(form.consejo_id),
+      consejo_id: toOptionalString(form.consejo_id),
       activo: form.activo,
       creado_en: toOptionalString(form.creado_en),
     };
@@ -298,7 +316,7 @@ export default function AdminUsuariosScreen() {
     [consejos],
   );
 
-  const loadPhoto = async (userId: number) => {
+  const loadPhoto = async (userId: string) => {
     if (!token) return;
 
     try {
@@ -366,7 +384,7 @@ export default function AdminUsuariosScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={sharedFormStyles.pageContainer}>
       <SearchBar value={search} onChangeText={setSearch} placeholder="Buscar por nombre o email" />
       <View style={styles.filterRow}>
         {['all', ...roleOptions].map((role) => (
@@ -379,26 +397,26 @@ export default function AdminUsuariosScreen() {
           </TouchableOpacity>
         ))}
       </View>
-      <View style={styles.headerRow}>
-        <View style={styles.headerTextWrapper}>
-          <Text style={styles.sectionTitle}>Usuarios</Text>
-          <Text style={styles.sectionSubtitle}>Gestiona acceso, roles y estado de los usuarios.</Text>
-        </View>
-        <View style={styles.actionButtonsRow}>
-          <TouchableOpacity style={styles.smallButton} onPress={exportPdf}>
-            <Text style={styles.smallButtonText}>PDF</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.primaryButton} onPress={openCreate}>
-            <Text style={styles.primaryButtonText}>Crear</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+      <RoleSectionHeader
+        title="Usuarios"
+        subtitle="Gestiona acceso, roles y estado de los usuarios."
+        actions={
+          <>
+            <TouchableOpacity style={sharedFormStyles.smallButton} onPress={exportPdf}>
+              <Text style={sharedFormStyles.smallButtonText}>PDF</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={sharedFormStyles.primaryButton} onPress={openCreate}>
+              <Text style={sharedFormStyles.primaryButtonText}>Crear</Text>
+            </TouchableOpacity>
+          </>
+        }
+      />
 
       <FlatList
         data={filtered}
         keyExtractor={(item) => String(item.id)}
-        contentContainerStyle={styles.listContent}
-        ListEmptyComponent={<Text style={styles.emptyText}>No hay usuarios</Text>}
+        contentContainerStyle={sharedFormStyles.listContent}
+        ListEmptyComponent={<Text style={sharedFormStyles.emptyText}>No hay usuarios</Text>}
         renderItem={({ item }) => (
           <TouchableOpacity onPress={() => navigation.navigate('BasicRecordDetail', { recordType: 'usuario', recordId: item.id })} activeOpacity={0.85}>
           <Card variant="elevated" padding="sm" style={styles.itemCard}>
@@ -411,9 +429,7 @@ export default function AdminUsuariosScreen() {
                 <Text style={styles.itemSubtitle}>{item.email}</Text>
               </View>
               <View style={styles.itemRight}> 
-                <View style={[styles.statusBadge, item.activo ? styles.statusActive : styles.statusInactive]}>
-                  <Text style={styles.statusText}>{item.activo ? 'Activo' : 'Inactivo'}</Text>
-                </View>
+                <StatusPill label={item.activo ? 'Activo' : 'Inactivo'} tone={item.activo ? 'success' : 'danger'} />
                 <View style={styles.iconRow}>
                   <TouchableOpacity onPress={() => openEdit(item)} style={styles.iconButton}>
                     <MaterialCommunityIcons name="pencil" size={20} color={Theme.colors.greenDark} />
@@ -433,18 +449,19 @@ export default function AdminUsuariosScreen() {
         )}
       />
 
-      <Modal visible={modal} animationType="slide" transparent onRequestClose={() => setModal(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <ScrollView>
-              <Text style={styles.modalTitle}>{editing ? 'Editar usuario' : 'Crear usuario'}</Text>
-              <TextInput value={form.email} onChangeText={(value) => setForm((s) => ({ ...s, email: value }))} style={styles.input} placeholder="Email *" autoCapitalize="none" />
+      <FormModalSheet
+        visible={modal}
+        title={editing ? 'Editar usuario' : 'Crear usuario'}
+        onClose={() => setModal(false)}
+        onSave={save}
+      >
+              <TextInput value={form.nombre_usuario} onChangeText={(value) => setForm((s) => ({ ...s, nombre_usuario: value }))} style={sharedFormStyles.input} placeholder="Nombre de usuario *" autoCapitalize="none" />
+              <TextInput value={form.email} onChangeText={(value) => setForm((s) => ({ ...s, email: value }))} style={sharedFormStyles.input} placeholder="Email *" autoCapitalize="none" />
               <View style={styles.filterRow}>
                 {([
                   { key: 'none', label: 'No posee cédula' },
                   { key: 'venezolano', label: 'Venezolano' },
                   { key: 'foreign', label: 'Extranjero' },
-                  { key: 'manual', label: 'Manual' },
                 ] as const).map((option) => (
                   <TouchableOpacity key={option.key} style={[styles.pill, form.cedulaMode === option.key && styles.pillActive]} onPress={() => setForm((s) => ({ ...s, cedulaMode: option.key, cedula: option.key === 'none' ? '' : s.cedula }))}>
                     <Text style={[styles.pillText, form.cedulaMode === option.key && styles.pillTextActive]}>{option.label}</Text>
@@ -452,17 +469,17 @@ export default function AdminUsuariosScreen() {
                 ))}
               </View>
               {form.cedulaMode !== 'none' ? (
-                <TextInput value={form.cedula} onChangeText={(value) => setForm((s) => ({ ...s, cedula: value }))} style={styles.input} placeholder={form.cedulaMode === 'venezolano' ? 'Ej: 31217665' : form.cedulaMode === 'foreign' ? 'Ej: 31217665' : 'Cédula'} autoCapitalize="characters" />
+                <TextInput value={form.cedula} onChangeText={(value) => setForm((s) => ({ ...s, cedula: value }))} style={sharedFormStyles.input} placeholder={form.cedulaMode === 'venezolano' ? 'Ej: 31217665' : form.cedulaMode === 'foreign' ? 'Ej: 31217665' : 'Cédula'} autoCapitalize="characters" />
               ) : null}
               <TextInput
                 value={form.password}
                 onChangeText={(value) => setForm((s) => ({ ...s, password: value }))}
-                style={styles.input}
+                style={sharedFormStyles.input}
                 placeholder={editing ? 'Contraseña (opcional en edición)' : 'Contraseña *'}
                 secureTextEntry
               />
-              <TextInput value={form.nombre} onChangeText={(value) => setForm((s) => ({ ...s, nombre: value }))} style={styles.input} placeholder="Nombre *" />
-              <TextInput value={form.apellido} onChangeText={(value) => setForm((s) => ({ ...s, apellido: value }))} style={styles.input} placeholder="Apellido *" />
+              <TextInput value={form.nombre} onChangeText={(value) => setForm((s) => ({ ...s, nombre: value }))} style={sharedFormStyles.input} placeholder="Nombre *" />
+              <TextInput value={form.apellido} onChangeText={(value) => setForm((s) => ({ ...s, apellido: value }))} style={sharedFormStyles.input} placeholder="Apellido *" />
               <View style={styles.filterRow}>
                 {roleOptions.map((role) => (
                   <TouchableOpacity key={role} style={[styles.pill, form.rol === role && styles.pillActive]} onPress={() => setForm((s) => ({ ...s, rol: role }))}>
@@ -470,7 +487,7 @@ export default function AdminUsuariosScreen() {
                   </TouchableOpacity>
                 ))}
               </View>
-              <TextInput value={form.numero_telefono} onChangeText={(value) => setForm((s) => ({ ...s, numero_telefono: value }))} style={styles.input} placeholder="Número de teléfono" keyboardType="phone-pad" />
+              <TextInput value={form.numero_telefono} onChangeText={(value) => setForm((s) => ({ ...s, numero_telefono: value }))} style={sharedFormStyles.input} placeholder="Número de teléfono" keyboardType="phone-pad" />
               <DatePickerField label="Fecha de nacimiento" value={form.fecha_nacimiento} onChange={(value) => setForm((s) => ({ ...s, fecha_nacimiento: value }))} onClear={() => setForm((s) => ({ ...s, fecha_nacimiento: '' }))} />
               <OptionSelector
                 label="Género"
@@ -480,12 +497,23 @@ export default function AdminUsuariosScreen() {
                 placeholder="Selecciona el género del usuario"
               />
               <StateMunicipioPicker
-                estado={form.estado}
-                municipio={form.municipio}
-                onEstadoChange={(value) => setForm((s) => ({ ...s, estado: value }))}
-                onMunicipioChange={(value) => setForm((s) => ({ ...s, municipio: value }))}
+                estado={form.estado_nombre}
+                municipio={form.municipio_nombre}
+                parroquia={form.parroquia_nombre}
+                onEstadoChange={(value) => setForm((s) => ({ ...s, estado_nombre: value, estado_id: '' }))}
+                onMunicipioChange={(value) => setForm((s) => ({ ...s, municipio_nombre: value, municipio_id: '' }))}
+                onParroquiaChange={(value) => setForm((s) => ({ ...s, parroquia_nombre: value, parroquia_id: '' }))}
+                onSelectionChange={({ estadoId, estadoNombre, municipioId, municipioNombre, parroquiaId, parroquiaNombre }) => setForm((s) => ({
+                  ...s,
+                  estado_id: estadoId != null ? String(estadoId) : '',
+                  estado_nombre: estadoNombre,
+                  municipio_id: municipioId != null ? String(municipioId) : '',
+                  municipio_nombre: municipioNombre,
+                  parroquia_id: parroquiaId != null ? String(parroquiaId) : '',
+                  parroquia_nombre: parroquiaNombre,
+                }))}
               />
-              <TextInput value={form.direccion} onChangeText={(value) => setForm((s) => ({ ...s, direccion: value }))} style={[styles.input, styles.textArea]} placeholder="Dirección" multiline numberOfLines={3} />
+              <TextInput value={form.direccion} onChangeText={(value) => setForm((s) => ({ ...s, direccion: value }))} style={[sharedFormStyles.input, sharedFormStyles.textArea]} placeholder="Dirección" multiline numberOfLines={3} />
               <LookupSelectField
                 label="Consejo"
                 value={form.consejo_id}
@@ -516,34 +544,17 @@ export default function AdminUsuariosScreen() {
                   </View>
                 </View>
               </View>
-              <TextInput value={form.creado_en} onChangeText={(value) => setForm((s) => ({ ...s, creado_en: value }))} style={styles.input} placeholder="Creado en (ISO opcional)" autoCapitalize="none" />
-              <View style={styles.switchRow}>
+              <TextInput value={form.creado_en} onChangeText={(value) => setForm((s) => ({ ...s, creado_en: value }))} style={sharedFormStyles.input} placeholder="Creado en (ISO opcional)" autoCapitalize="none" />
+              <View style={sharedFormStyles.switchRow}>
                 <Text>Activo</Text>
                 <Switch value={form.activo} onValueChange={(value) => setForm((s) => ({ ...s, activo: value }))} />
               </View>
-              <View style={styles.modalActions}>
-                <TouchableOpacity onPress={() => setModal(false)}><Text>Cancelar</Text></TouchableOpacity>
-                <TouchableOpacity onPress={save}><Text style={styles.save}>Guardar</Text></TouchableOpacity>
-              </View>
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
+      </FormModalSheet>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 12, backgroundColor: '#f5f7fb' },
-  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, gap: 12 },
-  headerTextWrapper: { flex: 1 },
-  sectionTitle: { fontSize: 22, fontWeight: '800', color: '#0f172a' },
-  sectionSubtitle: { color: '#475569', marginTop: 4 },
-  actionButtonsRow: { flexDirection: 'row', gap: 10 },
-  primaryButton: { backgroundColor: '#0f766e', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12, justifyContent: 'center', alignItems: 'center' },
-  primaryButtonText: { color: '#fff', fontWeight: '700' },
-  smallButton: { backgroundColor: '#e2e8f0', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, justifyContent: 'center', alignItems: 'center' },
-  smallButtonText: { color: '#1f2937', fontWeight: '700' },
   filterRow: { flexDirection: 'row', gap: 8, marginBottom: 10, flexWrap: 'wrap' },
   pill: { paddingHorizontal: 10, paddingVertical: 7, borderRadius: 999, backgroundColor: '#dfe6f2' },
   pillActive: { backgroundColor: '#1d4ed8' },
@@ -551,14 +562,7 @@ const styles = StyleSheet.create({
   pillTextActive: { color: '#fff' },
   link: { color: '#1d4ed8', fontWeight: '700' },
   danger: { color: '#b91c1c' },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', padding: 16 },
-  modalCard: { backgroundColor: '#fff', borderRadius: 14, padding: 16 },
-  modalTitle: { fontSize: 18, fontWeight: '800', marginBottom: 12 },
-  input: { borderWidth: 1, borderColor: '#d1d5db', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 9, marginBottom: 10 },
   textArea: { minHeight: 80, textAlignVertical: 'top' },
-  switchRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12, alignItems: 'center' },
-  modalActions: { flexDirection: 'row', justifyContent: 'space-between' },
-  save: { color: '#0f766e', fontWeight: '700' },
   photoCard: { borderWidth: 1, borderColor: '#dbe4f0', borderRadius: 12, padding: 12, marginBottom: 10, backgroundColor: '#f8fbff' },
   photoCardTitle: { color: '#0f172a', fontWeight: '800', marginBottom: 10 },
   photoPreviewRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
@@ -578,18 +582,12 @@ const styles = StyleSheet.create({
   photoActionButton: { backgroundColor: Theme.colors.greenDark, borderRadius: 10, paddingVertical: 9, alignItems: 'center' },
   photoActionButtonSecondary: { backgroundColor: Theme.colors.mediumGray },
   photoActionButtonText: { color: Theme.colors.white, fontWeight: '700' },
-  listContent: { paddingBottom: 20, gap: 10 },
-  emptyText: { color: '#64748b', textAlign: 'center', padding: 24 },
   itemCard: { marginBottom: 8 },
   avatarContainer: { marginRight: 12 },
   itemHeader: { flexDirection: 'row', alignItems: 'center' },
   itemTitleGroup: { flex: 1 },
   itemTitle: { color: '#0f172a', fontSize: 16, fontWeight: '800' },
   itemSubtitle: { color: '#475569', marginTop: 2 },
-  statusBadge: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
-  statusActive: { backgroundColor: '#dcfce7' },
-  statusInactive: { backgroundColor: '#fee2e2' },
-  statusText: { fontSize: 12, fontWeight: '700', color: '#1f2937' },
   itemMetaRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 },
   metaLabel: { color: '#64748b', fontWeight: '600' },
   metaValue: { color: '#0f172a', fontWeight: '700' },

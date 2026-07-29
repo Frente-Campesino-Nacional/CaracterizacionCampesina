@@ -2,8 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   FlatList,
-  Modal,
-  ScrollView,
   StyleSheet,
   Switch,
   Text,
@@ -12,12 +10,16 @@ import {
   View,
 } from 'react-native';
 import SearchBar from '../../components/SearchBar';
-import { Card } from '../../components';
+import { Card, RoleSectionHeader, FormModalSheet, LookupSelectField, StatusPill } from '../../components';
 import {
+  CampesinoFiltroResultadoRecord,
+  FormularioFilterQuestionRecord,
   FormularioPayload,
   FormularioRecord,
   createFormulario,
   deleteFormulario,
+  listCampesinosByFormularioFilter,
+  listFormularioFilterQuestions,
   listFormularios,
   listUsuarios,
   updateFormulario,
@@ -27,6 +29,8 @@ import { parseFormStructure } from '../../services/encuestadorFormService';
 import { FormQuestion, FormQuestionOption } from '../../types/formularios';
 import { useAuthStore } from '../../store/authStore';
 import { exportTableToPdf } from '../../utils/pdfExport';
+import { exportTableToExcelCsv } from '../../utils/excelExport';
+import { sharedFormStyles } from '../../styles/sharedFormStyles';
 
 const QUESTION_TYPE_OPTIONS = [
   { key: 'text', label: 'Texto' },
@@ -43,6 +47,7 @@ type QuestionDraft = {
   label: string;
   kind: QuestionKind;
   required: boolean;
+  useAsFilter: boolean;
   placeholder: string;
   options: FormQuestionOption[];
 };
@@ -54,12 +59,13 @@ type FormEditorState = {
   preguntas: QuestionDraft[];
 };
 
-function createQuestionDraft(index: number): QuestionDraft {
+function createQuestionDraft(index: number, existingId?: string): QuestionDraft {
   return {
-    id: `pregunta_${Date.now()}_${index + 1}`,
+    id: existingId || `pregunta_${Date.now()}_${index + 1}_${Math.random().toString(36).slice(2, 8)}`,
     label: '',
     kind: 'text',
     required: false,
+    useAsFilter: false,
     placeholder: '',
     options: [],
   };
@@ -79,10 +85,11 @@ function mapQuestionKind(question: FormQuestion): QuestionKind {
 
 function mapQuestionToDraft(question: FormQuestion, index: number): QuestionDraft {
   return {
-    id: question.id || `pregunta_${index + 1}`,
+    id: String(question.id || `pregunta_${index + 1}`),
     label: question.label || '',
     kind: mapQuestionKind(question),
     required: question.required,
+    useAsFilter: Boolean(question.useAsFilter),
     placeholder: question.placeholder || '',
     options: question.options && question.options.length ? question.options : [],
   };
@@ -128,10 +135,12 @@ function mapDraftsToStructure(preguntas: QuestionDraft[]): Record<string, unknow
         }));
 
       const isSelect = question.kind === 'select_single' || question.kind === 'select_multiple';
+      const questionId = String(question.id || `pregunta_${index + 1}`).trim();
       const base: Record<string, unknown> = {
-        id: question.id || `pregunta_${index + 1}`,
+        id: questionId,
         label: normalizedLabel,
         required: question.required,
+        use_as_filter: question.useAsFilter,
       };
 
       if (question.kind === 'text') {
@@ -171,14 +180,36 @@ export default function AdminFormulariosScreen() {
   const { token, user } = useAuthStore();
   const [items, setItems] = useState<FormularioRecord[]>([]);
   const [users, setUsers] = useState<UsuarioRecord[]>([]);
+  const [filterQuestions, setFilterQuestions] = useState<FormularioFilterQuestionRecord[]>([]);
+  const [selectedFilterKey, setSelectedFilterKey] = useState<string>('');
+  const [filterResults, setFilterResults] = useState<CampesinoFiltroResultadoRecord[]>([]);
+  const [loadingFilterResults, setLoadingFilterResults] = useState(false);
   const [search, setSearch] = useState('');
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState<FormularioRecord | null>(null);
   const [form, setForm] = useState<FormEditorState>(createEmptyEditorState());
 
+  const buildFilterKey = (formularioId: string, preguntaId: string) => `${formularioId}::${preguntaId}`;
+
   const load = async () => {
     if (!token) return;
-    setItems(await listFormularios(token));
+
+    const [formularios, preguntasFiltro] = await Promise.all([
+      listFormularios(token),
+      listFormularioFilterQuestions(token),
+    ]);
+
+    setItems(formularios);
+    setFilterQuestions(preguntasFiltro);
+    if (selectedFilterKey) {
+      const stillExists = preguntasFiltro.some(
+        (item) => buildFilterKey(item.formulario_id, item.pregunta_id) === selectedFilterKey,
+      );
+      if (!stillExists) {
+        setSelectedFilterKey('');
+        setFilterResults([]);
+      }
+    }
   };
 
   useEffect(() => {
@@ -199,9 +230,35 @@ export default function AdminFormulariosScreen() {
   );
 
   const filtered = useMemo(() => {
-    const text = search.toLowerCase();
-    return items.filter((item) => item.titulo.toLowerCase().includes(text));
+    const text = (search || '').toLowerCase();
+    return items.filter((item) => (item.titulo || '').toLowerCase().includes(text));
   }, [items, search]);
+
+  const filterQuestionOptions = useMemo(
+    () => filterQuestions
+      .map((item) => ({
+        label: item.pregunta_label,
+        value: buildFilterKey(item.formulario_id, item.pregunta_id),
+        description: item.formulario_titulo,
+      }))
+      .sort((a, b) => {
+        const byFormulario = (a.description || '').localeCompare(b.description || '', 'es', { sensitivity: 'base' });
+        if (byFormulario !== 0) {
+          return byFormulario;
+        }
+
+        return (a.label || '').localeCompare(b.label || '', 'es', { sensitivity: 'base' });
+      }),
+    [filterQuestions],
+  );
+
+  const selectedFilterQuestion = useMemo(
+    () =>
+      filterQuestions.find(
+        (item) => buildFilterKey(item.formulario_id, item.pregunta_id) === selectedFilterKey,
+      ) || null,
+    [filterQuestions, selectedFilterKey],
+  );
 
   const openCreate = () => {
     setEditing(null);
@@ -252,11 +309,13 @@ export default function AdminFormulariosScreen() {
     };
 
     try {
-      if (editing) {
+      if (editing?.id) {
         await updateFormulario(token, editing.id, payload);
       } else {
         await createFormulario(token, payload);
       }
+      setEditing(null);
+      setForm(createEmptyEditorState());
       setModal(false);
       await load();
     } catch (error: any) {
@@ -266,6 +325,10 @@ export default function AdminFormulariosScreen() {
 
   const remove = (item: FormularioRecord) => {
     if (!token) return;
+    if (!item?.id) {
+      Alert.alert('Error', 'El formulario no tiene ID válido para eliminar. Recarga la lista e intenta de nuevo.');
+      return;
+    }
     Alert.alert('Eliminar', `¿Eliminar formulario ${item.titulo}?`, [
       { text: 'Cancelar', style: 'cancel' },
       {
@@ -305,6 +368,147 @@ export default function AdminFormulariosScreen() {
       Alert.alert('PDF generado', `Archivo guardado en:\n${fileUri}`);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'No se pudo generar el PDF';
+      Alert.alert('Error', message);
+    }
+  };
+
+  const exportExcel = async () => {
+    try {
+      const fileUri = await exportTableToExcelCsv({
+        filePrefix: 'formularios',
+        columns: [
+          { key: 'titulo', title: 'Titulo' },
+          { key: 'version', title: 'Version' },
+          { key: 'activo', title: 'Activo' },
+        ],
+        rows: filtered.map((item) => ({
+          titulo: item.titulo,
+          version: item.version,
+          activo: item.activo ? 'Si' : 'No',
+        })),
+      });
+
+      Alert.alert('Archivo Excel generado', `Archivo guardado en:\n${fileUri}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'No se pudo generar el archivo Excel';
+      Alert.alert('Error', message);
+    }
+  };
+
+  const selectFilterQuestion = async (question: FormularioFilterQuestionRecord) => {
+    if (!token) return;
+
+    const key = buildFilterKey(question.formulario_id, question.pregunta_id);
+    if (key === selectedFilterKey) {
+      setSelectedFilterKey('');
+      setFilterResults([]);
+      return;
+    }
+
+    setSelectedFilterKey(key);
+    setLoadingFilterResults(true);
+
+    try {
+      const results = await listCampesinosByFormularioFilter(
+        token,
+        question.formulario_id,
+        question.pregunta_id,
+      );
+      setFilterResults(results);
+    } catch (error: any) {
+      setFilterResults([]);
+      Alert.alert('Error', error.message || 'No se pudieron cargar los resultados del filtro');
+    } finally {
+      setLoadingFilterResults(false);
+    }
+  };
+
+  const selectFilterQuestionByKey = async (key: string) => {
+    if (!key) {
+      setSelectedFilterKey('');
+      setFilterResults([]);
+      return;
+    }
+
+    const selected = filterQuestions.find(
+      (item) => buildFilterKey(item.formulario_id, item.pregunta_id) === key,
+    );
+
+    if (!selected) {
+      setSelectedFilterKey('');
+      setFilterResults([]);
+      return;
+    }
+
+    await selectFilterQuestion(selected);
+  };
+
+  const exportFilterResultsPdf = async () => {
+    if (!selectedFilterQuestion) {
+      Alert.alert('Filtros', 'Selecciona una pregunta de filtro primero');
+      return;
+    }
+
+    try {
+      const fileUri = await exportTableToPdf({
+        title: 'Campesinos filtrados por pregunta',
+        subtitle: selectedFilterQuestion.formulario_titulo,
+        filePrefix: 'campesinos-filtrados',
+        filters: [
+          { label: 'Formulario', value: selectedFilterQuestion.formulario_titulo },
+          { label: 'Pregunta', value: selectedFilterQuestion.pregunta_label },
+        ],
+        columns: [
+          { key: 'cedula', title: 'Cédula' },
+          { key: 'nombre_completo', title: 'Nombre completo' },
+          { key: 'consejo', title: 'Consejo' },
+          { key: 'valor', title: 'Respuesta' },
+          { key: 'capturado_en', title: 'Fecha captura' },
+        ],
+        rows: filterResults.map((item) => ({
+          cedula: item.cedula,
+          nombre_completo: `${item.nombre} ${item.apellido || ''}`.trim(),
+          consejo: item.consejo_nombre || '-',
+          valor: item.valor,
+          capturado_en: item.capturado_en ? new Date(item.capturado_en).toLocaleString() : '-',
+        })),
+      });
+
+      Alert.alert('PDF generado', `Archivo guardado en:\n${fileUri}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'No se pudo generar el PDF';
+      Alert.alert('Error', message);
+    }
+  };
+
+  const exportFilterResultsExcel = async () => {
+    if (!selectedFilterQuestion) {
+      Alert.alert('Filtros', 'Selecciona una pregunta de filtro primero');
+      return;
+    }
+
+    try {
+      const fileUri = await exportTableToExcelCsv({
+        filePrefix: 'campesinos-filtrados',
+        columns: [
+          { key: 'cedula', title: 'Cedula' },
+          { key: 'nombre_completo', title: 'Nombre completo' },
+          { key: 'consejo', title: 'Consejo' },
+          { key: 'valor', title: 'Respuesta' },
+          { key: 'capturado_en', title: 'Fecha captura' },
+        ],
+        rows: filterResults.map((item) => ({
+          cedula: item.cedula,
+          nombre_completo: `${item.nombre} ${item.apellido || ''}`.trim(),
+          consejo: item.consejo_nombre || '-',
+          valor: item.valor,
+          capturado_en: item.capturado_en ? new Date(item.capturado_en).toLocaleString() : '-',
+        })),
+      });
+
+      Alert.alert('Archivo Excel generado', `Archivo guardado en:\n${fileUri}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'No se pudo generar el archivo Excel';
       Alert.alert('Error', message);
     }
   };
@@ -370,28 +574,112 @@ export default function AdminFormulariosScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <SearchBar value={search} onChangeText={setSearch} placeholder="Buscar formulario por nombre" />
-      <View style={styles.headerRow}>
-        <View style={styles.headerTextWrapper}>
-          <Text style={styles.sectionTitle}>Formularios</Text>
-          <Text style={styles.sectionSubtitle}>Administra los formularios activos del sistema.</Text>
+    <View style={sharedFormStyles.pageContainer}>
+      <SearchBar
+        value={search}
+        onChangeText={setSearch}
+        placeholder="Buscar formulario por nombre"
+      />
+      <RoleSectionHeader
+        title="Formularios"
+        subtitle="Administra los formularios activos del sistema."
+        actions={
+          <>
+            <TouchableOpacity style={sharedFormStyles.smallButton} onPress={exportPdf}>
+              <Text style={sharedFormStyles.smallButtonText}>PDF</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={sharedFormStyles.smallButton} onPress={exportExcel}>
+              <Text style={sharedFormStyles.smallButtonText}>Excel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={sharedFormStyles.primaryButton} onPress={openCreate}>
+              <Text style={sharedFormStyles.primaryButtonText}>Crear</Text>
+            </TouchableOpacity>
+          </>
+        }
+      />
+
+      <Card style={styles.filtersCard}>
+        <View style={styles.filtersHeaderRow}>
+          <View>
+            <Text style={styles.filtersTitle}>Filtros</Text>
+            <Text style={styles.filtersSubtitle}>
+              Preguntas marcadas con "usar como filtro".
+            </Text>
+          </View>
+          <View style={styles.filterActionsRow}>
+            <TouchableOpacity
+              style={sharedFormStyles.smallButton}
+              onPress={exportFilterResultsPdf}
+              disabled={!selectedFilterQuestion || !filterResults.length}
+            >
+              <Text
+                style={[
+                  sharedFormStyles.smallButtonText,
+                  !selectedFilterQuestion || !filterResults.length ? styles.disabledButtonText : null,
+                ]}
+              >
+                PDF
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={sharedFormStyles.smallButton}
+              onPress={exportFilterResultsExcel}
+              disabled={!selectedFilterQuestion || !filterResults.length}
+            >
+              <Text
+                style={[
+                  sharedFormStyles.smallButtonText,
+                  !selectedFilterQuestion || !filterResults.length ? styles.disabledButtonText : null,
+                ]}
+              >
+                Excel
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
-        <View style={styles.actionButtonsRow}>
-          <TouchableOpacity style={styles.smallButton} onPress={exportPdf}>
-            <Text style={styles.smallButtonText}>PDF</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.primaryButton} onPress={openCreate}>
-            <Text style={styles.primaryButtonText}>Crear</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+
+        {filterQuestions.length ? (
+          <LookupSelectField
+            label="Pregunta de filtro"
+            value={selectedFilterKey}
+            options={filterQuestionOptions}
+            onChange={selectFilterQuestionByKey}
+            placeholder="Selecciona una pregunta"
+            searchPlaceholder="Buscar pregunta o formulario..."
+            allowClear
+            clearLabel="Quitar filtro"
+          />
+        ) : (
+          <Text style={styles.helperText}>No hay preguntas configuradas como filtro.</Text>
+        )}
+
+        {selectedFilterQuestion ? (
+          <View style={styles.filterResultsWrapper}>
+            <Text style={styles.filterResultTitle}>Campesinos encontrados: {filterResults.length}</Text>
+            {loadingFilterResults ? (
+              <Text style={styles.helperText}>Cargando resultados...</Text>
+            ) : filterResults.length ? (
+              filterResults.map((item) => (
+                <View key={`${item.campesino_id}-${item.pregunta_id}`} style={styles.filterResultRow}>
+                  <View style={styles.filterResultMain}>
+                    <Text style={styles.filterResultName}>{item.nombre} {item.apellido || ''}</Text>
+                    <Text style={styles.filterResultMeta}>CI: {item.cedula} · Consejo: {item.consejo_nombre || '-'}</Text>
+                  </View>
+                  <Text style={styles.filterResultValue}>{item.valor}</Text>
+                </View>
+              ))
+            ) : (
+              <Text style={styles.helperText}>Sin resultados para esta pregunta.</Text>
+            )}
+          </View>
+        ) : null}
+      </Card>
 
       <FlatList
         data={filtered}
-        keyExtractor={(item) => String(item.id)}
-        contentContainerStyle={styles.listContent}
-        ListEmptyComponent={<Text style={styles.emptyText}>No hay formularios</Text>}
+        keyExtractor={(item, index) => String(item.id ?? `${item.titulo || 'formulario'}-${index}`)}
+        contentContainerStyle={sharedFormStyles.listContent}
+        ListEmptyComponent={<Text style={sharedFormStyles.emptyText}>No hay formularios</Text>}
         renderItem={({ item }) => {
           const questionCount = parseFormStructure(item.estructura).preguntas.length;
 
@@ -402,9 +690,7 @@ export default function AdminFormulariosScreen() {
                   <Text style={styles.itemTitle}>{item.titulo}</Text>
                   <Text style={styles.itemSubtitle}>Versión {item.version}</Text>
                 </View>
-                <View style={[styles.statusBadge, item.activo ? styles.statusActive : styles.statusInactive]}>
-                  <Text style={styles.statusText}>{item.activo ? 'Activo' : 'Inactivo'}</Text>
-                </View>
+                <StatusPill label={item.activo ? 'Activo' : 'Inactivo'} tone={item.activo ? 'success' : 'danger'} />
               </View>
               <View style={styles.itemMetaRow}>
                 <Text style={styles.metaLabel}>Preguntas</Text>
@@ -412,7 +698,7 @@ export default function AdminFormulariosScreen() {
               </View>
               <View style={styles.itemMetaRow}>
                 <Text style={styles.metaLabel}>Creado por</Text>
-                <Text style={styles.metaValue}>{userNameById.get(item.creado_por) || item.creado_por}</Text>
+                <Text style={styles.metaValue}>{item.creado_por ? (userNameById.get(item.creado_por) || item.creado_por) : 'N/A'}</Text>
               </View>
               <View style={styles.itemActions}>
                 <TouchableOpacity onPress={() => openEdit(item)}>
@@ -427,28 +713,29 @@ export default function AdminFormulariosScreen() {
         }}
       />
 
-      <Modal visible={modal} animationType="slide" transparent onRequestClose={() => setModal(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>{editing ? 'Editar formulario' : 'Nuevo formulario'}</Text>
-
-            <ScrollView contentContainerStyle={styles.modalScrollContent} showsVerticalScrollIndicator={false}>
+      <FormModalSheet
+        visible={modal}
+        title={editing ? 'Editar formulario' : 'Nuevo formulario'}
+        onClose={() => setModal(false)}
+        onSave={save}
+      >
+            <View style={styles.modalScrollContent}>
               <TextInput
                 value={form.titulo}
                 onChangeText={(value) => setForm((current) => ({ ...current, titulo: value }))}
-                style={styles.input}
+                style={sharedFormStyles.input}
                 placeholder="Nombre del formulario"
               />
 
               <TextInput
                 value={form.version}
                 onChangeText={(value) => setForm((current) => ({ ...current, version: value }))}
-                style={styles.input}
+                style={sharedFormStyles.input}
                 placeholder="Versión"
                 keyboardType="numeric"
               />
 
-              <View style={styles.switchRow}>
+              <View style={sharedFormStyles.switchRow}>
                 <Text style={styles.switchLabel}>Formulario activo</Text>
                 <Switch
                   value={form.activo}
@@ -463,8 +750,10 @@ export default function AdminFormulariosScreen() {
                 </TouchableOpacity>
               </View>
 
-              {form.preguntas.map((question, index) => (
-                <View key={question.id} style={styles.questionCard}>
+              {form.preguntas.map((question, index) => {
+                const questionKey = question.id || `pregunta_${index + 1}`;
+                return (
+                <View key={questionKey} style={styles.questionCard}>
                   <View style={styles.questionHeader}>
                     <Text style={styles.questionTitle}>Pregunta {index + 1}</Text>
                     <TouchableOpacity onPress={() => removeQuestion(index)}>
@@ -480,7 +769,7 @@ export default function AdminFormulariosScreen() {
                         preguntas: updateQuestion(current.preguntas, index, (item) => ({ ...item, label: value })),
                       }))
                     }
-                    style={styles.input}
+                    style={sharedFormStyles.input}
                     placeholder="Texto de la pregunta"
                   />
 
@@ -500,7 +789,7 @@ export default function AdminFormulariosScreen() {
                     })}
                   </View>
 
-                  <View style={styles.switchRow}>
+                  <View style={sharedFormStyles.switchRow}>
                     <Text style={styles.switchLabel}>Obligatoria</Text>
                     <Switch
                       value={question.required}
@@ -508,6 +797,19 @@ export default function AdminFormulariosScreen() {
                         setForm((current) => ({
                           ...current,
                           preguntas: updateQuestion(current.preguntas, index, (item) => ({ ...item, required: value })),
+                        }))
+                      }
+                    />
+                  </View>
+
+                  <View style={sharedFormStyles.switchRow}>
+                    <Text style={styles.switchLabel}>Usar como filtro</Text>
+                    <Switch
+                      value={question.useAsFilter}
+                      onValueChange={(value) =>
+                        setForm((current) => ({
+                          ...current,
+                          preguntas: updateQuestion(current.preguntas, index, (item) => ({ ...item, useAsFilter: value })),
                         }))
                       }
                     />
@@ -522,7 +824,7 @@ export default function AdminFormulariosScreen() {
                           preguntas: updateQuestion(current.preguntas, index, (item) => ({ ...item, placeholder: value })),
                         }))
                       }
-                      style={styles.input}
+                      style={sharedFormStyles.input}
                       placeholder="Texto de ayuda o placeholder"
                     />
                   ) : null}
@@ -538,11 +840,11 @@ export default function AdminFormulariosScreen() {
 
                       {question.options.length ? (
                         question.options.map((option, optionIndex) => (
-                          <View key={`${question.id}-option-${optionIndex}`} style={styles.optionRow}>
+                          <View key={`${question.id || `pregunta_${index + 1}`}-option-${optionIndex}`} style={styles.optionRow}>
                             <TextInput
                               value={option.label}
                               onChangeText={(value) => updateOption(index, optionIndex, 'label', value)}
-                              style={[styles.input, styles.optionInput]}
+                              style={[sharedFormStyles.input, styles.optionInput]}
                               placeholder={`Opción ${optionIndex + 1}`}
                             />
                             <TouchableOpacity onPress={() => removeOption(index, optionIndex)} style={styles.removeOptionButton}>
@@ -556,58 +858,49 @@ export default function AdminFormulariosScreen() {
                     </View>
                   ) : null}
                 </View>
-              ))}
-            </ScrollView>
-
-            <View style={styles.modalActions}>
-              <TouchableOpacity onPress={() => setModal(false)}>
-                <Text style={styles.cancelText}>Cancelar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={save}>
-                <Text style={styles.save}>Guardar</Text>
-              </TouchableOpacity>
+                );
+              })}
             </View>
-          </View>
-        </View>
-      </Modal>
+      </FormModalSheet>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 12, backgroundColor: '#f5f7fb' },
-  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, gap: 12 },
-  headerTextWrapper: { flex: 1 },
-  sectionTitle: { fontSize: 22, fontWeight: '800', color: '#0f172a' },
   sectionSubtitle: { color: '#475569', marginTop: 4 },
-  actionButtonsRow: { flexDirection: 'row', gap: 10 },
-  primaryButton: { backgroundColor: '#0f766e', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12, justifyContent: 'center', alignItems: 'center' },
-  primaryButtonText: { color: '#fff', fontWeight: '700' },
-  smallButton: { backgroundColor: '#e2e8f0', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, justifyContent: 'center', alignItems: 'center' },
-  smallButtonText: { color: '#1f2937', fontWeight: '700' },
-  listContent: { paddingBottom: 120, gap: 10 },
+  filtersCard: { marginBottom: 12 },
+  filtersHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
+  filterActionsRow: { flexDirection: 'row', gap: 8 },
+  filtersTitle: { fontSize: 16, fontWeight: '800', color: '#0f172a' },
+  filtersSubtitle: { color: '#64748b', marginTop: 4 },
+  filterResultsWrapper: { marginTop: 8, gap: 8 },
+  filterResultTitle: { color: '#0f172a', fontWeight: '800' },
+  filterResultRow: {
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 12,
+    padding: 10,
+    backgroundColor: '#ffffff',
+    gap: 6,
+  },
+  filterResultMain: { gap: 2 },
+  filterResultName: { color: '#0f172a', fontWeight: '700' },
+  filterResultMeta: { color: '#64748b', fontSize: 12 },
+  filterResultValue: { color: '#0f766e', fontWeight: '700' },
+  disabledButtonText: { color: '#94a3b8' },
   itemCard: { backgroundColor: '#fff', borderRadius: 16, padding: 16, marginBottom: 10, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, elevation: 2 },
   itemHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12, gap: 12 },
   itemTitleGroup: { flex: 1 },
   itemTitle: { fontSize: 16, fontWeight: '800', color: '#0f172a' },
   itemSubtitle: { color: '#64748b', marginTop: 4 },
-  statusBadge: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
-  statusActive: { backgroundColor: '#dcfce7' },
-  statusInactive: { backgroundColor: '#fee2e2' },
-  statusText: { fontSize: 12, fontWeight: '700', color: '#1f2937' },
   itemMetaRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 10, marginBottom: 12 },
   metaLabel: { color: '#94a3b8', fontWeight: '700' },
   metaValue: { color: '#0f172a', fontWeight: '700' },
   itemActions: { flexDirection: 'row', gap: 16 },
   link: { color: '#2563eb', fontWeight: '700' },
   danger: { color: '#b91c1c' },
-  emptyText: { color: '#64748b', textAlign: 'center', paddingVertical: 40 },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', padding: 16 },
-  modalCard: { backgroundColor: '#fff', borderRadius: 14, padding: 16, maxHeight: '92%' },
-  modalTitle: { fontSize: 18, fontWeight: '800', marginBottom: 12 },
+  
   modalScrollContent: { gap: 12, paddingBottom: 12 },
-  input: { borderWidth: 1, borderColor: '#d1d5db', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 9, backgroundColor: '#fff' },
-  switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
   switchLabel: { color: '#334155', fontWeight: '700' },
   questionsSectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginTop: 4 },
   questionsTitle: { fontSize: 16, fontWeight: '800', color: '#0f172a' },
@@ -631,7 +924,4 @@ const styles = StyleSheet.create({
   removeOptionButton: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#fee2e2', justifyContent: 'center', alignItems: 'center' },
   removeOptionText: { color: '#b91c1c', fontWeight: '800' },
   helperText: { color: '#64748b' },
-  modalActions: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#e2e8f0' },
-  cancelText: { color: '#64748b', fontWeight: '700' },
-  save: { color: '#0f766e', fontWeight: '800' },
 });

@@ -1,4 +1,5 @@
-import { IsOptional, IsDateString } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsOptional, IsDateString, IsInt } from 'class-validator';
 
 export class UpdateConsejoDto {
   @IsOptional()
@@ -8,22 +9,24 @@ export class UpdateConsejoDto {
   descripcion?: string;
 
   @IsOptional()
-  estado?: string;
+  @Type(() => Number)
+  @IsInt()
+  estado_id?: number;
 
   @IsOptional()
-  municipio?: string;
+  @Type(() => Number)
+  @IsInt()
+  municipio_id?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  parroquia_id?: number;
 
   @IsOptional()
   encargado_tipo?: string;
 
   @IsOptional()
-  encargado_id?: number;
+  encargado_id?: string | number;
 
-  @IsOptional()
-  @IsDateString()
-  creado_en?: string;
-
-  @IsOptional()
-  @IsDateString()
-  actualizado_en?: string;
 }

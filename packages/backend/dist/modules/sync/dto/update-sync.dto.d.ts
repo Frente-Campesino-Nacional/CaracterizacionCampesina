@@ -1,6 +1,6 @@
 export declare class UpdateSyncDto {
     entidad?: string;
-    entidad_id?: number;
+    entidad_id?: string;
     operacion?: string;
     datos?: object;
     estado?: string;

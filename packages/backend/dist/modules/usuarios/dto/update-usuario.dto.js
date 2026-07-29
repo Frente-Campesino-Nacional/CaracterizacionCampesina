@@ -11,6 +11,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.UpdateUsuarioDto = void 0;
 const class_validator_1 = require("class-validator");
+const class_transformer_1 = require("class-transformer");
 class UpdateUsuarioDto {
 }
 exports.UpdateUsuarioDto = UpdateUsuarioDto;
@@ -19,6 +20,11 @@ __decorate([
     (0, class_validator_1.IsEmail)(),
     __metadata("design:type", String)
 ], UpdateUsuarioDto.prototype, "email", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], UpdateUsuarioDto.prototype, "nombre_usuario", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
@@ -39,7 +45,7 @@ __decorate([
 ], UpdateUsuarioDto.prototype, "apellido", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsEnum)(['admin', 'administrador', 'encuestador'], { message: 'El rol debe ser administrador o encuestador' }),
+    (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], UpdateUsuarioDto.prototype, "rol", void 0);
 __decorate([
@@ -48,7 +54,7 @@ __decorate([
 ], UpdateUsuarioDto.prototype, "numero_telefono", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsDateString)(),
+    (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], UpdateUsuarioDto.prototype, "fecha_nacimiento", void 0);
 __decorate([
@@ -57,12 +63,19 @@ __decorate([
 ], UpdateUsuarioDto.prototype, "genero", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
-    __metadata("design:type", String)
-], UpdateUsuarioDto.prototype, "estado", void 0);
+    (0, class_transformer_1.Type)(() => Number),
+    __metadata("design:type", Number)
+], UpdateUsuarioDto.prototype, "estado_id", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
-    __metadata("design:type", String)
-], UpdateUsuarioDto.prototype, "municipio", void 0);
+    (0, class_transformer_1.Type)(() => Number),
+    __metadata("design:type", Number)
+], UpdateUsuarioDto.prototype, "municipio_id", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
+    __metadata("design:type", Number)
+], UpdateUsuarioDto.prototype, "parroquia_id", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     __metadata("design:type", String)
@@ -74,16 +87,6 @@ __decorate([
 ], UpdateUsuarioDto.prototype, "activo", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
-    __metadata("design:type", Number)
+    __metadata("design:type", Object)
 ], UpdateUsuarioDto.prototype, "consejo_id", void 0);
-__decorate([
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsDateString)(),
-    __metadata("design:type", String)
-], UpdateUsuarioDto.prototype, "creado_en", void 0);
-__decorate([
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsDateString)(),
-    __metadata("design:type", String)
-], UpdateUsuarioDto.prototype, "actualizado_en", void 0);
 //# sourceMappingURL=update-usuario.dto.js.map

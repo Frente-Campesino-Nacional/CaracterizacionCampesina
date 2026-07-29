@@ -1,10 +1,9 @@
 export declare class UpdateConsejoDto {
     nombre?: string;
     descripcion?: string;
-    estado?: string;
-    municipio?: string;
+    estado_id?: number;
+    municipio_id?: number;
+    parroquia_id?: number;
     encargado_tipo?: string;
-    encargado_id?: number;
-    creado_en?: string;
-    actualizado_en?: string;
+    encargado_id?: string | number;
 }

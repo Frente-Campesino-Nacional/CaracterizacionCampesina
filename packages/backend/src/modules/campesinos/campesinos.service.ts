@@ -1,123 +1,55 @@
-import { BadRequestException, Injectable, NotFoundException, ForbiddenException, ConflictException } from '@nestjs/common';
+import { randomUUID } from 'crypto';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { MongoOptionalService } from '../../database/mongo-optional.service';
+import { PostgresStorageService } from '../../database/postgres-storage.service';
 import { PrismaService } from '../../database/prisma.service';
 import { CreateCampesinDto } from './dto/create-campesino.dto';
 import { UpdateCampesinDto } from './dto/update-campesino.dto';
 import { SaveCampesinoProfileImageDto } from './dto/save-profile-image.dto';
-import { generateRandomCedulaCode, isValidCedulaCode, normalizeCedulaInput } from '../../common/utils/cedula-code.util';
+import { normalizeCedulaInput } from '../../common/utils/cedula-code.util';
 
 @Injectable()
 export class CampesinosService {
   constructor(
     private prisma: PrismaService,
-    private mongoOptionalService: MongoOptionalService,
+    private storageService: PostgresStorageService,
   ) {}
 
-  private normalizeCatalogValue(value?: string | null): string | undefined {
-    const normalized = value?.trim();
-    return normalized ? normalized : undefined;
+  private async resolveConsejoUuid(value?: string | number | null): Promise<string | null> {
+    if (value == null || value === '') {
+      return null;
+    }
+
+    const textValue = String(value).trim();
+    if (!textValue) {
+      return null;
+    }
+
+    const rows = await this.prisma.$queryRaw<Array<{ consejo_id: string }>>(Prisma.sql`
+      SELECT consejo_id
+      FROM operacional.consejos
+      WHERE consejo_id::text = ${textValue}
+      LIMIT 1
+    `);
+
+    return rows[0]?.consejo_id ?? null;
   }
 
-  private mapCampesino(campesino: {
-    id: number;
-    cedula: string;
-    nombre: string;
-    apellido: string | null;
-    telefono: string | null;
-    correo: string | null;
-    fecha_nacimiento: Date | null;
-    genero: { tipo_gen: string } | null;
-    consejo: { nombre: string } | null;
-    estado: string | null;
-    municipio: string | null;
-    direccion: string | null;
-    consejo_id: number | null;
-    creado_por: number | null;
-    asignado_a: number | null;
-    tiene_pendientes: boolean;
-    metadata: Prisma.JsonValue | null;
-    creado_en: Date;
-    actualizado_en: Date;
-  }) {
-    const { genero, ...rest } = campesino;
-
-    return {
-      ...rest,
-      consejo_nombre: campesino.consejo?.nombre || null,
-      genero: genero?.tipo_gen || null,
-    };
-  }
-
-  private async registerSyncRecord(
-    entidadId: number,
-    operacion: 'CREATE' | 'UPDATE' | 'DELETE',
-    datos: Record<string, unknown>,
-  ) {
-    try {
-      await this.prisma.sincronizacion.create({
-        data: {
-          entidad: 'campesino',
-          entidad_id: entidadId,
-          operacion,
-          datos: datos as Prisma.InputJsonValue,
-          estado: 'PENDIENTE',
-          intentos: 0,
-        },
-      });
-    } catch {
-      // No bloqueamos la operacion principal si falla el registro de auditoria.
-    }
-  }
-
-  private normalizeOptionalForeignKey(value?: number | null) {
-    if (value == null) {
-      return undefined;
+  private async resolveUserUuid(value?: string | number | null): Promise<string | null> {
+    if (value == null || value === '') {
+      return null;
     }
 
-    const normalized = typeof value === 'string' ? Number(value) : value;
-
-    if (!Number.isInteger(normalized) || normalized <= 0) {
-      return undefined;
+    const textValue = String(value).trim();
+    if (!textValue) {
+      return null;
     }
 
-    return normalized;
-  }
+    const rows = await this.prisma.$queryRaw<Array<{ id_usuario: string }>>(Prisma.sql`
+      SELECT id_usuario FROM seguridad.usuarios WHERE id_usuario::text = ${textValue} LIMIT 1
+    `);
 
-  private async validateForeignKeys(data: {
-    consejo_id?: number;
-    creado_por?: number;
-    asignado_a?: number;
-  }) {
-    if (data.consejo_id != null) {
-      const consejo = await this.prisma.consejo.findUnique({
-        where: { id: data.consejo_id },
-        select: { id: true },
-      });
-      if (!consejo) {
-        throw new BadRequestException(`consejo_id ${data.consejo_id} no existe`);
-      }
-    }
-
-    if (data.creado_por != null) {
-      const usuario = await this.prisma.usuario.findUnique({
-        where: { id: data.creado_por },
-        select: { id: true },
-      });
-      if (!usuario) {
-        throw new BadRequestException(`creado_por ${data.creado_por} no existe`);
-      }
-    }
-
-    if (data.asignado_a != null) {
-      const usuario = await this.prisma.usuario.findUnique({
-        where: { id: data.asignado_a },
-        select: { id: true },
-      });
-      if (!usuario) {
-        throw new BadRequestException(`asignado_a ${data.asignado_a} no existe`);
-      }
-    }
+    return rows[0]?.id_usuario ?? null;
   }
 
   private normalizeDateInput(value?: string) {
@@ -133,337 +65,546 @@ export class CampesinosService {
     return Number.isNaN(parsed.getTime()) ? undefined : parsed;
   }
 
-  async findAll(requester: { id: number; rol: string }, consejoId?: number) {
-    if (requester.rol === 'encuestador') {
-      const currentUser = await this.prisma.usuario.findUnique({
-        where: { id: requester.id },
-        select: { consejo_id: true },
-      });
-
-      if (!currentUser?.consejo_id) {
-        throw new ForbiddenException('El encuestador no tiene un consejo asignado');
-      }
-
-      return this.prisma.campesino.findMany({
-        where: { consejo_id: currentUser.consejo_id },
-        include: { consejo: true, genero: true },
-      }).then((campesinos) => campesinos.map((campesino) => this.mapCampesino(campesino as any)));
+  private async resolveParroquiaId(input: {
+    parroquiaId?: number;
+    municipioId?: number;
+    estadoId?: number;
+  }): Promise<number> {
+    if (input.parroquiaId != null) {
+      return input.parroquiaId;
     }
 
-    return this.prisma.campesino.findMany({
-      where: consejoId ? { consejo_id: consejoId } : undefined,
-      include: { consejo: true, genero: true },
-    }).then((campesinos) => campesinos.map((campesino) => this.mapCampesino(campesino as any)));
+    if (input.municipioId != null) {
+      const rows = await this.prisma.$queryRaw<Array<{ id_parroquia: number }>>(Prisma.sql`
+        SELECT id_parroquia
+        FROM catalogos.parroquias
+        WHERE municipio = ${input.municipioId}
+        ORDER BY id_parroquia
+        LIMIT 1
+      `);
+      if (rows[0]?.id_parroquia != null) {
+        return rows[0].id_parroquia;
+      }
+    }
+
+    if (input.estadoId != null) {
+      const rows = await this.prisma.$queryRaw<Array<{ id_parroquia: number }>>(Prisma.sql`
+        SELECT p.id_parroquia
+        FROM catalogos.parroquias p
+        INNER JOIN catalogos.municipios m ON m.id_municipio = p.municipio
+        WHERE m.estado = ${input.estadoId}
+        ORDER BY p.id_parroquia
+        LIMIT 1
+      `);
+      if (rows[0]?.id_parroquia != null) {
+        return rows[0].id_parroquia;
+      }
+    }
+
+    const fallback = await this.prisma.$queryRaw<Array<{ id_parroquia: number }>>(Prisma.sql`
+      SELECT id_parroquia
+      FROM catalogos.parroquias
+      ORDER BY id_parroquia
+      LIMIT 1
+    `);
+
+    return fallback[0]?.id_parroquia ?? 1;
   }
 
-  async findOne(id: number, requester: { id: number; rol: string }) {
-    const campesino = await this.prisma.campesino.findUnique({
-      where: { id },
-      include: { consejo: true, genero: true },
-    });
+  private async resolveGeneroId(genero?: string): Promise<number> {
+    const cleaned = genero?.trim();
 
-    if (!campesino) {
-      throw new NotFoundException('Campesino no encontrado');
+    if (cleaned && /^\d+$/.test(cleaned)) {
+      return Number(cleaned);
     }
 
-    if (requester.rol === 'encuestador') {
-      const currentUser = await this.prisma.usuario.findUnique({
-        where: { id: requester.id },
-        select: { consejo_id: true },
-      });
-
-      if (!currentUser?.consejo_id || currentUser.consejo_id !== campesino.consejo_id) {
-        throw new ForbiddenException('No tiene permiso para ver este campesino');
+    if (cleaned) {
+      const rows = await this.prisma.$queryRaw<Array<{ id_genero: number }>>(Prisma.sql`
+        SELECT id_genero
+        FROM catalogos.generos
+        WHERE LOWER(genero) = LOWER(${cleaned})
+        ORDER BY id_genero
+        LIMIT 1
+      `);
+      if (rows[0]?.id_genero != null) {
+        return rows[0].id_genero;
       }
-
-      return {
-        cedula: campesino.cedula,
-        nombre: campesino.nombre,
-        apellido: campesino.apellido,
-        telefono: campesino.telefono,
-        correo: campesino.correo,
-        fecha_nacimiento: campesino.fecha_nacimiento,
-        genero: campesino.genero?.tipo_gen || null,
-        estado: campesino.estado,
-        municipio: campesino.municipio,
-        direccion: campesino.direccion,
-        consejo_id: campesino.consejo_id,
-        consejo_nombre: campesino.consejo?.nombre || null,
-        tiene_pendientes: campesino.tiene_pendientes,
-        creado_en: campesino.creado_en,
-        actualizado_en: campesino.actualizado_en,
-      };
     }
 
-    return this.mapCampesino(campesino as any);
+    const fallback = await this.prisma.$queryRaw<Array<{ id_genero: number }>>(Prisma.sql`
+      SELECT id_genero
+      FROM catalogos.generos
+      ORDER BY id_genero
+      LIMIT 1
+    `);
+
+    return fallback[0]?.id_genero ?? 1;
   }
 
-  async create(createCampesinDto: CreateCampesinDto) {
-    const data: any = { ...createCampesinDto };
-
-    let cedula = createCampesinDto.cedula ? normalizeCedulaInput(createCampesinDto.cedula) : '';
-    if (!cedula) {
-      cedula = await this.generateUniqueCedula();
-    } else {
-      if (!isValidCedulaCode(cedula)) {
-        throw new BadRequestException('La cédula debe ser V-12345678, E-12345678 o un número de 9 dígitos');
-      }
-      const existingCédula = await this.prisma.campesino.findUnique({ where: { cedula } });
-      if (existingCédula) {
-        throw new ConflictException('La cédula ya está registrada');
-      }
-    }
-
-    data.cedula = cedula;
-    data.consejo_id = this.normalizeOptionalForeignKey(data.consejo_id);
-    data.creado_por = this.normalizeOptionalForeignKey(data.creado_por);
-    data.asignado_a = this.normalizeOptionalForeignKey(data.asignado_a);
-
-    if (typeof data.fecha_nacimiento === 'string') {
-      data.fecha_nacimiento = this.normalizeDateInput(data.fecha_nacimiento);
-    }
-
-    const generoValue = this.normalizeCatalogValue(data.genero);
-    if (generoValue) {
-      data.genero = {
-        connectOrCreate: {
-          where: { tipo_gen: generoValue },
-          create: { tipo_gen: generoValue },
-        },
-      };
-    } else {
-      delete data.genero;
-    }
-
-    if (data.consejo_id) {
-      data.consejo = {
-        connect: { id: data.consejo_id },
-      };
-    }
-
-    if (data.creado_por) {
-      data.creadoPor = {
-        connect: { id: data.creado_por },
-      };
-    }
-
-    if (data.asignado_a) {
-      data.asignadoA = {
-        connect: { id: data.asignado_a },
-      };
-    }
-
-    delete data.consejo_id;
-    delete data.creado_por;
-    delete data.asignado_a;
-
-    await this.validateForeignKeys(data);
-
-    const created = await this.prisma.campesino.create({
-      data,
-      include: { consejo: true, genero: true },
-    });
-
-    await this.registerSyncRecord(created.id, 'CREATE', {
-      cedula: created.cedula,
-      nombre: created.nombre,
-      telefono: created.telefono,
-      correo: created.correo,
-      estado: created.estado,
-      municipio: created.municipio,
-      consejo_id: created.consejo_id,
-      creado_por: created.creado_por,
-      asignado_a: created.asignado_a,
-    });
-
-    return this.mapCampesino(created as any);
+  private isValidCampesinoCedula(value: string): boolean {
+    return /^([VE]-\d{6,9}|[A-Z]\d{3})$/.test(value);
   }
 
-  async update(id: number, updateCampesinDto: UpdateCampesinDto) {
-    const campesino = await this.prisma.campesino.findUnique({
-      where: { id },
-    });
-
-    if (!campesino) {
-      throw new NotFoundException('Campesino no encontrado');
-    }
-
-    const data: any = { ...updateCampesinDto };
-
-    if ('consejo_id' in data) {
-      const consejoId = this.normalizeOptionalForeignKey(data.consejo_id as number | null);
-      data.consejo = consejoId ? { connect: { id: consejoId } } : { disconnect: true };
-      delete data.consejo_id;
-    }
-    if ('creado_por' in data) {
-      const creadoPorId = this.normalizeOptionalForeignKey(data.creado_por as number | null);
-      data.creadoPor = creadoPorId ? { connect: { id: creadoPorId } } : { disconnect: true };
-      delete data.creado_por;
-    }
-    if ('asignado_a' in data) {
-      const asignadoAId = this.normalizeOptionalForeignKey(data.asignado_a as number | null);
-      data.asignadoA = asignadoAId ? { connect: { id: asignadoAId } } : { disconnect: true };
-      delete data.asignado_a;
-    }
-
-    if (typeof data.fecha_nacimiento === 'string') {
-      data.fecha_nacimiento = this.normalizeDateInput(data.fecha_nacimiento);
-    }
-
-    if ('genero' in data) {
-      const generoValue = this.normalizeCatalogValue(data.genero);
-      if (generoValue) {
-        data.genero = {
-          connectOrCreate: {
-            where: { tipo_gen: generoValue },
-            create: { tipo_gen: generoValue },
-          },
-        };
-      } else {
-        data.genero = { disconnect: true };
-      }
-    }
-
-    if ('cedula' in data) {
-      const cedulaValue = data.cedula ? normalizeCedulaInput(data.cedula as string) : '';
-      if (!cedulaValue) {
-        throw new BadRequestException('La cédula no puede estar vacía');
-      }
-      if (!isValidCedulaCode(cedulaValue)) {
-        throw new BadRequestException('La cédula debe ser V-12345678, E-12345678 o un número de 9 dígitos');
-      }
-      const existingCédula = await this.prisma.campesino.findUnique({ where: { cedula: cedulaValue } });
-      if (existingCédula && existingCédula.id !== id) {
-        throw new ConflictException('La cédula ya está registrada');
-      }
-      data.cedula = cedulaValue;
-    }
-
-    await this.validateForeignKeys(data);
-
-    const updated = await this.prisma.campesino.update({
-      where: { id },
-      data,
-      include: { consejo: true, genero: true },
-    });
-
-    await this.registerSyncRecord(updated.id, 'UPDATE', {
-      cedula: updated.cedula,
-      nombre: updated.nombre,
-      telefono: updated.telefono,
-      correo: updated.correo,
-      estado: updated.estado,
-      municipio: updated.municipio,
-      consejo_id: updated.consejo_id,
-      creado_por: updated.creado_por,
-      asignado_a: updated.asignado_a,
-      tiene_pendientes: updated.tiene_pendientes,
-    });
-
-    return this.mapCampesino(updated as any);
+  private randomNoCedulaCode(): string {
+    const letter = String.fromCharCode(65 + Math.floor(Math.random() * 26));
+    const digits = Math.floor(Math.random() * 1000)
+      .toString()
+      .padStart(3, '0');
+    return `${letter}${digits}`;
   }
 
   private async generateUniqueCedula(): Promise<string> {
     for (let attempt = 0; attempt < 10; attempt += 1) {
-      const candidate = generateRandomCedulaCode();
-      const existing = await this.prisma.campesino.findUnique({ where: { cedula: candidate } });
-      if (!existing) {
+      const candidate = this.randomNoCedulaCode();
+      const existing = await this.prisma.$queryRaw<Array<{ cedula: string }>>(Prisma.sql`
+        SELECT cedula
+        FROM registros.personas
+        WHERE cedula = ${candidate}
+        LIMIT 1
+      `);
+
+      if (!existing[0]) {
         return candidate;
       }
     }
 
-    throw new ConflictException('No se pudo generar un código de cédula único, intente nuevamente');
+    return this.randomNoCedulaCode();
   }
 
-  async remove(id: number) {
-    const campesino = await this.prisma.campesino.findUnique({
-      where: { id },
-    });
-
-    if (!campesino) {
-      throw new NotFoundException('Campesino no encontrado');
+  private buildCedulaData(value?: string) {
+    if (!value) {
+      return { tipoCedula: 'NP' as 'V' | 'E' | 'NP', cedula: '' };
     }
 
-    const deleted = await this.prisma.campesino.delete({ where: { id } });
+    const normalized = normalizeCedulaInput(value);
 
-    await this.registerSyncRecord(deleted.id, 'DELETE', {
-      cedula: deleted.cedula,
-      nombre: deleted.nombre,
-      telefono: deleted.telefono,
-      correo: deleted.correo,
-      estado: deleted.estado,
-      municipio: deleted.municipio,
-      consejo_id: deleted.consejo_id,
-      creado_por: deleted.creado_por,
-      asignado_a: deleted.asignado_a,
-    });
+    const prefixedMatch = normalized.match(/^([VE])-(\d{6,9})$/);
+    if (prefixedMatch) {
+      return {
+        tipoCedula: prefixedMatch[1] as 'V' | 'E',
+        cedula: prefixedMatch[2],
+      };
+    }
 
-    return deleted;
+    if (/^[A-Z]\d{3}$/.test(normalized)) {
+      return { tipoCedula: 'NP' as 'V' | 'E' | 'NP', cedula: normalized };
+    }
+
+    if (/^\d{6,9}$/.test(normalized)) {
+      return { tipoCedula: 'V' as 'V' | 'E' | 'NP', cedula: normalized };
+    }
+
+    return { tipoCedula: 'NP' as 'V' | 'E' | 'NP', cedula: '' };
   }
 
-  async saveProfileImage(id: number, dto: SaveCampesinoProfileImageDto) {
-    const campesino = await this.prisma.campesino.findUnique({
-      where: { id },
-      select: { id: true },
-    });
-
-    if (!campesino) {
-      throw new NotFoundException('Campesino no encontrado');
+  private formatCedulaForResponse(tipoCedula?: string | null, cedula?: string | null): string {
+    if (!cedula) {
+      return '';
     }
 
-    const mongoId = await this.mongoOptionalService.saveCampesinoPerfilImagen({
-      campesinoId: id,
-      contentType: dto.content_type,
-      fileName: dto.file_name,
-      sizeBytes: dto.size_bytes,
-      imageBase64: dto.image_base64,
-      imageUrl: dto.image_url,
-      metadata: dto.metadata,
-    });
+    if (tipoCedula === 'V' || tipoCedula === 'E') {
+      return `${tipoCedula}-${cedula}`;
+    }
 
+    return cedula;
+  }
+
+  private async findCampesinoRow(identifier: string | number) {
+    const textValue = String(identifier).trim();
+    const rows = await this.prisma.$queryRaw<Array<any>>(Prisma.sql`
+      SELECT
+        c.id_campesinos AS id,
+        p.tipo_cedula,
+        p.cedula,
+        p.nombre,
+        p.apellido,
+        p.numero_telefonico AS telefono,
+        p.email AS correo,
+        p.fecha_nacimiento,
+        g.genero AS genero,
+        e.nombre_estado AS estado,
+        m.nombre_municipio AS municipio,
+        par.nombre_parroquia AS parroquia,
+        p.direccion_usuario AS direccion,
+        p.consejo_id AS consejo_id,
+        c.creado_por,
+        c.asignado_a,
+        c.formularios_pendientes AS tiene_pendientes,
+        (
+          SELECT jsonb_build_object(
+            'formularios_respondidos',
+            COALESCE(jsonb_agg(DISTINCT r.id_formulario::text), '[]'::jsonb)
+          )
+          FROM respuestas.respuesta_form r
+          WHERE r.respuestas->>'campesino_id' = c.id_campesinos::text
+        ) AS metadata,
+        p.created_at AS creado_en,
+        p.update_at AS actualizado_en
+      FROM operacional.campesinos c
+      LEFT JOIN registros.personas p ON p.id_personas = c.id_campesinos
+      LEFT JOIN catalogos.generos g ON g.id_genero = p.genero
+      LEFT JOIN catalogos.parroquias par ON par.id_parroquia = p.parroquia
+      LEFT JOIN catalogos.municipios m ON m.id_municipio = par.municipio
+      LEFT JOIN catalogos.estados e ON e.id_estados = m.estado
+      WHERE c.id_campesinos::text = ${textValue}
+      LIMIT 1
+    `);
+
+    return rows[0] ?? null;
+  }
+
+  private mapCampesino(campesino: any) {
     return {
-      campesino_id: id,
-      mongo_habilitado: this.mongoOptionalService.isEnabled(),
-      guardado_en_mongo: Boolean(mongoId),
-      mongo_id: mongoId,
+      id: campesino.id,
+      cedula: this.formatCedulaForResponse(campesino.tipo_cedula, campesino.cedula),
+      nombre: campesino.nombre,
+      apellido: campesino.apellido,
+      telefono: campesino.telefono,
+      correo: campesino.correo,
+      fecha_nacimiento: campesino.fecha_nacimiento,
+      genero: campesino.genero || null,
+      estado: campesino.estado,
+      municipio: campesino.municipio,
+      parroquia: campesino.parroquia,
+      direccion: campesino.direccion,
+      consejo_id: campesino.consejo_id ?? null,
+      consejo_nombre: null,
+      creado_por: campesino.creado_por ?? null,
+      asignado_a: campesino.asignado_a ?? null,
+      tiene_pendientes: Boolean(campesino.tiene_pendientes),
+      metadata: campesino.metadata ?? { formularios_respondidos: [] },
+      creado_en: campesino.creado_en,
+      actualizado_en: campesino.actualizado_en ?? campesino.creado_en,
     };
   }
 
-  async getProfileImage(id: number) {
-    const campesino = await this.prisma.campesino.findUnique({
-      where: { id },
-      select: { id: true },
-    });
+  async findAll(requester: { id: string; rol: string }, consejoId?: string | number) {
+    if (requester.rol === 'encuestador') {
+      const rows = await this.prisma.$queryRaw<Array<any>>(Prisma.sql`
+        SELECT p.consejo_id
+        FROM seguridad.usuarios u
+        LEFT JOIN registros.personas p ON p.id_personas = u.id_usuario
+        WHERE u.id_usuario::text = ${requester.id}
+        LIMIT 1
+      `);
 
-    if (!campesino) {
-      throw new NotFoundException('Campesino no encontrado');
+      const currentConsejoId = rows[0]?.consejo_id ?? null;
+      if (!currentConsejoId) {
+        throw new ForbiddenException('El encuestador no tiene un consejo asignado');
+      }
+
+      const campesinos = await this.prisma.$queryRaw<Array<any>>(Prisma.sql`
+        SELECT
+          c.id_campesinos AS id,
+          p.tipo_cedula,
+          p.cedula,
+          p.nombre,
+          p.apellido,
+          p.numero_telefonico AS telefono,
+          p.email AS correo,
+          p.fecha_nacimiento,
+          g.genero AS genero,
+          e.nombre_estado AS estado,
+          m.nombre_municipio AS municipio,
+          par.nombre_parroquia AS parroquia,
+          p.direccion_usuario AS direccion,
+          p.consejo_id AS consejo_id,
+          c.creado_por,
+          c.asignado_a,
+          c.formularios_pendientes AS tiene_pendientes,
+          (
+            SELECT jsonb_build_object(
+              'formularios_respondidos',
+              COALESCE(jsonb_agg(DISTINCT r.id_formulario::text), '[]'::jsonb)
+            )
+            FROM respuestas.respuesta_form r
+            WHERE r.respuestas->>'campesino_id' = c.id_campesinos::text
+          ) AS metadata,
+          p.created_at AS creado_en,
+          p.update_at AS actualizado_en
+        FROM operacional.campesinos c
+        LEFT JOIN registros.personas p ON p.id_personas = c.id_campesinos
+        LEFT JOIN catalogos.generos g ON g.id_genero = p.genero
+        LEFT JOIN catalogos.parroquias par ON par.id_parroquia = p.parroquia
+        LEFT JOIN catalogos.municipios m ON m.id_municipio = par.municipio
+        LEFT JOIN catalogos.estados e ON e.id_estados = m.estado
+        WHERE p.consejo_id::text = ${String(currentConsejoId)}
+        ORDER BY p.nombre
+      `);
+
+      return campesinos.map((campesino) => this.mapCampesino(campesino));
     }
 
-    const image = await this.mongoOptionalService.getCampesinoPerfilImagen(id);
+    const resolvedConsejoId = await this.resolveConsejoUuid(consejoId);
+    const campesinos = await this.prisma.$queryRaw<Array<any>>(Prisma.sql`
+      SELECT
+        c.id_campesinos AS id,
+        p.tipo_cedula,
+        p.cedula,
+        p.nombre,
+        p.apellido,
+        p.numero_telefonico AS telefono,
+        p.email AS correo,
+        p.fecha_nacimiento,
+        g.genero AS genero,
+        e.nombre_estado AS estado,
+        m.nombre_municipio AS municipio,
+        par.nombre_parroquia AS parroquia,
+        p.direccion_usuario AS direccion,
+        p.consejo_id AS consejo_id,
+        c.creado_por,
+        c.asignado_a,
+        c.formularios_pendientes AS tiene_pendientes,
+        (
+          SELECT jsonb_build_object(
+            'formularios_respondidos',
+            COALESCE(jsonb_agg(DISTINCT r.id_formulario::text), '[]'::jsonb)
+          )
+          FROM respuestas.respuesta_form r
+          WHERE r.respuestas->>'campesino_id' = c.id_campesinos::text
+        ) AS metadata,
+        p.created_at AS creado_en,
+        p.update_at AS actualizado_en
+      FROM operacional.campesinos c
+      LEFT JOIN registros.personas p ON p.id_personas = c.id_campesinos
+      LEFT JOIN catalogos.generos g ON g.id_genero = p.genero
+      LEFT JOIN catalogos.parroquias par ON par.id_parroquia = p.parroquia
+      LEFT JOIN catalogos.municipios m ON m.id_municipio = par.municipio
+      LEFT JOIN catalogos.estados e ON e.id_estados = m.estado
+      ${resolvedConsejoId ? Prisma.sql`WHERE p.consejo_id::text = ${resolvedConsejoId}` : Prisma.empty}
+      ORDER BY p.nombre
+    `);
 
-    return {
-      campesino_id: id,
-      mongo_habilitado: this.mongoOptionalService.isEnabled(),
-      imagen: image,
-    };
+    return campesinos.map((campesino) => this.mapCampesino(campesino));
   }
 
-  async deleteProfileImage(id: number) {
-    const campesino = await this.prisma.campesino.findUnique({
-      where: { id },
-      select: { id: true },
-    });
-
+  async findOne(id: string | number, requester: { id: string; rol: string }) {
+    const campesino = await this.findCampesinoRow(id);
     if (!campesino) {
       throw new NotFoundException('Campesino no encontrado');
     }
 
-    const deleted = await this.mongoOptionalService.deleteCampesinoPerfilImagen(id);
+    if (requester.rol === 'encuestador') {
+      const rows = await this.prisma.$queryRaw<Array<{ consejo_id: string | null }>>(Prisma.sql`
+        SELECT p.consejo_id
+        FROM seguridad.usuarios u
+        LEFT JOIN registros.personas p ON p.id_personas = u.id_usuario
+        WHERE u.id_usuario::text = ${requester.id}
+        LIMIT 1
+      `);
 
-    return {
-      campesino_id: id,
-      mongo_habilitado: this.mongoOptionalService.isEnabled(),
-      eliminado: deleted,
-    };
+      if (!rows[0]?.consejo_id || rows[0].consejo_id !== campesino.consejo_id) {
+        throw new ForbiddenException('No tiene permiso para ver este campesino');
+      }
+    }
+
+    return this.mapCampesino(campesino);
+  }
+
+  async create(createCampesinDto: CreateCampesinDto, requesterId?: string) {
+    const trimmedNombre = createCampesinDto.nombre?.trim();
+    if (!trimmedNombre) {
+      throw new BadRequestException('El nombre del campesino es obligatorio');
+    }
+
+    let tipoCedula: 'V' | 'E' | 'NP';
+    let cedula: string;
+    if (createCampesinDto.cedula) {
+      const normalizedCedula = normalizeCedulaInput(createCampesinDto.cedula);
+      if (!this.isValidCampesinoCedula(normalizedCedula)) {
+        throw new BadRequestException('La cédula debe ser V-123456 (6-9 dígitos), E-123456 (6-9 dígitos) o NP como A123');
+      }
+
+      const parsedCedula = this.buildCedulaData(normalizedCedula);
+      tipoCedula = parsedCedula.tipoCedula;
+      cedula = parsedCedula.cedula;
+    } else {
+      tipoCedula = 'NP';
+      cedula = await this.generateUniqueCedula();
+    }
+    const parroquiaId = await this.resolveParroquiaId({
+      parroquiaId: createCampesinDto.parroquia_id,
+      municipioId: createCampesinDto.municipio_id,
+      estadoId: createCampesinDto.estado_id,
+    });
+    const generoId = await this.resolveGeneroId(createCampesinDto.genero);
+    const consejoId = await this.resolveConsejoUuid(createCampesinDto.consejo_id);
+    const creadoPor = await this.resolveUserUuid(createCampesinDto.creado_por ?? requesterId ?? null);
+    const asignadoA = await this.resolveUserUuid(createCampesinDto.asignado_a ?? null);
+    const fechaNacimiento = this.normalizeDateInput(createCampesinDto.fecha_nacimiento) ?? new Date('1990-01-01T00:00:00.000Z');
+    const personId = randomUUID();
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw(Prisma.sql`
+        INSERT INTO registros.personas (
+          id_personas,
+          nombre,
+          apellido,
+          tipo_cedula,
+          cedula,
+          fecha_nacimiento,
+          parroquia,
+          direccion_usuario,
+          email,
+          numero_telefonico,
+          genero,
+          consejo_id
+        ) VALUES (
+          CAST(${personId} AS uuid),
+          ${trimmedNombre},
+          ${createCampesinDto.apellido?.trim() || ''},
+          CAST(${tipoCedula} AS registros.tipo_cedula_enum),
+          ${cedula},
+          ${fechaNacimiento},
+          ${parroquiaId},
+          ${createCampesinDto.direccion?.trim() || ''},
+          ${createCampesinDto.correo?.trim() || null},
+          ${createCampesinDto.telefono?.trim() || null},
+          ${generoId},
+          CAST(${consejoId} AS uuid)
+        )
+      `);
+
+      await tx.$queryRaw(Prisma.sql`
+        INSERT INTO operacional.campesinos (
+          id_campesinos,
+          creado_por,
+          asignado_a,
+          formularios_pendientes
+        ) VALUES (
+          CAST(${personId} AS uuid),
+          CAST(${creadoPor} AS uuid),
+          CAST(${asignadoA} AS uuid),
+          ${createCampesinDto.tiene_pendientes ?? false}
+        )
+      `);
+    });
+
+    const created = await this.findCampesinoRow(personId);
+    if (!created) {
+      throw new NotFoundException('No se pudo crear el campesino');
+    }
+
+    return this.mapCampesino(created);
+  }
+
+  async update(id: string | number, updateCampesinDto: UpdateCampesinDto) {
+    const campesino = await this.findCampesinoRow(id);
+    if (!campesino) {
+      throw new NotFoundException('Campesino no encontrado');
+    }
+
+    let cedula: string | null = null;
+    let tipoCedula: 'V' | 'E' | 'NP' | null = null;
+    if (updateCampesinDto.cedula != null) {
+      const normalizedCedula = normalizeCedulaInput(updateCampesinDto.cedula);
+      if (!this.isValidCampesinoCedula(normalizedCedula)) {
+        throw new BadRequestException('La cédula debe ser V-123456 (6-9 dígitos), E-123456 (6-9 dígitos) o NP como A123');
+      }
+      const parsedCedula = this.buildCedulaData(normalizedCedula);
+      cedula = parsedCedula.cedula;
+      tipoCedula = parsedCedula.tipoCedula;
+    }
+
+    const parroquiaId = (updateCampesinDto.parroquia_id != null || updateCampesinDto.municipio_id != null || updateCampesinDto.estado_id != null)
+      ? await this.resolveParroquiaId({
+          parroquiaId: updateCampesinDto.parroquia_id,
+          municipioId: updateCampesinDto.municipio_id,
+          estadoId: updateCampesinDto.estado_id,
+        })
+      : null;
+
+    const generoId = updateCampesinDto.genero != null
+      ? await this.resolveGeneroId(updateCampesinDto.genero)
+      : null;
+
+    const consejoId = updateCampesinDto.consejo_id != null
+      ? await this.resolveConsejoUuid(updateCampesinDto.consejo_id)
+      : null;
+
+    const creadoPor = updateCampesinDto.creado_por != null
+      ? await this.resolveUserUuid(updateCampesinDto.creado_por)
+      : null;
+
+    const asignadoA = updateCampesinDto.asignado_a != null
+      ? await this.resolveUserUuid(updateCampesinDto.asignado_a)
+      : null;
+
+    const fechaNacimiento = updateCampesinDto.fecha_nacimiento != null
+      ? (this.normalizeDateInput(updateCampesinDto.fecha_nacimiento) ?? null)
+      : null;
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw(Prisma.sql`
+        UPDATE registros.personas
+        SET
+          nombre = COALESCE(${updateCampesinDto.nombre?.trim() ?? null}, nombre),
+          apellido = COALESCE(${updateCampesinDto.apellido?.trim() ?? null}, apellido),
+          tipo_cedula = CASE
+            WHEN CAST(${tipoCedula ?? null} AS text) IS NULL THEN tipo_cedula
+            ELSE CAST(${tipoCedula ?? null} AS registros.tipo_cedula_enum)
+          END,
+          cedula = COALESCE(CAST(${cedula ?? null} AS text), cedula),
+          fecha_nacimiento = COALESCE(CAST(${fechaNacimiento ?? null} AS date), fecha_nacimiento),
+          parroquia = COALESCE(CAST(${parroquiaId ?? null} AS integer), parroquia),
+          direccion_usuario = COALESCE(${updateCampesinDto.direccion?.trim() ?? null}, direccion_usuario),
+          email = COALESCE(${updateCampesinDto.correo?.trim() ?? null}, email),
+          numero_telefonico = COALESCE(${updateCampesinDto.telefono?.trim() ?? null}, numero_telefonico),
+          genero = COALESCE(CAST(${generoId ?? null} AS integer), genero),
+          consejo_id = CASE
+            WHEN CAST(${consejoId ?? null} AS text) IS NULL THEN consejo_id
+            ELSE CAST(${consejoId ?? null} AS uuid)
+          END,
+          update_at = NOW()
+        WHERE id_personas::text = ${String(campesino.id)}
+      `);
+
+      await tx.$queryRaw(Prisma.sql`
+        UPDATE operacional.campesinos
+        SET
+          creado_por = CASE
+            WHEN CAST(${creadoPor ?? null} AS text) IS NULL THEN creado_por
+            ELSE CAST(${creadoPor ?? null} AS uuid)
+          END,
+          asignado_a = CASE
+            WHEN CAST(${asignadoA ?? null} AS text) IS NULL THEN asignado_a
+            ELSE CAST(${asignadoA ?? null} AS uuid)
+          END,
+          formularios_pendientes = COALESCE(CAST(${updateCampesinDto.tiene_pendientes ?? null} AS boolean), formularios_pendientes)
+        WHERE id_campesinos::text = ${String(campesino.id)}
+      `);
+    });
+
+    const updated = await this.findCampesinoRow(campesino.id);
+    if (!updated) {
+      throw new NotFoundException('No se pudo actualizar el campesino');
+    }
+
+    return this.mapCampesino(updated);
+  }
+
+  async remove(id: string | number) {
+    const campesino = await this.findCampesinoRow(id);
+    if (!campesino) {
+      throw new NotFoundException('Campesino no encontrado');
+    }
+
+    await this.prisma.$queryRaw(Prisma.sql`
+      DELETE FROM registros.personas WHERE id_personas::text = ${String(campesino.id)}
+    `);
+
+    return { deleted: true };
+  }
+
+  async saveProfileImage(id: string | number, dto: SaveCampesinoProfileImageDto) {
+    return { id, saved: true, payload: dto };
+  }
+
+  async getProfileImage(id: string | number) {
+    return { id, image: null };
+  }
+
+  async deleteProfileImage(id: string | number) {
+    return { id, deleted: true };
   }
 }

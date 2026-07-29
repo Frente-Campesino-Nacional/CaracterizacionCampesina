@@ -7,10 +7,13 @@ export declare class AuthController {
     login(loginDto: LoginDto): Promise<{
         access_token: string;
         user: {
-            id: number;
+            id: string;
             email: string;
             nombre: string;
+            apellido: string;
+            telefono: string;
             rol: string;
+            consejo_id: string;
             activo: boolean;
             creado_en: Date;
         };
@@ -18,19 +21,25 @@ export declare class AuthController {
     register(registerDto: RegisterDto): Promise<{
         access_token: string;
         user: {
-            id: number;
+            id: string;
             email: string;
             nombre: string;
+            apellido: string;
+            telefono: string;
             rol: string;
+            consejo_id: string;
             activo: boolean;
             creado_en: Date;
         };
     }>;
     getProfile(req: any): Promise<{
-        id: number;
+        id: string;
         email: string;
         nombre: string;
+        apellido: string;
+        telefono: string;
         rol: string;
+        consejo_id: string;
         activo: boolean;
         creado_en: Date;
     }>;

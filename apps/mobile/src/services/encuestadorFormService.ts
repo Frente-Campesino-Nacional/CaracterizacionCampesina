@@ -1,4 +1,5 @@
 import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   CampesinoRecord,
   FormularioRecord,
@@ -15,6 +16,7 @@ import {
   SubmissionHistoryItem,
   SubmitFormularioRespuestaPayload,
 } from '../types/formularios';
+import { getCachedCampesinoById } from './encuestadorCampesinoOfflineService';
 import {
   addSubmissionHistory,
   clearDraft,
@@ -26,6 +28,13 @@ import {
   saveDraft,
 } from '../database/sync/formOfflineRepository';
 
+const STORAGE_KEYS = {
+  formulariosActivos: 'encuestador-formularios-activos-cache-v1',
+  campesinoMetadata: 'encuestador-campesino-metadata-cache-v1',
+};
+
+type CampesinoMetadataCache = Record<string, Record<string, unknown>>;
+
 export function normalizeMetadata(metadata: Record<string, unknown> | null | undefined): CampesinoMetadataNormalized {
   if (!metadata || Array.isArray(metadata)) {
     return { formularios_respondidos: [] };
@@ -34,9 +43,14 @@ export function normalizeMetadata(metadata: Record<string, unknown> | null | und
   const raw = metadata.formularios_respondidos;
   const ids = Array.isArray(raw)
     ? raw
-        .map((item) => Number(item))
-        .filter((item) => Number.isFinite(item) && item > 0)
-    : [];
+        .map((item) => String(item).trim())
+        .filter((item) => item.length > 0)
+    : typeof raw === 'string'
+      ? raw
+          .split(',')
+          .map((item) => item.trim())
+          .filter((item) => item.length > 0)
+      : [];
 
   return {
     ...metadata,
@@ -44,8 +58,94 @@ export function normalizeMetadata(metadata: Record<string, unknown> | null | und
   };
 }
 
-export function getPreguntasFromStructure(estructura: Record<string, unknown>): FormQuestion[] {
-  const raw = estructura.preguntas;
+function mergeMetadataSources(
+  baseMetadata: Record<string, unknown> | null | undefined,
+  localMetadata: Record<string, unknown> | null | undefined,
+): Record<string, unknown> {
+  const merged = {
+    ...(baseMetadata ?? {}),
+    ...(localMetadata ?? {}),
+  } as Record<string, unknown>;
+
+  const ids = Array.from(new Set([
+    ...normalizeMetadata(baseMetadata).formularios_respondidos,
+    ...normalizeMetadata(localMetadata).formularios_respondidos,
+  ]));
+
+  return {
+    ...merged,
+    formularios_respondidos: ids,
+  };
+}
+
+export function mergeFormularioResponseMetadata(
+  metadata: Record<string, unknown> | null | undefined,
+  formularioId: string,
+): CampesinoMetadataNormalized {
+  const normalized = normalizeMetadata(metadata);
+  const nextIds = Array.from(new Set([...normalized.formularios_respondidos, formularioId].filter(Boolean)));
+
+  return {
+    ...normalized,
+    formularios_respondidos: nextIds,
+  };
+}
+
+async function readCampesinoMetadataCache(): Promise<CampesinoMetadataCache> {
+  const raw = await AsyncStorage.getItem(STORAGE_KEYS.campesinoMetadata);
+  if (!raw) {
+    return {};
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed as CampesinoMetadataCache;
+    }
+  } catch {
+    // Ignorar cache corrupto y volver a empezar.
+  }
+
+  return {};
+}
+
+async function writeCampesinoMetadataCache(cache: CampesinoMetadataCache): Promise<void> {
+  await AsyncStorage.setItem(STORAGE_KEYS.campesinoMetadata, JSON.stringify(cache));
+}
+
+async function persistFormularioResponseMetadata(campesinoId: string, formularioId: string): Promise<void> {
+  if (!campesinoId || !formularioId) {
+    return;
+  }
+
+  const cache = await readCampesinoMetadataCache();
+  const currentMetadata = cache[campesinoId] as Record<string, unknown> | undefined;
+  cache[campesinoId] = mergeFormularioResponseMetadata(currentMetadata, formularioId) as Record<string, unknown>;
+  await writeCampesinoMetadataCache(cache);
+}
+
+function normalizeStructureValue(estructura: Record<string, unknown> | null | undefined): Record<string, unknown> {
+  if (!estructura || typeof estructura !== 'object' || Array.isArray(estructura)) {
+    if (typeof estructura === 'string') {
+      try {
+        const parsed = JSON.parse(estructura) as unknown;
+        return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+          ? (parsed as Record<string, unknown>)
+          : {};
+      } catch {
+        return {};
+      }
+    }
+
+    return {};
+  }
+
+  return estructura as Record<string, unknown>;
+}
+
+export function getPreguntasFromStructure(estructura: Record<string, unknown> | null | undefined): FormQuestion[] {
+  const normalized = normalizeStructureValue(estructura);
+  const raw = normalized.preguntas;
   if (!Array.isArray(raw)) {
     return [];
   }
@@ -61,6 +161,7 @@ export function getPreguntasFromStructure(estructura: Record<string, unknown>): 
       const rawLabel = item.label ?? item.etiqueta ?? item.titulo ?? `Pregunta ${index + 1}`;
       const rawType = item.type ?? item.tipo ?? 'text';
       const rawRequired = item.required ?? item.requerida ?? false;
+      const rawUseAsFilter = item.use_as_filter ?? item.usar_como_filtro ?? item.useAsFilter ?? false;
       const rawSelectionMode = item.selectionMode ?? item.modoSeleccion ?? item.tipoSeleccion ?? item.multiple;
 
       const normalizedType = String(rawType).toLowerCase();
@@ -77,6 +178,7 @@ export function getPreguntasFromStructure(estructura: Record<string, unknown>): 
         label: String(rawLabel),
         type,
         required: Boolean(rawRequired),
+        useAsFilter: Boolean(rawUseAsFilter),
         placeholder: item.placeholder ? String(item.placeholder) : undefined,
         options,
         selectionMode,
@@ -178,19 +280,66 @@ export function validateAnswers(
   return null;
 }
 
-export async function getCampesinoById(token: string, campesinoId: number): Promise<CampesinoRecord | null> {
-  const all = await listCampesinos(token);
-  return all.find((item) => item.id === campesinoId) || null;
+export async function getCampesinoById(token: string, campesinoId: string): Promise<CampesinoRecord | null> {
+  try {
+    const all = await listCampesinos(token);
+    const found = all.find((item) => item.id === campesinoId);
+    if (!found) {
+      return null;
+    }
+
+    const localCache = await readCampesinoMetadataCache();
+    const mergedMetadata = mergeMetadataSources(found.metadata, localCache[campesinoId]);
+
+    return {
+      ...found,
+      metadata: mergedMetadata,
+    };
+  } catch (error) {
+    if (axios.isAxiosError(error) && !error.response) {
+      const cached = await getCachedCampesinoById(campesinoId);
+      if (!cached) {
+        return null;
+      }
+
+      const localCache = await readCampesinoMetadataCache();
+      return {
+        ...cached,
+        metadata: mergeMetadataSources(cached.metadata, localCache[campesinoId]),
+      };
+    }
+    throw error;
+  }
 }
 
-export async function getFormularioById(token: string, formularioId: number): Promise<FormularioRecord | null> {
-  const all = await listFormularios(token);
+export async function getFormularioById(token: string, formularioId: string): Promise<FormularioRecord | null> {
+  const all = await getFormulariosActivos(token);
   return all.find((item) => item.id === formularioId) || null;
 }
 
 export async function getFormulariosActivos(token: string): Promise<FormularioRecord[]> {
-  const all = await listFormularios(token);
-  return all.filter((item) => item.activo);
+  try {
+    const all = await listFormularios(token);
+    const active = all.filter((item) => item.activo);
+    await AsyncStorage.setItem(STORAGE_KEYS.formulariosActivos, JSON.stringify(active));
+    return active;
+  } catch (error) {
+    if (!(axios.isAxiosError(error) && !error.response)) {
+      throw error;
+    }
+
+    const raw = await AsyncStorage.getItem(STORAGE_KEYS.formulariosActivos);
+    if (!raw) {
+      return [];
+    }
+
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      return Array.isArray(parsed) ? (parsed as FormularioRecord[]) : [];
+    } catch {
+      return [];
+    }
+  }
 }
 
 export function getPendingFormularios(
@@ -205,12 +354,13 @@ export function getPendingFormularios(
 export async function submitAndMarkFormulario(
   token: string,
   payload: SubmitFormularioRespuestaPayload,
-  campesinoId: number,
-  formularioId: number,
-  allActiveFormIds: number[],
+  campesinoId: string,
+  formularioId: string,
+  allActiveFormIds: string[],
   formularioTitulo: string,
 ): Promise<void> {
   await submitFormularioRespuesta(token, formularioId, payload);
+  await persistFormularioResponseMetadata(campesinoId, formularioId);
 
   await addSubmissionHistory({
     campesinoId,
@@ -231,6 +381,7 @@ export async function enqueueSubmission(item: QueuedFormularioSubmission): Promi
     encuestadorId: item.encuestadorId,
     capturedAtIso: item.capturedAtIso,
   });
+  await persistFormularioResponseMetadata(item.campesinoId, item.formularioId);
 
   await addSubmissionHistory({
     campesinoId: item.campesinoId,
@@ -290,31 +441,31 @@ export async function flushQueuedSubmissions(token: string): Promise<number> {
 }
 
 export async function getDraftAnswers(
-  campesinoId: number,
-  formularioId: number,
+  campesinoId: string,
+  formularioId: string,
 ): Promise<Record<string, unknown> | null> {
   return getDraft(campesinoId, formularioId);
 }
 
 export async function saveDraftAnswers(
-  campesinoId: number,
-  formularioId: number,
+  campesinoId: string,
+  formularioId: string,
   answers: Record<string, unknown>,
 ): Promise<void> {
   await saveDraft(campesinoId, formularioId, answers);
 }
 
-export async function clearDraftAnswers(campesinoId: number, formularioId: number): Promise<void> {
+export async function clearDraftAnswers(campesinoId: string, formularioId: string): Promise<void> {
   await clearDraft(campesinoId, formularioId);
 }
 
 export async function getSubmissionHistoryByCampesino(
-  campesinoId: number,
+  campesinoId: string,
 ): Promise<SubmissionHistoryItem[]> {
   return getSubmissionHistoryByCampesinoDb(campesinoId);
 }
 
-export function parseFormStructure(estructura: Record<string, unknown>): FormStructure {
+export function parseFormStructure(estructura: Record<string, unknown> | null | undefined): FormStructure {
   const preguntas = getPreguntasFromStructure(estructura);
   return { preguntas };
 }

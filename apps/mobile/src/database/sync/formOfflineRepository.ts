@@ -5,19 +5,19 @@ type JsonObject = Record<string, unknown>;
 
 export type QueueEntry = {
   id: string;
-  campesinoId: number;
-  formularioId: number;
+  campesinoId: string;
+  formularioId: string;
   formularioTitulo: string;
   respuestas: JsonObject;
-  allActiveFormIds: number[];
-  encuestadorId?: number | undefined;
+  allActiveFormIds: string[];
+  encuestadorId?: string | undefined;
   capturedAtIso: string;
 };
 
 export type SubmissionHistoryEntry = {
   id: string;
-  campesinoId: number;
-  formularioId: number;
+  campesinoId: string;
+  formularioId: string;
   formularioTitulo: string;
   status: 'enviado' | 'pendiente_offline' | 'sincronizado' | 'error';
   message: string;
@@ -42,8 +42,8 @@ const STORAGE_KEYS = {
 };
 
 export async function getDraft(
-  campesinoId: number,
-  formularioId: number,
+  campesinoId: string,
+  formularioId: string,
 ): Promise<JsonObject | null> {
   const watermelon = getWatermelonContext();
   if (!watermelon) {
@@ -66,8 +66,8 @@ export async function getDraft(
 }
 
 export async function saveDraft(
-  campesinoId: number,
-  formularioId: number,
+  campesinoId: string,
+  formularioId: string,
   answers: JsonObject,
 ): Promise<void> {
   const watermelon = getWatermelonContext();
@@ -105,7 +105,7 @@ export async function saveDraft(
   });
 }
 
-export async function clearDraft(campesinoId: number, formularioId: number): Promise<void> {
+export async function clearDraft(campesinoId: string, formularioId: string): Promise<void> {
   const watermelon = getWatermelonContext();
   if (!watermelon) {
     const drafts = await readDraftMap();
@@ -125,12 +125,12 @@ export async function clearDraft(campesinoId: number, formularioId: number): Pro
 }
 
 export async function enqueueSubmission(input: {
-  campesinoId: number;
-  formularioId: number;
+  campesinoId: string;
+  formularioId: string;
   formularioTitulo: string;
   respuestas: JsonObject;
-  allActiveFormIds: number[];
-  encuestadorId?: number | undefined;
+  allActiveFormIds: string[];
+  encuestadorId?: string | undefined;
   capturedAtIso: string;
 }): Promise<void> {
   const watermelon = getWatermelonContext();
@@ -177,12 +177,12 @@ export async function listQueuedSubmissions(): Promise<QueueEntry[]> {
   const records = await queueCollection.query().fetch();
   return records.map((item: any) => ({
     id: String(item.id),
-    campesinoId: Number(item._raw.campesino_id),
-    formularioId: Number(item._raw.formulario_id),
+    campesinoId: String(item._raw.campesino_id),
+    formularioId: String(item._raw.formulario_id),
     formularioTitulo: String(item._raw.formulario_titulo || 'Formulario'),
     respuestas: parseJsonObject(item._raw.respuestas_json),
-    allActiveFormIds: parseNumberArray(item._raw.all_active_form_ids_json),
-    encuestadorId: item._raw.encuestador_id != null ? Number(item._raw.encuestador_id) : undefined,
+    allActiveFormIds: parseStringArray(item._raw.all_active_form_ids_json),
+    encuestadorId: item._raw.encuestador_id != null ? String(item._raw.encuestador_id) : undefined,
     capturedAtIso: String(item._raw.captured_at_iso),
   }));
 }
@@ -203,9 +203,45 @@ export async function deleteQueuedSubmission(queueId: string): Promise<void> {
   });
 }
 
+export async function reassignQueuedSubmissionsCampesinoId(
+  previousCampesinoId: string,
+  nextCampesinoId: string,
+): Promise<void> {
+  const watermelon = getWatermelonContext();
+  if (!watermelon) {
+    const queue = await readQueueMap();
+    const updatedQueue: Record<string, QueueEntry> = {};
+
+    for (const [id, entry] of Object.entries(queue)) {
+      updatedQueue[id] =
+        entry.campesinoId === previousCampesinoId
+          ? { ...entry, campesinoId: nextCampesinoId }
+          : entry;
+    }
+
+    await AsyncStorage.setItem(STORAGE_KEYS.queue, JSON.stringify(updatedQueue));
+    return;
+  }
+
+  const { database, queueCollection, Q } = watermelon;
+  await database.write(async () => {
+    const records = await queueCollection
+      .query(Q.where('campesino_id', previousCampesinoId))
+      .fetch();
+
+    await Promise.all(
+      records.map((record: any) =>
+        record.update((item: any) => {
+          item._raw.campesino_id = nextCampesinoId;
+        }),
+      ),
+    );
+  });
+}
+
 export async function addSubmissionHistory(input: {
-  campesinoId: number;
-  formularioId: number;
+  campesinoId: string;
+  formularioId: string;
   formularioTitulo: string;
   status: SubmissionHistoryEntry['status'];
   message: string;
@@ -241,7 +277,7 @@ export async function addSubmissionHistory(input: {
 }
 
 export async function getSubmissionHistoryByCampesino(
-  campesinoId: number,
+  campesinoId: string,
   limit = 20,
 ): Promise<SubmissionHistoryEntry[]> {
   const watermelon = getWatermelonContext();
@@ -260,8 +296,8 @@ export async function getSubmissionHistoryByCampesino(
 
   return records.map((item: any) => ({
     id: String(item.id),
-    campesinoId: Number(item._raw.campesino_id),
-    formularioId: Number(item._raw.formulario_id),
+    campesinoId: String(item._raw.campesino_id),
+    formularioId: String(item._raw.formulario_id),
     formularioTitulo: String(item._raw.formulario_titulo || 'Formulario'),
     status: normalizeStatus(item._raw.status),
     message: String(item._raw.message || ''),
@@ -285,7 +321,7 @@ function parseJsonObject(value: unknown): JsonObject {
   }
 }
 
-function parseNumberArray(value: unknown): number[] {
+function parseStringArray(value: unknown): string[] {
   if (typeof value !== 'string') {
     return [];
   }
@@ -297,8 +333,8 @@ function parseNumberArray(value: unknown): number[] {
     }
 
     return parsed
-      .map((item) => Number(item))
-      .filter((item) => Number.isFinite(item) && item > 0);
+      .map((item) => String(item))
+      .filter((item) => item.trim().length > 0);
   } catch {
     return [];
   }
@@ -359,7 +395,7 @@ function getWatermelonContext(): WatermelonContext | null {
   }
 }
 
-function getDraftKey(campesinoId: number, formularioId: number): string {
+function getDraftKey(campesinoId: string, formularioId: string): string {
   return `${campesinoId}:${formularioId}`;
 }
 
