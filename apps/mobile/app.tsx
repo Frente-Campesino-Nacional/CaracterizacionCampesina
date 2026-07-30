@@ -5,7 +5,6 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { enableScreens } from 'react-native-screens';
 import AppNavigator from './src/navigation/AppNavigator';
-import NetworkSyncProvider from './src/utils/NetworkSyncProvider';
 import { useAuthStore } from './src/store/authStore';
 import { Theme } from './src/theme/colors';
 
@@ -50,9 +49,7 @@ export default function App() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <AuthBootstrap>
-          <NetworkSyncProvider>
-            <AppNavigator />
-          </NetworkSyncProvider>
+          <AppNavigator />
         </AuthBootstrap>
         <StatusBar style="auto" />
       </SafeAreaProvider>
