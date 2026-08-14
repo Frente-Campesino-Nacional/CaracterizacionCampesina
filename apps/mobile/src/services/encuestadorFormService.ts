@@ -456,7 +456,14 @@ export async function saveDraftAnswers(
 }
 
 export async function clearDraftAnswers(campesinoId: string, formularioId: string): Promise<void> {
-  await clearDraft(campesinoId, formularioId);
+  return saveDraft(campesinoId, formularioId, {});
+}
+
+export function isRetryableSubmissionError(error: unknown): boolean {
+  if (axios.isAxiosError(error)) {
+    return !error.response || (error.response.status >= 500 && error.response.status <= 599);
+  }
+  return true;
 }
 
 export async function getSubmissionHistoryByCampesino(

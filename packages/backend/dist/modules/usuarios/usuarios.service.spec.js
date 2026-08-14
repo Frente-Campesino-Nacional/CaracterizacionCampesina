@@ -28,8 +28,7 @@ describe('UsuariosService.create', () => {
             return callback({ $queryRaw: txQueryRaw });
         });
         await service.create({
-            nombre_usuario: 'nuevo.usuario',
-            email: 'nuevo.usuario@example.com',
+            email: 'nuevo.usuario@gmail.com',
             password: '12345678',
             nombre: 'Juan',
             apellido: 'Pérez',

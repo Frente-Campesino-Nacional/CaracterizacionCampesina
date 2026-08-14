@@ -1,6 +1,8 @@
 import axios from 'axios';
 import { getApiBaseUrl } from '../config/api';
 
+import { useAuthStore } from '../store/authStore';
+
 const API_BASE_URL = getApiBaseUrl();
 
 function createApiClient(token: string) {
@@ -15,8 +17,23 @@ function createApiClient(token: string) {
     return config;
   });
 
+  instance.interceptors.response.use(
+    (response) => response,
+    (error) => {
+      if (error.response?.status === 401) {
+        try {
+          useAuthStore.getState().logout();
+        } catch {
+          // ignore
+        }
+      }
+      return Promise.reject(error);
+    }
+  );
+
   return instance;
 }
+
 
 export type UserRole = string;
 
@@ -36,9 +53,11 @@ export interface UsuarioRecord {
   direccion?: string | null;
   consejo_id?: string | null;
   activo: boolean;
+  foto_url?: string | null;
   creado_en?: string | null;
   actualizado_en?: string | null;
 }
+
 
 export interface UsuarioProfileImageRecord {
   usuario_id: string;
@@ -58,9 +77,9 @@ export interface UsuarioProfileImageRecord {
 }
 
 export interface UsuarioPayload {
-  nombre_usuario?: string | undefined;
   email: string;
   password?: string | undefined;
+
   cedula?: string | undefined;
   nombre: string;
   apellido: string;
@@ -164,9 +183,11 @@ export interface CampesinoRecord {
   asignado_a?: string | null;
   tiene_pendientes: boolean;
   metadata?: Record<string, unknown> | null;
+  foto_url?: string | null;
   creado_en?: string | null;
   actualizado_en?: string | null;
 }
+
 
 export interface CampesinoProfileImageRecord {
   campesino_id: string;
@@ -239,12 +260,19 @@ export interface CampesinoFiltroResultadoRecord {
   cedula: string;
   nombre: string;
   apellido?: string | null;
+  telefono?: string | null;
+  email?: string | null;
   consejo_nombre?: string | null;
+  estado?: string | null;
+  municipio?: string | null;
+  parroquia?: string | null;
+  formulario_titulo?: string | null;
   pregunta_id: string;
   pregunta_label: string;
   valor: string;
   capturado_en?: string | null;
 }
+
 
 export interface SubmitFormularioRespuestaPayload {
   campesino_id?: string | undefined;

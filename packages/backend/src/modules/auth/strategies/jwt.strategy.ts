@@ -19,8 +19,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: { sub: string; email: string; rol: string }) {
-    const usuario = await this.prisma.$queryRaw<Array<{ id_usuario: string }>>(Prisma.sql`
-      SELECT id_usuario
+    const usuario = await this.prisma.$queryRaw<Array<{ id_usuario: string; sync_status: string }>>(Prisma.sql`
+      SELECT id_usuario, sync_status
       FROM seguridad.usuarios
       WHERE id_usuario = CAST(${payload.sub} AS uuid)
       LIMIT 1
@@ -30,6 +30,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('Usuario no válido');
     }
 
+    if (usuario[0].sync_status === 'disabled') {
+      throw new UnauthorizedException('El usuario se encuentra inactivo. Comunícate con el administrador.');
+    }
+
     return { id: payload.sub, email: payload.email, rol: payload.rol };
   }
-}
+}

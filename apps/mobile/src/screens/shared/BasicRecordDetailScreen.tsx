@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, ScrollView, StyleSheet, Text, View } from 'react-native';
+
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { Card, Header } from '../../components';
@@ -91,14 +92,35 @@ export default function BasicRecordDetailScreen({ route }: Props) {
       <Header title={title} subtitle={isUsuario ? 'Información básica del usuario' : 'Información básica del campesino'} showBorder />
       <ScrollView contentContainerStyle={sharedScreenStyles.contentLg}>
         <Card variant="elevated" padding="lg" style={styles.headerCard}>
-          <MaterialCommunityIcons name={isUsuario ? 'account-circle' : 'account-group'} size={72} color={Theme.colors.greenDark} />
+          {record.foto_url ? (
+            <Image source={{ uri: record.foto_url }} style={styles.avatarImage} />
+          ) : (
+            <MaterialCommunityIcons name={isUsuario ? 'account-circle' : 'account-group'} size={72} color={Theme.colors.greenDark} />
+          )}
           <Text style={styles.nameText}>{record.nombre} {'apellido' in record && record.apellido ? record.apellido : ''}</Text>
+
           {'email' in record ? <Text style={styles.subText}>{record.email}</Text> : null}
-          {'cedula' in record ? <Text style={styles.subText}>Cédula {record.cedula}</Text> : null}
+          {'cedula' in record ? (
+            <Text style={styles.subText}>
+              {String((record as any).id).includes('temp') || String((record as any).cedula).includes('LOCAL-') || String((record as any).cedula).includes('Guardado localmente')
+                ? 'Guardado localmente esperando sincronización'
+                : `Cédula ${(record as any).cedula}`}
+            </Text>
+          ) : null}
         </Card>
 
         <Card variant="bordered" padding="lg" style={styles.detailCard}>
-          {'cedula' in record ? <Field label="Cédula" value={record.cedula ?? 'N/A'} /> : null}
+          {'cedula' in record ? (
+            <Field
+              label="Cédula"
+              value={
+                String((record as any).id).includes('temp') || String((record as any).cedula).includes('LOCAL-') || String((record as any).cedula).includes('Guardado localmente')
+                  ? 'Guardado localmente esperando sincronización'
+                  : ((record as any).cedula ?? 'N/A')
+              }
+            />
+          ) : null}
+
           {'email' in record ? <Field label="Email" value={record.email} /> : null}
           {'telefono' in record ? <Field label="Teléfono" value={record.telefono || 'N/A'} /> : null}
           {'correo' in record ? <Field label="Correo" value={record.correo || 'N/A'} /> : null}
@@ -114,13 +136,14 @@ export default function BasicRecordDetailScreen({ route }: Props) {
           <Card variant="bordered" padding="lg" style={styles.detailCard}>
             <Text style={styles.sectionTitle}>Campos adicionales</Text>
             {'numero_telefono' in record ? <Field label="Teléfono" value={record.numero_telefono || 'N/A'} /> : null}
-            {'fecha_nacimiento' in record ? <Field label="Fecha de nacimiento" value={record.fecha_nacimiento || 'N/A'} /> : null}
+            {'fecha_nacimiento' in record ? <Field label="Fecha de nacimiento" value={record.fecha_nacimiento ? String(record.fecha_nacimiento).slice(0, 10) : 'N/A'} /> : null}
             {'genero' in record ? <Field label="Género" value={record.genero || 'N/A'} /> : null}
             {'estado' in record ? <Field label="Estado" value={record.estado || 'N/A'} /> : null}
             {'municipio' in record ? <Field label="Municipio" value={record.municipio || 'N/A'} /> : null}
             {'direccion' in record ? <Field label="Dirección" value={record.direccion || 'N/A'} /> : null}
-            {'creado_por' in record ? <Field label="Creado por" value={record.creado_por ? userNameById.get(record.creado_por) || record.creado_por : 'N/A'} /> : null}
-            {'asignado_a' in record ? <Field label="Asignado a" value={record.asignado_a ? userNameById.get(record.asignado_a) || record.asignado_a : 'N/A'} /> : null}
+            {'creado_por' in record ? <Field label="Creado por" value={record.creado_por ? (userNameById.get(record.creado_por) || (/^[0-9a-f-]{36}$/i.test(record.creado_por) ? 'N/A' : record.creado_por)) : 'N/A'} /> : null}
+            {'asignado_a' in record ? <Field label="Asignado a" value={record.asignado_a ? (userNameById.get(record.asignado_a) || (/^[0-9a-f-]{36}$/i.test(record.asignado_a) ? 'N/A' : record.asignado_a)) : 'N/A'} /> : null}
+
           </Card>
         ) : null}
       </ScrollView>
@@ -139,7 +162,9 @@ function Field({ label, value }: { label: string; value: string | number }) {
 
 const styles = StyleSheet.create({
   headerCard: { alignItems: 'center', gap: Theme.spacing.sm },
+  avatarImage: { width: 80, height: 80, borderRadius: 40 },
   nameText: { fontSize: Theme.fontSize['2xl'], fontWeight: Theme.fontWeight.bold, color: Theme.colors.darkGray, textAlign: 'center' },
+
   subText: { color: Theme.colors.mediumGray, textAlign: 'center' },
   detailCard: { gap: Theme.spacing.sm },
   sectionTitle: { fontSize: Theme.fontSize.base, fontWeight: Theme.fontWeight.bold, color: Theme.colors.darkGray, marginBottom: Theme.spacing.sm },

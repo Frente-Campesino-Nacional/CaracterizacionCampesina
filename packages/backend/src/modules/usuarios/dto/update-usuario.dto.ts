@@ -1,16 +1,15 @@
-import { IsEmail, IsOptional, MinLength, IsBoolean, IsString } from 'class-validator';
+import { IsEmail, IsOptional, MinLength, IsBoolean, IsString, Matches } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class UpdateUsuarioDto {
   @IsOptional()
   @IsEmail()
+  @Matches(/^[a-zA-Z0-9._%+-]+@gmail\.com$/i, { message: 'El correo electrónico debe pertenecer al dominio @gmail.com' })
   email?: string;
 
-  @IsOptional()
-  @IsString()
-  nombre_usuario?: string;
 
   @IsOptional()
+
   @IsString()
   cedula?: string;
 
@@ -29,7 +28,10 @@ export class UpdateUsuarioDto {
   rol?: string;
 
   @IsOptional()
+  @IsString()
+  @Matches(/^\+?[0-9\s\-()]{7,15}$/, { message: 'El número telefónico debe contener entre 7 y 15 dígitos (ejemplo: 04141234567)' })
   numero_telefono?: string;
+
 
   @IsOptional()
   @IsString()

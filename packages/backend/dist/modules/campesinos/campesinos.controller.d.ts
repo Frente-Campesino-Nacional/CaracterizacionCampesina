@@ -24,6 +24,7 @@ export declare class CampesinosController {
         asignado_a: any;
         tiene_pendientes: boolean;
         metadata: any;
+        foto_url: any;
         creado_en: any;
         actualizado_en: any;
     }[]>;
@@ -46,6 +47,7 @@ export declare class CampesinosController {
         asignado_a: any;
         tiene_pendientes: boolean;
         metadata: any;
+        foto_url: any;
         creado_en: any;
         actualizado_en: any;
     }>;
@@ -68,6 +70,7 @@ export declare class CampesinosController {
         asignado_a: any;
         tiene_pendientes: boolean;
         metadata: any;
+        foto_url: any;
         creado_en: any;
         actualizado_en: any;
     }>;
@@ -90,6 +93,7 @@ export declare class CampesinosController {
         asignado_a: any;
         tiene_pendientes: boolean;
         metadata: any;
+        foto_url: any;
         creado_en: any;
         actualizado_en: any;
     }>;
@@ -97,16 +101,19 @@ export declare class CampesinosController {
         deleted: boolean;
     }>;
     saveProfileImage(id: string, saveCampesinoProfileImageDto: SaveCampesinoProfileImageDto): Promise<{
-        id: string | number;
-        saved: boolean;
-        payload: SaveCampesinoProfileImageDto;
+        campesino_id: any;
+        postgres_habilitado: boolean;
+        guardado_en_postgres: boolean;
+        registro_id: string;
     }>;
     getProfileImage(id: string): Promise<{
-        id: string | number;
-        image: any;
+        campesino_id: any;
+        postgres_habilitado: boolean;
+        imagen: Record<string, unknown>;
     }>;
     deleteProfileImage(id: string): Promise<{
-        id: string | number;
-        deleted: boolean;
+        campesino_id: any;
+        postgres_habilitado: boolean;
+        eliminado: boolean;
     }>;
 }

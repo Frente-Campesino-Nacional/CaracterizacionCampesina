@@ -7,8 +7,10 @@ describe('FormulariosService', () => {
     const prisma = {
       $queryRaw: jest.fn().mockResolvedValue([
         {
+          id: 'form-1',
           id_formulario: 'form-1',
           titulo: 'Formulario',
+
           version: 1,
           estructura: {},
           activo: true,

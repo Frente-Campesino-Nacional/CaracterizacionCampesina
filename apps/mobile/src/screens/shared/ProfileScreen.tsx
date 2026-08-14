@@ -7,8 +7,14 @@ import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { deleteUsuarioProfileImage, getUsuarioProfileImage, saveUsuarioProfileImage, updateUsuario, UsuarioProfileImageRecord } from '../../services/adminService';
 import { useAuthStore } from '../../store/authStore';
+import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
+import { showErrorAlert, showSuccessAlert } from '../../utils/humanizerUtils';
 import { Theme } from '../../theme/colors';
 import { sharedScreenStyles } from '../../styles/sharedScreenStyles';
+
+
+
 
 const schema = yup.object({
   password: yup.string().min(8, 'Mínimo 8 caracteres').required('Contraseña requerida'),
@@ -65,11 +71,85 @@ export default function ProfileScreen({ title }: ProfileScreenProps) {
     try {
       await updateUsuario(token, user.id, { password });
       setValue('password', '');
-      Alert.alert('Perfil', 'Contraseña actualizada correctamente');
+      showSuccessAlert('Perfil', 'Tu contraseña ha sido actualizada correctamente.');
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'No se pudo actualizar la contraseña');
+      showErrorAlert(error, 'No se pudo actualizar la contraseña');
     }
   };
+
+  const processAndUploadPhoto = async (asset: ImagePicker.ImagePickerAsset) => {
+    if (!token || !user) return;
+    let base64Data = asset.base64 || '';
+    if (!base64Data && asset.uri) {
+      try {
+        base64Data = await FileSystem.readAsStringAsync(asset.uri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+      } catch {
+        // fallback
+      }
+    }
+
+    if (!base64Data) {
+      showErrorAlert('No se pudo procesar la imagen seleccionada.', 'Error de imagen');
+      return;
+    }
+
+    try {
+      const response = await saveUsuarioProfileImage(token, user.id, {
+        content_type: asset.mimeType || 'image/jpeg',
+        file_name: asset.fileName || 'foto-perfil.jpg',
+        image_base64: base64Data,
+      });
+      setProfilePhoto(response);
+      setPhotoBase64(response.imagen?.image_base64 || '');
+      setPhotoUrl(response.imagen?.image_url || '');
+      showSuccessAlert('Perfil', 'Tu foto de perfil ha sido actualizada exitosamente.');
+    } catch (error: any) {
+      showErrorAlert(error, 'No se pudo guardar la foto de perfil');
+    }
+  };
+
+  const pickPhotoFromGallery = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      showErrorAlert('Se requieren permisos de galería para cambiar la foto de perfil.', 'Permiso denegado');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.3,
+      base64: false,
+    });
+
+    if (result.canceled || !result.assets.length) return;
+    const asset = result.assets[0];
+    if (asset) await processAndUploadPhoto(asset);
+  };
+
+  const takePhotoWithCamera = async () => {
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      showErrorAlert('Se requieren permisos de cámara para tomar una foto con el dispositivo.', 'Permiso denegado');
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.3,
+      base64: false,
+    });
+
+    if (result.canceled || !result.assets.length) return;
+    const asset = result.assets[0];
+    if (asset) await processAndUploadPhoto(asset);
+  };
+
 
   const onSavePhoto = async () => {
     if (!token || !user) return;
@@ -78,7 +158,7 @@ export default function ProfileScreen({ title }: ProfileScreenProps) {
     const trimmedBase64 = photoBase64.trim();
 
     if (!trimmedUrl && !trimmedBase64) {
-      Alert.alert('Validación', 'Ingresa una URL o un contenido base64 para la foto');
+      showErrorAlert('Por favor ingresa una URL o contenido base64 válido para la foto.', 'Campo requerido');
       return;
     }
 
@@ -89,9 +169,9 @@ export default function ProfileScreen({ title }: ProfileScreenProps) {
         image_base64: trimmedBase64 || undefined,
       });
       setProfilePhoto(response);
-      Alert.alert('Perfil', 'Foto de perfil guardada correctamente');
+      showSuccessAlert('Perfil', 'Tu foto de perfil se guardó correctamente.');
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'No se pudo guardar la foto de perfil');
+      showErrorAlert(error, 'No se pudo guardar la foto de perfil');
     }
   };
 
@@ -103,11 +183,13 @@ export default function ProfileScreen({ title }: ProfileScreenProps) {
       setProfilePhoto(null);
       setPhotoUrl('');
       setPhotoBase64('');
-      Alert.alert('Perfil', 'Foto de perfil eliminada');
+      showSuccessAlert('Perfil', 'Tu foto de perfil fue eliminada correctamente.');
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'No se pudo eliminar la foto de perfil');
+      showErrorAlert(error, 'No se pudo eliminar la foto de perfil');
     }
   };
+
+
 
   if (!user) {
     return (
@@ -135,7 +217,17 @@ export default function ProfileScreen({ title }: ProfileScreenProps) {
         </View>
         <Text style={styles.userName}>{user.nombre} {user.apellido}</Text>
         <Text style={styles.userSubtitle}>{user.email}</Text>
+        <View style={{ flexDirection: 'row', gap: 10, marginTop: Theme.spacing.xs }}>
+          <TouchableOpacity style={[styles.primaryButton, { flex: 1, paddingVertical: 8 }]} onPress={takePhotoWithCamera}>
+            <Text style={styles.primaryButtonText}>📷 Cámara</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.primaryButton, { flex: 1, paddingVertical: 8, backgroundColor: Theme.colors.white, borderWidth: 1, borderColor: Theme.colors.greenDark }]} onPress={pickPhotoFromGallery}>
+            <Text style={[styles.primaryButtonText, { color: Theme.colors.greenDark }]}>🖼️ Galería</Text>
+          </TouchableOpacity>
+        </View>
+
       </View>
+
 
       <View style={styles.infoCard}>
         <Text style={styles.sectionTitle}>Foto de perfil</Text>

@@ -10,110 +10,48 @@ describe('SyncService', () => {
         const service = new sync_service_1.SyncService(prisma);
         await expect(service.findAll()).resolves.toEqual([]);
     });
-    it('returns audit-history rows alongside sync rows', async () => {
+    it('returns audit-history rows with field-level diffs', async () => {
         const prisma = {
-            $queryRaw: jest.fn()
-                .mockResolvedValueOnce([
-                {
-                    id: 'sync-1',
-                    entidad: 'campesino',
-                    entidad_id: 'c-1',
-                    operacion: 'UPDATE',
-                    datos: { nombre: 'Ana' },
-                    estado: 'PENDIENTE',
-                    intentos: 0,
-                    error: null,
-                    creado_en: '2026-01-02T00:00:00.000Z',
-                    procesado_en: null,
-                },
-            ])
-                .mockResolvedValueOnce([
+            $queryRaw: jest.fn().mockResolvedValue([
                 {
                     id: 'audit-1',
-                    entidad: 'campesino',
+                    tabla_nombre: 'operacional.campesinos',
                     entidad_id: 'c-2',
-                    operacion: 'UPDATE',
-                    datos: { nombre: 'Luis' },
+                    accion: 'UPDATE',
+                    valores_anteriores: { nombre: 'Luis', fecha_nacimiento: '1990-01-01' },
+                    valores_nuevos: { nombre: 'Luis', fecha_nacimiento: '1990-05-15' },
+                    usuario_id_reg: 'u-1',
                     actor_nombre: 'María Admin',
-                    target_nombre: 'Luis',
-                    estado: 'PROCESADO',
-                    intentos: 0,
-                    error: null,
                     creado_en: '2026-01-03T00:00:00.000Z',
-                    procesado_en: '2026-01-03T00:00:00.000Z',
                 },
             ]),
         };
         const service = new sync_service_1.SyncService(prisma);
-        await expect(service.findAll()).resolves.toEqual([
-            {
-                id: 'audit-1',
-                entidad: 'campesino',
-                entidad_id: 'c-2',
-                operacion: 'UPDATE',
-                datos: { nombre: 'Luis' },
-                actor_nombre: 'María Admin',
-                target_nombre: 'Luis',
-                estado: 'PROCESADO',
-                mensaje: 'Campesino Luis fue actualizado por María Admin',
-                intentos: 0,
-                error: null,
-                creado_en: '2026-01-03T00:00:00.000Z',
-                procesado_en: '2026-01-03T00:00:00.000Z',
-            },
-            {
-                id: 'sync-1',
-                entidad: 'campesino',
-                entidad_id: 'c-1',
-                operacion: 'UPDATE',
-                datos: { nombre: 'Ana' },
-                estado: 'PENDIENTE',
-                intentos: 0,
-                error: null,
-                creado_en: '2026-01-02T00:00:00.000Z',
-                procesado_en: null,
-            },
-        ]);
+        const result = await service.findAll();
+        expect(result).toHaveLength(1);
+        expect(result[0].mensaje).toContain('Fecha de Nacimiento cambió de "1990-01-01" a "1990-05-15"');
+        expect(result[0].mensaje).toContain('por María Admin');
     });
-    it('formats a human-readable message for audit rows', async () => {
+    it('formats a human-readable message for audit creation rows', async () => {
         const prisma = {
-            $queryRaw: jest.fn()
-                .mockResolvedValueOnce([])
-                .mockResolvedValueOnce([
+            $queryRaw: jest.fn().mockResolvedValue([
                 {
                     id: 'audit-2',
-                    entidad: 'campesino',
+                    tabla_nombre: 'operacional.campesinos',
                     entidad_id: 'c-3',
-                    operacion: 'create',
-                    datos: { nombre: 'Ana' },
+                    accion: 'INSERT',
+                    valores_anteriores: null,
+                    valores_nuevos: { nombre: 'Ana', apellido: 'Pérez' },
+                    usuario_id_reg: 'u-2',
                     actor_nombre: 'Juan',
-                    target_nombre: 'Ana',
-                    estado: 'PROCESADO',
-                    intentos: 0,
-                    error: null,
                     creado_en: '2026-01-04T00:00:00.000Z',
-                    procesado_en: '2026-01-04T00:00:00.000Z',
                 },
             ]),
         };
         const service = new sync_service_1.SyncService(prisma);
-        await expect(service.findAll()).resolves.toEqual([
-            {
-                id: 'audit-2',
-                entidad: 'campesino',
-                entidad_id: 'c-3',
-                operacion: 'create',
-                datos: { nombre: 'Ana' },
-                actor_nombre: 'Juan',
-                target_nombre: 'Ana',
-                estado: 'PROCESADO',
-                mensaje: 'Campesino Ana fue registrado por Juan',
-                intentos: 0,
-                error: null,
-                creado_en: '2026-01-04T00:00:00.000Z',
-                procesado_en: '2026-01-04T00:00:00.000Z',
-            },
-        ]);
+        const result = await service.findAll();
+        expect(result).toHaveLength(1);
+        expect(result[0].mensaje).toBe('Campesino "Ana Pérez" fue registrado por Juan');
     });
 });
 //# sourceMappingURL=sync.service.spec.js.map

@@ -28,13 +28,16 @@ let JwtStrategy = class JwtStrategy extends (0, passport_1.PassportStrategy)(pas
     }
     async validate(payload) {
         const usuario = await this.prisma.$queryRaw(client_1.Prisma.sql `
-      SELECT id_usuario
+      SELECT id_usuario, sync_status
       FROM seguridad.usuarios
       WHERE id_usuario = CAST(${payload.sub} AS uuid)
       LIMIT 1
     `);
         if (!usuario[0]) {
             throw new common_1.UnauthorizedException('Usuario no válido');
+        }
+        if (usuario[0].sync_status === 'disabled') {
+            throw new common_1.UnauthorizedException('El usuario se encuentra inactivo. Comunícate con el administrador.');
         }
         return { id: payload.sub, email: payload.email, rol: payload.rol };
     }

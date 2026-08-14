@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getUbicacionCatalogos, UbicacionEstadoRecord } from '../services/adminService';
+import { LOCATION_CATALOG_FALLBACK } from '../constants/locationCatalogFallback';
 
 interface StateMunicipioPickerProps {
   estado: string;
@@ -35,36 +37,34 @@ export default function StateMunicipioPicker({
   labelParroquia = 'Parroquia',
 }: StateMunicipioPickerProps) {
   const [visible, setVisible] = useState(false);
-  const [estados, setEstados] = useState<UbicacionEstadoRecord[]>([]);
+  const [estados, setEstados] = useState<UbicacionEstadoRecord[]>(LOCATION_CATALOG_FALLBACK);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
 
-    if (!visible || estados.length > 0) {
-      return () => {
-        active = false;
-      };
-    }
-
     const loadCatalogs = async () => {
-      setLoading(true);
-      setLoadError(null);
+      try {
+        const cachedRaw = await AsyncStorage.getItem('ubicacion-catalogos-cache-v1');
+        if (cachedRaw) {
+          const cached = JSON.parse(cachedRaw);
+          if (Array.isArray(cached) && cached.length > 0 && active) {
+            setEstados(cached);
+          }
+        }
+      } catch {
+        // Ignore cache error
+      }
 
       try {
         const response = await getUbicacionCatalogos();
-        if (active) {
+        if (active && response.estados && response.estados.length > 0) {
           setEstados(response.estados);
+          await AsyncStorage.setItem('ubicacion-catalogos-cache-v1', JSON.stringify(response.estados)).catch(() => undefined);
         }
       } catch {
-        if (active) {
-          setLoadError('No se pudieron cargar los catálogos de ubicación.');
-        }
-      } finally {
-        if (active) {
-          setLoading(false);
-        }
+        // Quietly maintain local fallback when offline
       }
     };
 
@@ -73,7 +73,9 @@ export default function StateMunicipioPicker({
     return () => {
       active = false;
     };
-  }, [visible, estados.length]);
+  }, []);
+
+
 
   const selectedState = useMemo(
     () => estados.find((item) => item.nombre === estado),

@@ -7,6 +7,9 @@ export declare class SyncService {
     private isMissingRelationError;
     findAll(): Promise<any[]>;
     private loadSyncRows;
+    private formatFieldLabel;
+    private formatFieldValue;
+    private computeChanges;
     private loadAuditRows;
     create(createSyncDto: CreateSyncDto): Promise<any>;
     update(id: string, updateSyncDto: UpdateSyncDto): Promise<any>;

@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsNotEmpty, IsOptional, IsBoolean, IsDateString, IsString, IsInt, IsObject } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsBoolean, IsDateString, IsString, IsInt, IsObject, IsEmail, Matches } from 'class-validator';
 
 export class CreateCampesinDto {
   @IsOptional()
@@ -14,11 +14,15 @@ export class CreateCampesinDto {
 
   @IsOptional()
   @IsString()
+  @Matches(/^\+?[0-9\s\-()]{7,15}$/, { message: 'El número telefónico debe contener entre 7 y 15 dígitos (ejemplo: 04141234567)' })
   telefono?: string;
 
+
   @IsOptional()
-  @IsString()
+  @IsEmail()
+  @Matches(/^[a-zA-Z0-9._%+-]+@gmail\.com$/i, { message: 'El correo electrónico debe pertenecer al dominio @gmail.com' })
   correo?: string;
+
 
   @IsOptional()
   @IsDateString()

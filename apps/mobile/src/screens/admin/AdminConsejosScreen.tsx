@@ -6,6 +6,7 @@ import StateMunicipioPicker from '../../components/StateMunicipioPicker';
 import { ConsejoPayload, ConsejoRecord, UsuarioRecord, createConsejo, deleteConsejo, listConsejos, listUsuarios, updateConsejo } from '../../services/adminService';
 import { useAuthStore } from '../../store/authStore';
 import { exportTableToPdf } from '../../utils/pdfExport';
+import { showErrorAlert, showSuccessAlert } from '../../utils/humanizerUtils';
 import { LookupSelectField } from '../../components';
 import { sharedFormStyles } from '../../styles/sharedFormStyles';
 
@@ -62,7 +63,7 @@ export default function AdminConsejosScreen() {
   const save = async () => {
     if (!token) return;
     if (!form.nombre || !form.estado_nombre || !form.municipio_nombre || !form.parroquia_nombre) {
-      Alert.alert('Validación', 'Completa los campos básicos del consejo');
+      showErrorAlert('Por favor completa los campos básicos requeridos del consejo comunal (*).', 'Campos obligatorios');
       return;
     }
 
@@ -84,18 +85,37 @@ export default function AdminConsejosScreen() {
       }
       setModal(false);
       await load();
+      showSuccessAlert(
+        editing ? 'Consejo Actualizado' : 'Consejo Registrado',
+        editing
+          ? `El consejo comunal "${form.nombre}" se actualizó correctamente.`
+          : `El consejo comunal "${form.nombre}" ha sido registrado exitosamente.`
+      );
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'No se pudo guardar');
+      showErrorAlert(error, 'No se pudo guardar la información del consejo comunal');
     }
   };
 
   const remove = (item: ConsejoRecord) => {
     if (!token) return;
-    Alert.alert('Eliminar', `¿Eliminar consejo ${item.nombre}?`, [
+    Alert.alert('Eliminar consejo', `¿Estás seguro de eliminar el consejo comunal "${item.nombre}"?`, [
       { text: 'Cancelar', style: 'cancel' },
-      { text: 'Eliminar', style: 'destructive', onPress: async () => { await deleteConsejo(token, item.id); await load(); } },
+      {
+        text: 'Eliminar',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await deleteConsejo(token, item.id);
+            await load();
+            showSuccessAlert('Consejo Eliminado', `El consejo comunal "${item.nombre}" fue eliminado con éxito.`);
+          } catch (error: any) {
+            showErrorAlert(error, 'No se pudo eliminar el consejo comunal');
+          }
+        },
+      },
     ]);
   };
+
 
   const exportPdf = async () => {
     try {

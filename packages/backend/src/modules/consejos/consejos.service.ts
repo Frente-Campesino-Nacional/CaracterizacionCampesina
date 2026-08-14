@@ -51,7 +51,8 @@ export class ConsejosService {
         m.nombre_municipio AS municipio,
         par.nombre_parroquia AS parroquia,
         c.encargado_id,
-        COALESCE(CONCAT(p.nombre, ' ', p.apellido), u.nombre_usuario) AS encargado_nombre,
+        CONCAT(p.nombre, ' ', p.apellido) AS encargado_nombre,
+
         r.tip_rol AS encargado_rol,
         c.created_at,
         c.updated_at
@@ -79,7 +80,8 @@ export class ConsejosService {
         m.nombre_municipio AS municipio,
         par.nombre_parroquia AS parroquia,
         c.encargado_id,
-        COALESCE(CONCAT(p.nombre, ' ', p.apellido), u.nombre_usuario) AS encargado_nombre,
+        CONCAT(p.nombre, ' ', p.apellido) AS encargado_nombre,
+
         r.tip_rol AS encargado_rol,
         c.created_at,
         c.updated_at

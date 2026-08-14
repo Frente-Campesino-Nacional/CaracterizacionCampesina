@@ -1,5 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, Modal, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, FlatList, Image, Modal, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
+
 import axios from 'axios';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -10,6 +13,7 @@ import { Card, OptionSelector, GENDER_OPTIONS, LookupSelectField, RoleSectionHea
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import StateMunicipioPicker from '../../components/StateMunicipioPicker';
 import { Theme } from '../../theme/colors';
+import { sharedFormStyles } from '../../styles/sharedFormStyles';
 import { CampesinoPayload, CampesinoRecord, ConsejoRecord, GeneroRecord, createCampesino, listCampesinos, listConsejos, listGeneros } from '../../services/adminService';
 import { flushQueuedSubmissions } from '../../services/encuestadorFormService';
 import {
@@ -17,17 +21,19 @@ import {
   flushQueuedCampesinoCreates,
   loadCampesinosForEncuestador,
 } from '../../services/encuestadorCampesinoOfflineService';
+import { showErrorAlert, showSuccessAlert } from '../../utils/humanizerUtils';
 import { useAuthStore } from '../../store/authStore';
-import { FlatList } from 'react-native';
 
 type RootStackParamList = {
+
   CampesinoDetail: { campesinoId: string };
   FormulariosPendientes: { campesinoId: string };
 };
 
 type CampesinoFormState = {
-  cedulaMode: 'manual' | 'foreign' | 'venezolano' | 'none';
+  cedulaMode: 'foreign' | 'venezolano' | 'none';
   cedula: string;
+
   nombre: string;
   apellido: string;
   telefono: string;
@@ -96,40 +102,6 @@ function toOptionalIsoDate(value: string): string | undefined {
   return parsed;
 }
 
-function getRequestErrorMessage(error: unknown, fallback: string): string {
-  if (axios.isAxiosError(error)) {
-    const responseData = error.response?.data;
-    if (typeof responseData === 'string' && responseData.trim()) {
-      return responseData;
-    }
-
-    if (responseData && typeof responseData === 'object') {
-      const record = responseData as Record<string, unknown>;
-      const message = record.message;
-      if (typeof message === 'string' && message.trim()) {
-        return message;
-      }
-
-      if (Array.isArray(message) && message.length) {
-        return message.map((item) => String(item)).join('\n');
-      }
-
-      const errors = record.errors;
-      if (Array.isArray(errors) && errors.length) {
-        return errors.map((item) => String(item)).join('\n');
-      }
-    }
-
-    return error.message || fallback;
-  }
-
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  return fallback;
-}
-
 export default function EncuestadorCampesinosScreen() {
   const { token, user } = useAuthStore();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -143,6 +115,76 @@ export default function EncuestadorCampesinosScreen() {
   const [form, setForm] = useState<CampesinoFormState>(defaultForm(user?.consejo_id));
   const [syncedCount, setSyncedCount] = useState(0);
   const [offlineSavedCount, setOfflineSavedCount] = useState(0);
+
+  // Photo state
+  const [photoSource, setPhotoSource] = useState<string | null>(null);
+  const [photoBase64, setPhotoBase64] = useState<string>('');
+  const [photoMimeType, setPhotoMimeType] = useState<string>('');
+  const [photoFileName, setPhotoFileName] = useState<string>('');
+
+  const processImageAsset = async (asset: ImagePicker.ImagePickerAsset) => {
+    let base64Data = asset.base64 || '';
+    if (!base64Data && asset.uri) {
+      try {
+        base64Data = await FileSystem.readAsStringAsync(asset.uri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+      } catch {
+        // fallback
+      }
+    }
+    setPhotoSource(asset.uri);
+    setPhotoBase64(base64Data);
+    setPhotoMimeType(asset.mimeType || 'image/jpeg');
+    setPhotoFileName(asset.fileName || 'foto-perfil.jpg');
+  };
+
+  const pickPhoto = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      showErrorAlert('Se requieren permisos de galería para seleccionar fotos.', 'Permiso denegado');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.3,
+      base64: false,
+    });
+
+    if (result.canceled || !result.assets.length) return;
+    const asset = result.assets[0];
+    if (asset) await processImageAsset(asset);
+  };
+
+  const takePhoto = async () => {
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      showErrorAlert('Se requieren permisos de cámara para tomar fotos con el dispositivo.', 'Permiso denegado');
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.3,
+      base64: false,
+    });
+
+    if (result.canceled || !result.assets.length) return;
+    const asset = result.assets[0];
+    if (asset) await processImageAsset(asset);
+  };
+
+  const clearPhoto = () => {
+    setPhotoSource(null);
+    setPhotoBase64('');
+    setPhotoMimeType('');
+    setPhotoFileName('');
+  };
 
   const load = async () => {
     if (!token || !user || !currentUserId) return;
@@ -210,14 +252,32 @@ export default function EncuestadorCampesinosScreen() {
   const save = async () => {
     if (!token || !user || !currentUserId) return;
     if (form.cedulaMode !== 'none' && !form.cedula) {
-      Alert.alert('Validación', 'La cédula es obligatoria cuando se selecciona un tipo');
+      showErrorAlert('Por favor ingresa el número de cédula.', 'Campo obligatorio');
       return;
     }
 
     if (!form.nombre) {
-      Alert.alert('Validación', 'Cédula y nombre son obligatorios');
+      showErrorAlert('El nombre del campesino es un campo obligatorio (*).', 'Campo obligatorio');
       return;
     }
+
+    const correoTrimmed = form.correo ? form.correo.trim().toLowerCase() : undefined;
+    if (correoTrimmed) {
+      if (!/^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(correoTrimmed)) {
+        showErrorAlert('El correo electrónico debe pertenecer al dominio @gmail.com (ejemplo: usuario@gmail.com).', 'Correo inválido');
+        return;
+      }
+    }
+
+    const telefonoTrimmed = form.telefono ? form.telefono.trim() : undefined;
+    if (telefonoTrimmed) {
+      const cleanPhone = telefonoTrimmed.replace(/[\s\-()+]/g, '');
+      if (cleanPhone.length < 7 || cleanPhone.length > 15 || !/^\+?\d+$/.test(telefonoTrimmed.replace(/[\s\-()]/g, ''))) {
+        showErrorAlert('El número telefónico no es válido. Debe contener entre 7 y 15 dígitos (ejemplo: 04141234567).', 'Teléfono inválido');
+        return;
+      }
+    }
+
 
     const cedulaValue = buildCedulaValue(form.cedulaMode, form.cedula);
 
@@ -225,7 +285,8 @@ export default function EncuestadorCampesinosScreen() {
       nombre: form.nombre.trim(),
       apellido: toOptionalString(form.apellido),
       telefono: toOptionalString(form.telefono),
-      correo: toOptionalString(form.correo),
+      correo: correoTrimmed,
+
       fecha_nacimiento: toOptionalIsoDate(form.fecha_nacimiento),
       estado_id: toOptionalNumber(form.estado_id),
       genero: toOptionalString(form.genero),
@@ -243,21 +304,34 @@ export default function EncuestadorCampesinosScreen() {
     }
 
     try {
-      const result = await createCampesinoWithOfflineFallback(token, payload);
+      const result = await createCampesinoWithOfflineFallback(token, payload, {
+        photoBase64: photoBase64 || undefined,
+        photoMimeType: photoMimeType || undefined,
+        photoFileName: photoFileName || undefined,
+        photoSource: photoSource || undefined,
+      });
+
       setModal(false);
       setForm(defaultForm(currentCouncilId || undefined));
+      clearPhoto();
       await load();
 
       if (result.queuedOffline) {
-        Alert.alert(
-          'Guardado offline',
-          'El campesino se registro sin internet y se sincronizara automaticamente cuando vuelva la conexion.',
+        showSuccessAlert(
+          'Guardado Local (Sin Internet)',
+          'El campesino se registró de forma local en tu dispositivo y se sincronizará automáticamente al recuperar la conexión.'
+        );
+      } else {
+        showSuccessAlert(
+          'Campesino Registrado',
+          `El campesino ${form.nombre} ${form.apellido || ''} ha sido registrado exitosamente en el sistema.`
         );
       }
     } catch (error: any) {
-      Alert.alert('Error', getRequestErrorMessage(error, 'No se pudo crear campesino'));
+      showErrorAlert(error, 'No se pudo registrar la información del campesino');
     }
   };
+
 
   return (
     <View style={styles.container}>
@@ -278,40 +352,53 @@ export default function EncuestadorCampesinosScreen() {
         keyExtractor={(item) => String(item.id)}
         contentContainerStyle={styles.listContent}
         ListEmptyComponent={<Text style={styles.emptyText}>No hay campesinos asignados</Text>}
-        renderItem={({ item }) => (
-          <Card variant="elevated" padding="sm" style={styles.itemCard}>
-            <View style={styles.itemHeader}>
-              <View style={styles.avatarContainer}>
-                <MaterialCommunityIcons name="account-group" size={36} color={Theme.colors.greenMedium} />
-              </View>
-              <View style={styles.itemTitleGroup}>
-                <TouchableOpacity
-                  onPress={() => navigation.navigate('CampesinoDetail', { campesinoId: item.id })}
-                >
-                  <Text style={styles.itemTitle}>{item.nombre} {item.apellido || ''}</Text>
-                  <Text style={styles.itemSubtitle}>Cédula {item.cedula}</Text>
-                </TouchableOpacity>
-              </View>
-              <View style={styles.itemRight}>
-                <StatusPill label={item.tiene_pendientes ? 'Pendientes' : 'Sin pendientes'} tone={item.tiene_pendientes ? 'warning' : 'success'} />
-                <View style={styles.iconRow}>
+        renderItem={({ item }) => {
+          const isLocalPending = String(item.id).includes('temp') || String(item.cedula).includes('LOCAL-') || String(item.cedula).includes('Guardado localmente') || Boolean((item.metadata as any)?.offline_local);
+
+          return (
+            <Card variant="elevated" padding="sm" style={styles.itemCard}>
+              <View style={styles.itemHeader}>
+                <View style={styles.avatarContainer}>
+                  {item.foto_url ? (
+                    <Image source={{ uri: item.foto_url }} style={styles.listAvatarImage} />
+                  ) : (
+                    <MaterialCommunityIcons name="account-group" size={36} color={Theme.colors.greenMedium} />
+                  )}
+                </View>
+
+                <View style={styles.itemTitleGroup}>
                   <TouchableOpacity
-                    disabled={!item.tiene_pendientes}
-                    onPress={() => navigation.navigate('FormulariosPendientes', { campesinoId: item.id })}
+                    onPress={() => navigation.navigate('CampesinoDetail', { campesinoId: item.id })}
                   >
-                    <Text style={[styles.actionLink, !item.tiene_pendientes && styles.actionDisabled]}>
-                      {item.tiene_pendientes ? 'Ver pendientes' : 'Completado'}
-                    </Text>
+                    <Text style={styles.itemTitle}>{item.nombre} {item.apellido || ''}</Text>
+                    {isLocalPending ? (
+                      <StatusPill label="Guardado localmente esperando sincronización" tone="warning" />
+                    ) : (
+                      <Text style={styles.itemSubtitle}>Cédula {item.cedula}</Text>
+                    )}
                   </TouchableOpacity>
                 </View>
+                <View style={styles.itemRight}>
+                  <StatusPill label={item.tiene_pendientes ? 'Pendientes' : 'Sin pendientes'} tone={item.tiene_pendientes ? 'warning' : 'success'} />
+                  <View style={styles.iconRow}>
+                    <TouchableOpacity
+                      disabled={!item.tiene_pendientes}
+                      onPress={() => navigation.navigate('FormulariosPendientes', { campesinoId: item.id })}
+                    >
+                      <Text style={[styles.actionLink, !item.tiene_pendientes && styles.actionDisabled]}>
+                        {item.tiene_pendientes ? 'Ver pendientes' : 'Completado'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
               </View>
-            </View>
-            <View style={styles.itemMetaRow}>
-              <Text style={styles.metaLabel}>Consejo</Text>
-              <Text style={styles.metaValue}>{item.consejo_nombre || (item.consejo_id ? consejoNameById.get(item.consejo_id) || item.consejo_id : '-')}</Text>
-            </View>
-          </Card>
-        )}
+              <View style={styles.itemMetaRow}>
+                <Text style={styles.metaLabel}>Consejo</Text>
+                <Text style={styles.metaValue}>{item.consejo_nombre || (item.consejo_id ? consejoNameById.get(item.consejo_id) || item.consejo_id : '-')}</Text>
+              </View>
+            </Card>
+          );
+        }}
       />
 
       <FormModalSheet visible={modal} title="Nuevo campesino" onClose={() => setModal(false)} onSave={save}>
@@ -320,8 +407,8 @@ export default function EncuestadorCampesinosScreen() {
                   { key: 'none', label: 'No posee cédula' },
                   { key: 'venezolano', label: 'Venezolano' },
                   { key: 'foreign', label: 'Extranjero' },
-                  { key: 'manual', label: 'Manual' },
                 ] as const).map((option) => (
+
                   <TouchableOpacity
                     key={option.key}
                     style={[styles.pill, form.cedulaMode === option.key && styles.pillActive]}
@@ -380,6 +467,34 @@ export default function EncuestadorCampesinosScreen() {
                 }))}
               />
               <TextInput value={form.direccion} onChangeText={(value) => setForm((s) => ({ ...s, direccion: value }))} style={[styles.input, styles.textArea]} placeholder="Dirección" multiline numberOfLines={3} />
+              
+              <View style={styles.photoCard}>
+                <Text style={styles.photoCardTitle}>Foto de perfil</Text>
+                <View style={styles.photoPreviewRow}>
+                  <View style={styles.photoPreviewCircle}>
+                    {photoSource ? (
+                      <Image source={{ uri: photoSource }} style={styles.photoPreviewImage} />
+                    ) : (
+                      <MaterialCommunityIcons name="account-circle" size={44} color={Theme.colors.greenDark} />
+                    )}
+                  </View>
+                  <View style={styles.photoPreviewActions}>
+                    <TouchableOpacity style={styles.photoActionButton} onPress={takePhoto}>
+                      <Text style={styles.photoActionButtonText}>📷 Tomar foto</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.photoActionButton, styles.photoActionButtonSecondary]} onPress={pickPhoto}>
+                      <Text style={[styles.photoActionButtonText, { color: Theme.colors.greenDark }]}>🖼️ Galería</Text>
+                    </TouchableOpacity>
+                    {photoSource ? (
+                      <TouchableOpacity style={[styles.photoActionButton, styles.photoActionButtonSecondary]} onPress={clearPhoto}>
+                        <Text style={[styles.photoActionButtonText, { color: Theme.colors.error }]}>Quitar</Text>
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
+                </View>
+              </View>
+
+
               <View style={styles.switchRow}>
                 <Text>Tiene pendientes</Text>
                 <Switch value={form.tiene_pendientes} onValueChange={(value) => setForm((s) => ({ ...s, tiene_pendientes: value }))} />
@@ -388,6 +503,7 @@ export default function EncuestadorCampesinosScreen() {
     </View>
   );
 }
+
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 12, backgroundColor: '#f5f7fb' },
@@ -412,7 +528,9 @@ const styles = StyleSheet.create({
   emptyText: { color: '#64748b', textAlign: 'center', paddingVertical: 24 },
   itemCard: { marginBottom: 8 },
   avatarContainer: { marginRight: 12 },
+  listAvatarImage: { width: 36, height: 36, borderRadius: 18 },
   itemHeader: { flexDirection: 'row', alignItems: 'center' },
+
   itemTitleGroup: { flex: 1 },
   itemTitle: { color: '#0f172a', fontSize: 16, fontWeight: '800' },
   itemSubtitle: { color: '#475569', marginTop: 2 },
@@ -422,4 +540,14 @@ const styles = StyleSheet.create({
   itemRight: { marginLeft: 'auto', alignItems: 'flex-end', justifyContent: 'space-between' },
   iconRow: { flexDirection: 'row', gap: 8, marginTop: 6 },
   iconButton: { padding: 6 },
+  photoCard: { backgroundColor: '#f8fafc', borderRadius: 12, padding: 12, marginBottom: 12, borderWidth: 1, borderColor: '#e2e8f0' },
+  photoCardTitle: { fontSize: 13, fontWeight: '700', color: '#334155', marginBottom: 8 },
+  photoPreviewRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  photoPreviewCircle: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#e2e8f0', justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
+  photoPreviewImage: { width: 48, height: 48, borderRadius: 24 },
+  photoPreviewActions: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  photoActionButton: { backgroundColor: Theme.colors.greenDark, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
+  photoActionButtonSecondary: { backgroundColor: '#e2e8f0' },
+  photoActionButtonText: { color: '#ffffff', fontSize: 12, fontWeight: '700' },
 });
+

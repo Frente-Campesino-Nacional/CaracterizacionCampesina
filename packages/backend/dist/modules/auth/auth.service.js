@@ -54,12 +54,14 @@ let AuthService = class AuthService {
           u.id_rol,
           r.tip_rol,
           u.creado_por,
+          u.sync_status,
           p.nombre AS nombre_persona,
           p.apellido AS apellido_persona,
           p.numero_telefonico AS telefono_persona
         FROM seguridad.usuarios u
         INNER JOIN seguridad.roles r ON r.id_rol = u.id_rol
         INNER JOIN registros.personas p ON p.id_personas = u.id_usuario
+
         WHERE LOWER(p.email) = LOWER(${where.email})
         LIMIT 1
       `);
@@ -69,8 +71,9 @@ let AuthService = class AuthService {
             const rows = await this.prisma.$queryRaw(client_1.Prisma.sql `
         SELECT
           u.id_usuario,
-          COALESCE(p.email, u.nombre_usuario) AS email,
+          p.email AS email,
           u.password_hash,
+
           u.id_rol,
           r.tip_rol,
           u.creado_por,
@@ -155,6 +158,9 @@ let AuthService = class AuthService {
         if (!usuario) {
             throw new common_1.UnauthorizedException('Credenciales inválidas');
         }
+        if (usuario.sync_status === 'disabled') {
+            throw new common_1.UnauthorizedException('El usuario se encuentra inactivo. Comunícate con el administrador.');
+        }
         const isPasswordValid = await this.validatePassword(loginDto.password, usuario.password_hash);
         if (!isPasswordValid) {
             throw new common_1.UnauthorizedException('Credenciales inválidas');
@@ -179,7 +185,12 @@ let AuthService = class AuthService {
         };
     }
     async register(registerDto) {
-        const existingUser = await this.findUsuarioAuthRecord({ email: registerDto.email });
+        const emailVal = registerDto.email.trim().toLowerCase();
+        registerDto.email = emailVal;
+        if (!/^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(emailVal)) {
+            throw new common_1.BadRequestException('El correo electrónico debe pertenecer al dominio @gmail.com (ej. usuario@gmail.com)');
+        }
+        const existingUser = await this.findUsuarioAuthRecord({ email: emailVal });
         if (existingUser) {
             throw new common_1.ConflictException('El email ya está registrado');
         }
@@ -239,13 +250,11 @@ let AuthService = class AuthService {
             await transaction.$queryRaw(client_1.Prisma.sql `
         INSERT INTO seguridad.usuarios (
           id_usuario,
-          nombre_usuario,
           password_hash,
           id_rol,
           creado_por
         ) VALUES (
           CAST(${userUuid} AS uuid),
-          ${registerDto.email},
           ${hashedPassword},
           ${roleId},
           NULL

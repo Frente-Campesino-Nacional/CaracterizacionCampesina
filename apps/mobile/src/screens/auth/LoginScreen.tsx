@@ -18,7 +18,9 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useAuthStore } from '../../store/authStore';
 import { login } from '../../services/authService';
 import { Button, TextInputField, Card } from '../../components';
+import { showErrorAlert } from '../../utils/humanizerUtils';
 import { Theme } from '../../theme/colors';
+
 import { sharedScreenStyles } from '../../styles/sharedScreenStyles';
 
 interface LoginForm {
@@ -68,10 +70,11 @@ export default function LoginScreen() {
       const response = await login(form.email, form.password);
       loginStore(response.user, response.token);
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Error al iniciar sesión');
+      showErrorAlert(error, 'El correo electrónico o la contraseña ingresados no son correctos.', 'Inicio de Sesión');
     } finally {
       setLoading(false);
     }
+
   };
 
   return (

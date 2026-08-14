@@ -27,6 +27,8 @@ import FormulariosPendientesScreen from '../screens/encuestador/FormulariosPendi
 import EncuestadorProfileScreen from '../screens/encuestador/EncuestadorProfileScreen';
 import DynamicFormScreen from '../screens/encuestador/DynamicFormScreen';
 import SubmissionResultScreen from '../screens/encuestador/SubmissionResultScreen';
+import EncuestadorHistorialScreen from '../screens/encuestador/EncuestadorHistorialScreen';
+
 import CampesinoDetailScreen from '../screens/shared/CampesinoDetailScreen';
 import BasicRecordDetailScreen from '../screens/shared/BasicRecordDetailScreen';
 import ProfileScreen from '../screens/shared/ProfileScreen';
@@ -231,6 +233,12 @@ export default function AppNavigator() {
                 name="SubmissionResult"
                 component={SubmissionResultScreen}
               />
+              <Stack.Screen
+                name="EncuestadorHistorial"
+                component={EncuestadorHistorialScreen}
+                options={{ headerShown: true, title: 'Historial de Cambios' }}
+              />
+
               <Stack.Screen name="CampesinoDetail">
                 {(props) => <CampesinoDetailScreen {...(props as any)} />}
               </Stack.Screen>

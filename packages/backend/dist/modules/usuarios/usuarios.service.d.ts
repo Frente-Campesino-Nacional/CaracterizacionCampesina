@@ -37,6 +37,7 @@ export declare class UsuariosService {
         consejo_id: any;
         consejo_nombre: any;
         activo: boolean;
+        foto_url: any;
         creado_en: any;
         actualizado_en: any;
     }[]>;
@@ -59,9 +60,12 @@ export declare class UsuariosService {
         consejo_id: any;
         consejo_nombre: any;
         activo: boolean;
+        foto_url: any;
         creado_en: any;
         actualizado_en: any;
     }>;
+    private isValidGmail;
+    private validatePhoneInput;
     create(createUsuarioDto: CreateUsuarioDto): Promise<any>;
     update(id: string | number, updateUsuarioDto: UpdateUsuarioDto): Promise<any>;
     private generateUniqueCedula;

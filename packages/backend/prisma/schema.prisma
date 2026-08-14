@@ -84,7 +84,6 @@ model Consejo {
 
 model Usuario {
   id_usuario          String            @id(map: "id_usu_pkey") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  nombre_usuario      String            @unique(map: "nombre_usuario") @db.VarChar(254)
   password_hash       String
   id_rol              Int
   creado_por          String?           @db.Uuid
@@ -104,10 +103,10 @@ model Usuario {
   personas            personas          @relation(fields: [id_usuario], references: [id_personas], onDelete: Cascade, map: "id_usuarios_fky")
 
   @@index([id_rol], map: "idx_usuarios_id_rol")
-  @@index([nombre_usuario], map: "idx_usuarios_nombre_usuario")
   @@index([sync_status], map: "idx_usuarios_sync_status")
   @@map("usuarios")
   @@schema("seguridad")
+
 }
 
 model Campesino {

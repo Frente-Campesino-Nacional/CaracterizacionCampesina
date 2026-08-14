@@ -5,7 +5,7 @@ const path = require('path');
 
 require(path.resolve(__dirname, '../../../scripts/fix-anymatch-read.cjs'));
 
-function getExpoArgs({ mode = 'lan', selectedPort = 8081, clearCache = false } = {}) {
+function getExpoArgs({ mode = 'lan', selectedPort = 8081, clearCache = false, openAndroid = false } = {}) {
   const normalizedMode = String(mode || 'lan').toLowerCase();
   const args = ['start', '--go'];
 
@@ -19,9 +19,15 @@ function getExpoArgs({ mode = 'lan', selectedPort = 8081, clearCache = false } =
     args.push('--clear');
   }
 
-  args.push('-c', '--port', String(selectedPort), '--android');
+  args.push('-c', '--port', String(selectedPort));
+
+  if (openAndroid) {
+    args.push('--android');
+  }
+
   return args;
 }
+
 
 function getLocalIPv4() {
   const nets = os.networkInterfaces();
@@ -96,7 +102,13 @@ async function main() {
   console.log(`[expo-lan] API backend ${backendApiUrl}`);
 
   const expoCli = path.resolve(__dirname, '../../../node_modules/expo/bin/cli');
-  const expoArgs = getExpoArgs({ mode: process.env.EXPO_START_MODE || 'lan', selectedPort, clearCache: process.env.EXPO_CLEAR_CACHE === '1' });
+  const expoArgs = getExpoArgs({
+    mode: process.env.EXPO_START_MODE || 'lan',
+    selectedPort,
+    clearCache: process.env.EXPO_CLEAR_CACHE === '1',
+    openAndroid: process.env.EXPO_OPEN_ANDROID === '1',
+  });
+
   const child = spawn(process.execPath, [expoCli, ...expoArgs], {
     stdio: 'inherit',
     env: {

@@ -1,5 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+require("reflect-metadata");
 const class_validator_1 = require("class-validator");
 const create_consejo_dto_1 = require("./create-consejo.dto");
 describe('CreateConsejoDto', () => {

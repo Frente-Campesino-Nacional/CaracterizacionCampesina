@@ -13,12 +13,13 @@ export class SyncService {
   }
 
   async findAll() {
-    const syncRows = await this.loadSyncRows();
     const auditRows = await this.loadAuditRows();
+    if (auditRows.length > 0) {
+      return auditRows.slice(0, 100);
+    }
 
-    return [...syncRows, ...auditRows]
-      .sort((a, b) => new Date(b.creado_en).getTime() - new Date(a.creado_en).getTime())
-      .slice(0, 100);
+    const syncRows = await this.loadSyncRows();
+    return syncRows.slice(0, 100);
   }
 
   private async loadSyncRows() {
@@ -46,90 +47,211 @@ export class SyncService {
     }
   }
 
+  private formatFieldLabel(key: string): string {
+    const labels: Record<string, string> = {
+      nombre: 'Nombre',
+      apellido: 'Apellido',
+      email: 'Correo',
+      correo: 'Correo',
+      cedula: 'Cédula',
+      tipo_cedula: 'Tipo de Cédula',
+      fecha_nacimiento: 'Fecha de Nacimiento',
+      numero_telefonico: 'Teléfono',
+      telefono: 'Teléfono',
+      id_rol: 'Rol',
+      rol: 'Rol',
+      direccion_usuario: 'Dirección',
+      direccion: 'Dirección',
+      consejo_id: 'Consejo Comunal',
+      genero: 'Género',
+      parroquia: 'Parroquia',
+      sync_status: 'Estado',
+      activo: 'Estado',
+      formularios_pendientes: 'Formularios pendientes',
+      password_hash: 'Contraseña',
+      password: 'Contraseña',
+      url_nube: 'Foto de perfil',
+    };
+    return labels[key] || key;
+  }
+
+  private formatFieldValue(key: string, val: any): string {
+    if (val == null || val === '') return 'vacío';
+    if (typeof val === 'boolean') return val ? 'Activo' : 'Inactivo';
+    if (key === 'sync_status') {
+      if (val === 'disabled') return 'Inactivo';
+      if (val === 'synced') return 'Activo';
+      return String(val);
+    }
+    if (key === 'id_rol') {
+      if (Number(val) === 1) return 'Administrador';
+      if (Number(val) === 2) return 'Encuestador';
+      return String(val);
+    }
+    if (typeof val === 'string' && val.length > 25) {
+      if (val.startsWith('$2')) return '[Contraseña]';
+      return `${val.slice(0, 22)}...`;
+    }
+    return String(val);
+  }
+
+  private computeChanges(anteriores: any, nuevos: any): string[] {
+    if (!anteriores || !nuevos) return [];
+    const ignoredKeys = new Set([
+      'created_at',
+      'update_at',
+      'updated_at',
+      'sync_attempts',
+      'sync_error',
+      'last_synced_at',
+      'id_personas',
+      'id_usuario',
+      'id_campesinos',
+      'id_historial',
+      'registro_id',
+      'creado_por',
+      'asignado_a',
+    ]);
+
+    const changes: string[] = [];
+    const allKeys = new Set([...Object.keys(anteriores), ...Object.keys(nuevos)]);
+
+    for (const key of allKeys) {
+      if (ignoredKeys.has(key)) continue;
+
+      const oldVal = anteriores[key];
+      const newVal = nuevos[key];
+
+      const oldStr = oldVal != null ? String(oldVal).trim() : '';
+      const newStr = newVal != null ? String(newVal).trim() : '';
+
+      if (oldStr !== newStr) {
+        if (key === 'password_hash' && oldVal && newVal) {
+          changes.push('Contraseña actualizada');
+          continue;
+        }
+        const label = this.formatFieldLabel(key);
+        const formattedOld = this.formatFieldValue(key, oldVal);
+        const formattedNew = this.formatFieldValue(key, newVal);
+        changes.push(`${label} cambió de "${formattedOld}" a "${formattedNew}"`);
+      }
+    }
+
+    return changes;
+  }
+
   private async loadAuditRows() {
     try {
-      const rows = await this.prisma.$queryRaw<Array<any>>(Prisma.sql`
+      const rawRows = await this.prisma.$queryRaw<Array<any>>(Prisma.sql`
         SELECT
-          id_historial::text AS id,
-          CASE
-            WHEN LOWER(tabla_nombre) LIKE '%campesino%' THEN 'campesino'
-            WHEN LOWER(tabla_nombre) LIKE '%usuario%' THEN 'usuario'
-            WHEN LOWER(tabla_nombre) LIKE '%consejo%' THEN 'consejo'
-            WHEN LOWER(tabla_nombre) LIKE '%formulario%' THEN 'formulario'
-            ELSE LOWER(tabla_nombre)
-          END AS entidad,
-          registro_id::text AS entidad_id,
-          CASE
-            WHEN LOWER(accion) = 'insert' THEN 'create'
-            WHEN LOWER(accion) = 'update' THEN 'update'
-            WHEN LOWER(accion) = 'delete' THEN 'delete'
-            ELSE LOWER(accion)
-          END AS operacion,
-          COALESCE(valores_nuevos, valores_anteriores, '{}'::jsonb) AS datos,
+          h.id_historial::text AS id,
+          h.tabla_nombre,
+          h.registro_id::text AS entidad_id,
+          h.accion,
+          h.valores_anteriores,
+          h.valores_nuevos,
+          h.usuario_id_reg::text AS usuario_id_reg,
           TRIM(COALESCE(
             CONCAT(p.nombre, ' ', p.apellido),
-            u.nombre_usuario,
             p.email,
-            h.usuario_id_reg::text
+            'Sistema'
           )) AS actor_nombre,
-          COALESCE(
-            COALESCE(
-              COALESCE(valores_nuevos->> 'nombre', valores_anteriores->> 'nombre'),
-              COALESCE(valores_nuevos->> 'nombre_completo', valores_anteriores->> 'nombre_completo'),
-              COALESCE(valores_nuevos->> 'nombre_persona', valores_anteriores->> 'nombre_persona'),
-              COALESCE(valores_nuevos->> 'titulo', valores_anteriores->> 'titulo'),
-              COALESCE(valores_nuevos->> 'nombre_consejo', valores_anteriores->> 'nombre_consejo'),
-              COALESCE(valores_nuevos->> 'nombre_usuario', valores_anteriores->> 'nombre_usuario'),
-              COALESCE(valores_nuevos->> 'email', valores_anteriores->> 'email')
-            ),
-            NULL
-          ) AS target_nombre,
-          'PROCESADO' AS estado,
-          0 AS intentos,
-          NULL AS error,
-          h.created_at AS creado_en,
-          h.created_at AS procesado_en
+          h.created_at AS creado_en
         FROM auditoria.historial_cambios h
         LEFT JOIN seguridad.usuarios u ON u.id_usuario = h.usuario_id_reg
         LEFT JOIN registros.personas p ON p.id_personas = u.id_usuario
         ORDER BY h.created_at DESC
+        LIMIT 200
       `);
 
-      return rows.map((row) => {
-        const entidad = String(row.entidad || 'registro');
-        const operacion = String(row.operacion || '').toLowerCase();
-        const actorNombre = String(row.actor_nombre || '').trim();
-        const targetNombre = String(row.target_nombre || '').trim();
-        const entityLabel = entidad === 'campesino'
-          ? 'Campesino'
-          : entidad === 'usuario'
-            ? 'Usuario'
-            : entidad === 'formulario'
-              ? 'Formulario'
-              : entidad === 'consejo'
-                ? 'Consejo'
-                : entidad.charAt(0).toUpperCase() + entidad.slice(1);
-        const actionLabel = operacion.includes('create') || operacion.includes('insert') || operacion.includes('registro') || operacion.includes('registr')
-          ? 'registrado'
-          : operacion.includes('update') || operacion.includes('edit') || operacion.includes('modif')
-            ? 'actualizado'
-            : operacion.includes('delete') || operacion.includes('remove')
-              ? 'eliminado'
-              : operacion.includes('sync') || operacion.includes('proces')
-                ? 'sincronizado'
-                : 'actualizado';
+      if (!rawRows.length) return [];
 
-        const mensaje = [
-          `${entityLabel}${targetNombre ? ` ${targetNombre}` : ''} fue ${actionLabel}`,
-          actorNombre ? ` por ${actorNombre}` : '',
-        ].join('').trim();
+      // Group rows by target record & timestamp (3-second window) to collapse dual table triggers into 1 item
+      const groups = new Map<string, any[]>();
 
-        return {
-          ...row,
-          datos: row.datos ?? {},
+      for (const row of rawRows) {
+        const timestampBucket = Math.floor(new Date(row.creado_en).getTime() / 3000);
+        const groupKey = `${row.entidad_id}_${row.accion}_${timestampBucket}`;
+
+        if (!groups.has(groupKey)) {
+          groups.set(groupKey, []);
+        }
+        groups.get(groupKey)!.push(row);
+      }
+
+      const result: any[] = [];
+
+      for (const rows of groups.values()) {
+        const mainRow = rows[0];
+        let entidad = 'registro';
+
+        for (const r of rows) {
+          if (r.tabla_nombre.includes('campesino')) entidad = 'campesino';
+          else if (r.tabla_nombre.includes('usuario')) entidad = 'usuario';
+          else if (r.tabla_nombre.includes('consejo')) entidad = 'consejo';
+          else if (r.tabla_nombre.includes('formulario')) entidad = 'formulario';
+          else if (r.tabla_nombre.includes('personas') && entidad === 'registro') entidad = 'persona';
+        }
+
+        const entidadLabel = entidad.charAt(0).toUpperCase() + entidad.slice(1);
+        const operacion = mainRow.accion.toLowerCase();
+
+        let targetName = '';
+        for (const r of rows) {
+          const datos = r.valores_nuevos || r.valores_anteriores || {};
+          if (datos.nombre) {
+            targetName = `${datos.nombre} ${datos.apellido || ''}`.trim();
+            break;
+          }
+          if (datos.email) {
+            targetName = datos.email;
+            break;
+          }
+        }
+
+        let allChanges: string[] = [];
+        if (operacion === 'update') {
+          for (const r of rows) {
+            const changes = this.computeChanges(r.valores_anteriores, r.valores_nuevos);
+            allChanges.push(...changes);
+          }
+          allChanges = Array.from(new Set(allChanges));
+        }
+
+        let mensaje = '';
+        const actorText = mainRow.actor_nombre ? ` por ${mainRow.actor_nombre}` : '';
+
+        if (operacion === 'insert' || operacion === 'create') {
+          mensaje = `${entidadLabel}${targetName ? ` "${targetName}"` : ''} fue registrado${actorText}`;
+        } else if (operacion === 'delete' || operacion === 'remove') {
+          mensaje = `${entidadLabel}${targetName ? ` "${targetName}"` : ''} fue eliminado${actorText}`;
+        } else {
+          if (allChanges.length > 0) {
+            mensaje = `${entidadLabel}${targetName ? ` "${targetName}"` : ''}: ${allChanges.join(' | ')}${actorText}`;
+          } else {
+            mensaje = `${entidadLabel}${targetName ? ` "${targetName}"` : ''} fue actualizado${actorText}`;
+          }
+        }
+
+        result.push({
+          id: mainRow.id,
+          entidad,
+          entidad_id: mainRow.entidad_id,
+          operacion: operacion === 'insert' ? 'create' : operacion,
+          datos: mainRow.valores_nuevos || mainRow.valores_anteriores || {},
+          actor_nombre: mainRow.actor_nombre,
+          target_nombre: targetName,
           mensaje,
-        };
-      });
+          line: mensaje,
+          estado: 'PROCESADO',
+          intentos: 0,
+          error: null,
+          creado_en: mainRow.creado_en,
+          procesado_en: mainRow.creado_en,
+        });
+      }
+
+      return result.sort((a, b) => new Date(b.creado_en).getTime() - new Date(a.creado_en).getTime());
     } catch (error) {
       if (this.isMissingRelationError(error)) {
         return [];
@@ -137,6 +259,7 @@ export class SyncService {
       throw error;
     }
   }
+
 
   async create(createSyncDto: CreateSyncDto) {
     const rows = await this.prisma.$queryRaw<Array<any>>(Prisma.sql`

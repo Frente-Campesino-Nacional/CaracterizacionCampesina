@@ -21,80 +21,61 @@ import { sharedScreenStyles } from '../../styles/sharedScreenStyles';
 import { useAuthStore } from '../../store/authStore';
 import { listCampesinos, listFormularios, listSyncRecords, listUsuarios, SyncRecord } from '../../services/adminService';
 
-interface Stat {
+interface DashboardModuleCard {
   id: string;
+  title: string;
+  count: number;
   label: string;
-  value: number;
-  icon: string;
+  icon: keyof typeof MaterialCommunityIcons.glyphMap;
   color: string;
-}
-
-interface QuickAction {
-  id: string;
-  label: string;
-  icon: string;
+  actionText: string;
   onPress: () => void;
 }
 
 export default function AdminDashboard({ navigation }: any) {
   const { user, token } = useAuthStore();
-  const [stats, setStats] = useState<Stat[]>([
+  const [modules, setModules] = useState<DashboardModuleCard[]>([
     {
       id: '1',
-      label: 'Usuarios Activos',
-      value: 0,
+      title: 'Usuarios',
+      count: 0,
+      label: 'Usuarios activos',
       icon: 'account-multiple',
       color: Theme.colors.greenDark,
-    },
-    {
-      id: '2',
-      label: 'Campesinos',
-      value: 0,
-      icon: 'account-group',
-      color: Theme.colors.greenMedium,
-    },
-    {
-      id: '3',
-      label: 'Formularios Activos',
-      value: 0,
-      icon: 'file-document-multiple',
-      color: Theme.colors.info,
-    },
-    {
-      id: '4',
-      label: 'Eventos Hoy',
-      value: 0,
-      icon: 'check-circle',
-      color: Theme.colors.success,
-    },
-  ]);
-
-  const quickActions: QuickAction[] = [
-    {
-      id: '1',
-      label: 'Usuarios',
-      icon: 'account-multiple',
+      actionText: 'Gestionar usuarios',
       onPress: () => navigation.navigate('AdminUsers'),
     },
     {
       id: '2',
-      label: 'Campesinos',
+      title: 'Campesinos',
+      count: 0,
+      label: 'Campesinos registrados',
       icon: 'account-group',
+      color: Theme.colors.greenMedium,
+      actionText: 'Ver campesinos',
       onPress: () => navigation.navigate('AdminCampesinos'),
     },
     {
       id: '3',
-      label: 'Formularios',
-      icon: 'file-document-edit',
+      title: 'Formularios',
+      count: 0,
+      label: 'Formularios activos',
+      icon: 'file-document-multiple',
+      color: Theme.colors.info,
+      actionText: 'Ver formularios',
       onPress: () => navigation.navigate('AdminFormularios'),
     },
     {
       id: '4',
-      label: 'Auditoría',
+      title: 'Auditoría',
+      count: 0,
+      label: 'Eventos hoy (desde 00:00)',
       icon: 'shield-check',
+      color: '#7c3aed',
+      actionText: 'Ver auditoría',
       onPress: () => navigation.navigate('AdminAuditoria'),
     },
-  ];
+  ]);
 
   const [recentActivities, setRecentActivities] = useState<SyncRecord[]>([]);
 
@@ -131,9 +112,11 @@ export default function AdminDashboard({ navigation }: any) {
       if (entidadLower === 'consejo') return 'Consejo';
       return capitalize(String(item.entidad || '')) || 'Registro';
     };
+
     const getDisplayName = () => {
       const datos = (item.datos || {}) as any;
-      const directName = (item as any).target_nombre || datos.nombre || datos.nombre_completo || datos.nombre_persona || datos.titulo || datos.nombre_consejo || datos.nombre_usuario || datos.email;
+      const directName = (item as any).target_nombre || datos.nombre || datos.nombre_completo || datos.nombre_persona || datos.titulo || datos.nombre_consejo || datos.email;
+
       if (directName) return String(directName);
 
       const firstName = datos.nombre || datos.nombre_persona;
@@ -144,6 +127,7 @@ export default function AdminDashboard({ navigation }: any) {
 
       return '';
     };
+
     const getActorName = () => {
       const datos = (item.datos || {}) as any;
       const actorName = (item as any).actor_nombre || datos.usuario_nombre || datos.admin_nombre || datos.usuario || datos.realizado_por || datos.creado_por || datos.nombre_admin;
@@ -175,42 +159,34 @@ export default function AdminDashboard({ navigation }: any) {
 
   const formatActivityTime = (createdAt: string) => {
     const date = new Date(createdAt);
-    return date.toLocaleString('es-ES', {
-      day: '2-digit',
-      month: 'short',
+    if (isNaN(date.getTime())) return '';
+    return date.toLocaleTimeString('es-ES', {
       hour: '2-digit',
       minute: '2-digit',
+      second: '2-digit',
     });
   };
 
-  const renderStatCard = ({ item }: { item: Stat }) => (
-    <Card variant="bordered" padding="md" style={styles.statCard}>
-      <View style={styles.statHeader}>
-        <MaterialCommunityIcons
-          name={item.icon as any}
-          size={28}
-          color={item.color}
-        />
-      </View>
-      <Text style={styles.statValue}>{item.value}</Text>
-      <Text style={styles.statLabel}>{item.label}</Text>
-    </Card>
-  );
-
-  const renderQuickAction = ({ item }: { item: QuickAction }) => (
+  const renderModuleCard = ({ item }: { item: DashboardModuleCard }) => (
     <TouchableOpacity
       onPress={item.onPress}
-      activeOpacity={0.7}
-      style={styles.quickActionItem}
+      activeOpacity={0.8}
+      style={styles.combinedCard}
     >
-      <View style={styles.quickActionIconContainer}>
-        <MaterialCommunityIcons
-          name={item.icon as any}
-          size={28}
-          color={Theme.colors.greenDark}
-        />
+      <View style={styles.cardHeaderRow}>
+        <View style={[styles.iconCircle, { backgroundColor: item.color + '15' }]}>
+          <MaterialCommunityIcons name={item.icon} size={26} color={item.color} />
+        </View>
+        <Text style={[styles.cardCount, { color: item.color }]}>{item.count}</Text>
       </View>
-      <Text style={styles.quickActionLabel}>{item.label}</Text>
+
+      <Text style={styles.cardTitle}>{item.title}</Text>
+      <Text style={styles.cardSublabel}>{item.label}</Text>
+
+      <View style={[styles.cardActionRow, { backgroundColor: item.color + '12' }]}>
+        <Text style={[styles.cardActionText, { color: item.color }]}>{item.actionText}</Text>
+        <MaterialCommunityIcons name="arrow-right" size={16} color={item.color} />
+      </View>
     </TouchableOpacity>
   );
 
@@ -241,53 +217,69 @@ export default function AdminDashboard({ navigation }: any) {
         listSyncRecords(token),
       ]);
 
-      const today = new Date().toISOString().slice(0, 10);
-      const eventsToday = syncRecords.filter((record) =>
-        String(record.creado_en).startsWith(today),
-      ).length;
+      // Calculamos estrictamente el día de hoy iniciando a las 00:00:00.000 en la zona horaria local
+      const now = new Date();
+      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+      const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
 
-      const recent = [...syncRecords]
-        .sort((a, b) =>
-          new Date(b.creado_en).getTime() - new Date(a.creado_en).getTime(),
-        )
-        .slice(0, 4);
+      const todaySyncRecords = syncRecords
+        .filter((record) => {
+          const recDate = new Date(record.creado_en);
+          return !isNaN(recDate.getTime()) && recDate >= startOfToday && recDate <= endOfToday;
+        })
+        .sort((a, b) => new Date(b.creado_en).getTime() - new Date(a.creado_en).getTime());
 
-      setStats([
+      const activeUsersCount = usuarios.filter((item) => item.activo).length;
+
+      setModules([
         {
           id: '1',
-          label: 'Usuarios Activos',
-          value: usuarios.length,
+          title: 'Usuarios',
+          count: activeUsersCount,
+          label: `${activeUsersCount} de ${usuarios.length} activos`,
           icon: 'account-multiple',
           color: Theme.colors.greenDark,
+          actionText: 'Gestionar usuarios',
+          onPress: () => navigation.navigate('AdminUsers'),
         },
+
         {
           id: '2',
-          label: 'Campesinos',
-          value: campesinos.length,
+          title: 'Campesinos',
+          count: campesinos.length,
+          label: 'Campesinos registrados',
           icon: 'account-group',
           color: Theme.colors.greenMedium,
+          actionText: 'Ver campesinos',
+          onPress: () => navigation.navigate('AdminCampesinos'),
         },
         {
           id: '3',
-          label: 'Formularios Activos',
-          value: formularios.filter((item) => item.activo).length,
+          title: 'Formularios',
+          count: formularios.filter((item) => item.activo).length,
+          label: 'Formularios activos',
           icon: 'file-document-multiple',
           color: Theme.colors.info,
+          actionText: 'Ver formularios',
+          onPress: () => navigation.navigate('AdminFormularios'),
         },
         {
           id: '4',
-          label: 'Eventos Hoy',
-          value: eventsToday,
-          icon: 'check-circle',
-          color: Theme.colors.success,
+          title: 'Auditoría',
+          count: todaySyncRecords.length,
+          label: 'Eventos hoy (desde 00:00)',
+          icon: 'shield-check',
+          color: '#7c3aed',
+          actionText: 'Ver auditoría',
+          onPress: () => navigation.navigate('AdminAuditoria'),
         },
       ]);
 
-      setRecentActivities(recent);
+      setRecentActivities(todaySyncRecords);
     } catch {
-      // Silently ignore; datos pueden cargarse parcialmente
+      // Silently ignore
     }
-  }, [token]);
+  }, [token, navigation]);
 
   useFocusEffect(
     useCallback(() => {
@@ -321,47 +313,48 @@ export default function AdminDashboard({ navigation }: any) {
             style={{ marginBottom: Theme.spacing.md }}
           />
           <Text style={styles.welcomeTitle}>
-            Bienvenido al Panel de Control
+            Panel de Control Principal
           </Text>
           <Text style={styles.welcomeSubtitle}>
-            Aquí tienes un resumen de la actividad del sistema
+            Resumen estadístico y acceso directo a los módulos del sistema
           </Text>
         </Card>
 
-        {/* Estadísticas */}
-        <Text style={styles.sectionTitle}>Estadísticas</Text>
+        {/* Módulos Combinados (Estadísticas y Acciones Rápidas) */}
+        <Text style={styles.sectionTitle}>Módulos y Estadísticas</Text>
         <FlatList
-          data={stats}
-          renderItem={renderStatCard}
+          data={modules}
+          renderItem={renderModuleCard}
           keyExtractor={(item) => item.id}
           scrollEnabled={false}
           numColumns={2}
-          columnWrapperStyle={styles.statColumnWrapper}
+          columnWrapperStyle={styles.moduleColumnWrapper}
         />
 
-        {/* Acciones Rápidas */}
-        <Text style={styles.sectionTitle}>Acciones Rápidas</Text>
-        <FlatList
-          data={quickActions}
-          renderItem={renderQuickAction}
-          keyExtractor={(item) => item.id}
-          scrollEnabled={false}
-          numColumns={2}
-          columnWrapperStyle={styles.quickActionColumnWrapper}
-        />
+        {/* Historial de Cambios de Hoy */}
+        <View style={styles.historyHeaderRow}>
+          <Text style={styles.sectionTitle}>Historial del Día (Hoy)</Text>
+          <Text style={styles.historySubText}>Desde las 00:00 h</Text>
+        </View>
 
-        {/* Actividad Reciente */}
-        <Text style={styles.sectionTitle}>Actividad Reciente</Text>
         <Card variant="elevated" padding="md">
-          <FlatList
-            data={recentActivities}
-            renderItem={renderActivity}
-            keyExtractor={(item) => String(item.id)}
-            scrollEnabled={false}
-            ItemSeparatorComponent={() => (
-              <View style={styles.separator} />
-            )}
-          />
+          {recentActivities.length ? (
+            <FlatList
+              data={recentActivities}
+              renderItem={renderActivity}
+              keyExtractor={(item) => String(item.id)}
+              scrollEnabled={false}
+              ItemSeparatorComponent={() => (
+                <View style={styles.separator} />
+              )}
+            />
+          ) : (
+            <View style={styles.emptyStateContainer}>
+              <MaterialCommunityIcons name="calendar-clock-outline" size={40} color={Theme.colors.mediumGray} />
+              <Text style={styles.emptyStateTitle}>Sin cambios el día de hoy</Text>
+              <Text style={styles.emptyStateSub}>No se registran eventos desde las 00:00 h del día de hoy.</Text>
+            </View>
+          )}
         </Card>
 
         {/* Espaciado inferior */}
@@ -370,6 +363,7 @@ export default function AdminDashboard({ navigation }: any) {
     </View>
   );
 }
+
 
 const styles = StyleSheet.create({
   welcomeCard: {
@@ -396,60 +390,91 @@ const styles = StyleSheet.create({
     marginTop: Theme.spacing.lg,
     marginBottom: Theme.spacing.md,
   },
-  statColumnWrapper: {
+  moduleColumnWrapper: {
     gap: Theme.spacing.md,
     marginBottom: Theme.spacing.md,
   },
-  statCard: {
+  combinedCard: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: Theme.spacing.lg,
+    backgroundColor: Theme.colors.white,
+    borderRadius: Theme.borderRadius.xl,
+    padding: Theme.spacing.md,
+    borderWidth: 1,
+    borderColor: Theme.colors.lightGray,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    justifyContent: 'space-between',
   },
-  statHeader: {
+  cardHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Theme.spacing.sm,
+  },
+  iconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cardCount: {
+    fontSize: Theme.fontSize['2xl'],
+    fontWeight: Theme.fontWeight.bold,
+  },
+  cardTitle: {
+    fontSize: Theme.fontSize.base,
+    fontWeight: Theme.fontWeight.bold,
+    color: Theme.colors.darkGray,
+    marginTop: Theme.spacing.xs,
+  },
+  cardSublabel: {
+    fontSize: Theme.fontSize.xs,
+    color: Theme.colors.mediumGray,
     marginBottom: Theme.spacing.md,
   },
-  statValue: {
-    fontSize: Theme.fontSize['3xl'],
-    fontWeight: Theme.fontWeight.bold,
-    color: Theme.colors.greenDark,
-    marginBottom: Theme.spacing.xs,
+  cardActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: Theme.spacing.xs,
+    paddingHorizontal: Theme.spacing.sm,
+    borderRadius: Theme.borderRadius.md,
   },
-  statLabel: {
+  cardActionText: {
+    fontSize: Theme.fontSize.xs,
+    fontWeight: Theme.fontWeight.semibold,
+  },
+  historyHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    marginTop: Theme.spacing.lg,
+    marginBottom: Theme.spacing.sm,
+  },
+  historySubText: {
     fontSize: Theme.fontSize.xs,
     color: Theme.colors.mediumGray,
     fontWeight: Theme.fontWeight.medium,
-    textAlign: 'center',
   },
-  quickActionColumnWrapper: {
-    gap: Theme.spacing.md,
-    marginBottom: Theme.spacing.md,
-  },
-  quickActionItem: {
-    flex: 1,
+  emptyStateContainer: {
     alignItems: 'center',
-    paddingVertical: Theme.spacing.lg,
-    paddingHorizontal: Theme.spacing.md,
-    borderRadius: Theme.borderRadius.lg,
-    backgroundColor: Theme.colors.veryLightGray,
-    borderWidth: 1,
-    borderColor: Theme.colors.lightGray,
-  },
-  quickActionIconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: Theme.borderRadius.lg,
-    backgroundColor: Theme.colors.white,
     justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: Theme.spacing.md,
-    borderWidth: 1,
-    borderColor: Theme.colors.greenLight,
+    paddingVertical: Theme.spacing.xl,
+    gap: Theme.spacing.xs,
   },
-  quickActionLabel: {
-    fontSize: Theme.fontSize.xs,
-    fontWeight: Theme.fontWeight.semibold,
+  emptyStateTitle: {
+    fontSize: Theme.fontSize.sm,
+    fontWeight: Theme.fontWeight.bold,
     color: Theme.colors.darkGray,
+    marginTop: Theme.spacing.xs,
+  },
+  emptyStateSub: {
+    fontSize: Theme.fontSize.xs,
+    color: Theme.colors.mediumGray,
     textAlign: 'center',
   },
   activityItem: {
@@ -485,4 +510,4 @@ const styles = StyleSheet.create({
     backgroundColor: Theme.colors.lightGray,
     marginVertical: Theme.spacing.md,
   },
-});
+});

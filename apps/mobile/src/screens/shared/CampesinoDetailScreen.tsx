@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, ScrollView, StyleSheet, Text, View } from 'react-native';
+
 import { useFocusEffect } from '@react-navigation/native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { Card, Button, Header } from '../../components';
+import { Card, Button, Header, StatusPill } from '../../components';
+
 import { Theme } from '../../theme/colors';
 import { sharedScreenStyles } from '../../styles/sharedScreenStyles';
 import { useAuthStore } from '../../store/authStore';
@@ -101,7 +103,10 @@ export default function CampesinoDetailScreen({ route, navigation }: Props) {
     );
   }
 
+  const isOfflineLocal = String(campesino.id).includes('temp') || String(campesino.cedula).includes('LOCAL-') || String(campesino.cedula).includes('Guardado localmente');
+
   const pendingAction = () => {
+
     navigation.navigate('FormulariosPendientes', { campesinoId: route.params.campesinoId });
   };
 
@@ -122,20 +127,30 @@ export default function CampesinoDetailScreen({ route, navigation }: Props) {
       <ScrollView contentContainerStyle={sharedScreenStyles.contentLg}>
         <Card variant="elevated" padding="lg" style={styles.profileCard}>
           <View style={styles.avatarContainer}>
-            <MaterialCommunityIcons name="account-group" size={72} color={Theme.colors.greenDark} />
+            {campesino.foto_url ? (
+              <Image source={{ uri: campesino.foto_url }} style={styles.avatarImage} />
+            ) : (
+              <MaterialCommunityIcons name="account-group" size={72} color={Theme.colors.greenDark} />
+            )}
           </View>
+
           <Text style={styles.nameText}>{campesino.nombre} {campesino.apellido || ''}</Text>
-          <Text style={styles.subtitleText}>Cédula {campesino.cedula}</Text>
+          {isOfflineLocal ? (
+            <StatusPill label="Guardado localmente esperando sincronización" tone="warning" />
+          ) : (
+            <Text style={styles.subtitleText}>Cédula {campesino.cedula}</Text>
+          )}
           <Text style={styles.subtitleText}>{campesino.consejo_nombre || (campesino.consejo_id ? consejoNameById.get(campesino.consejo_id) || `Consejo ${campesino.consejo_id}` : 'Consejo no asignado')}</Text>
         </Card>
 
         <Card variant="bordered" padding="lg" style={styles.detailsCard}>
           {renderField('Nombre', campesino.nombre)}
           {renderField('Apellido', campesino.apellido)}
-          {renderField('Cédula', campesino.cedula)}
+          {renderField('Cédula', isOfflineLocal ? 'Guardado localmente esperando sincronización' : campesino.cedula)}
+
           {renderField('Teléfono', campesino.telefono)}
           {renderField('Correo', campesino.correo)}
-          {renderField('Fecha de nacimiento', campesino.fecha_nacimiento)}
+          {renderField('Fecha de nacimiento', campesino.fecha_nacimiento ? String(campesino.fecha_nacimiento).slice(0, 10) : 'N/A')}
           {renderField('Género', campesino.genero)}
           {renderField('Dirección', campesino.direccion)}
           {renderField('Consejo', campesino.consejo_nombre || (campesino.consejo_id ? consejoNameById.get(campesino.consejo_id) || campesino.consejo_id : 'N/A'))}
@@ -155,8 +170,9 @@ export default function CampesinoDetailScreen({ route, navigation }: Props) {
         {isAdminRole(user?.rol) ? (
           <Card variant="bordered" padding="lg" style={styles.adminCard}>
             <Text style={styles.adminTitle}>Información adicional</Text>
-            {renderField('Creado por', campesino.creado_por ? userNameById.get(campesino.creado_por) || campesino.creado_por : 'N/A')}
-            {renderField('Asignado a', campesino.asignado_a ? userNameById.get(campesino.asignado_a) || campesino.asignado_a : 'N/A')}
+            {renderField('Creado por', campesino.creado_por ? (userNameById.get(campesino.creado_por) || (/^[0-9a-f-]{36}$/i.test(campesino.creado_por) ? 'N/A' : campesino.creado_por)) : 'N/A')}
+            {renderField('Asignado a', campesino.asignado_a ? (userNameById.get(campesino.asignado_a) || (/^[0-9a-f-]{36}$/i.test(campesino.asignado_a) ? 'N/A' : campesino.asignado_a)) : 'N/A')}
+
             {renderField('Creado en', campesino.creado_en)}
             {renderField('Actualizado en', campesino.actualizado_en)}
           </Card>
@@ -169,7 +185,9 @@ export default function CampesinoDetailScreen({ route, navigation }: Props) {
 const styles = StyleSheet.create({
   profileCard: { alignItems: 'center' },
   avatarContainer: { marginBottom: Theme.spacing.md },
+  avatarImage: { width: 80, height: 80, borderRadius: 40 },
   nameText: { fontSize: Theme.fontSize['2xl'], fontWeight: Theme.fontWeight.bold, color: Theme.colors.darkGray, textAlign: 'center' },
+
   subtitleText: { color: Theme.colors.mediumGray, marginTop: Theme.spacing.xs, textAlign: 'center' },
   detailsCard: { gap: Theme.spacing.sm },
   adminCard: { borderColor: Theme.colors.lightGray, borderWidth: 1 },

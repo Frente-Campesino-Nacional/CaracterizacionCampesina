@@ -250,9 +250,19 @@ let FormulariosService = class FormulariosService {
         p.cedula,
         p.nombre,
         p.apellido,
-        c.consejo_id AS consejo_id
+        p.numero_telefonico AS telefono,
+        p.email,
+        p.consejo_id,
+        co.nombre_consejo AS consejo_nombre,
+        est.nombre_estado AS estado,
+        mun.nombre_municipio AS municipio,
+        par.nombre_parroquia AS parroquia
       FROM operacional.campesinos c
       LEFT JOIN registros.personas p ON p.id_personas = c.id_campesinos
+      LEFT JOIN operacional.consejos co ON co.consejo_id::text = p.consejo_id::text
+      LEFT JOIN catalogos.parroquias par ON par.id_parroquia = p.parroquia
+      LEFT JOIN catalogos.municipios mun ON mun.id_municipio = par.municipio
+      LEFT JOIN catalogos.estados est ON est.id_estados = mun.estado
       WHERE c.id_campesinos::text = ANY (${campesinoIds})
     `);
         return campesinos
@@ -266,9 +276,15 @@ let FormulariosService = class FormulariosService {
                 cedula: campesino.cedula,
                 nombre: campesino.nombre,
                 apellido: campesino.apellido,
-                consejo_nombre: null,
+                telefono: campesino.telefono || null,
+                email: campesino.email || null,
+                consejo_nombre: campesino.consejo_nombre || null,
+                estado: campesino.estado || null,
+                municipio: campesino.municipio || null,
+                parroquia: campesino.parroquia || null,
                 pregunta_id: preguntaId,
                 pregunta_label: selectedLabel,
+                formulario_titulo: formulario.titulo,
                 valor: answer.valor,
                 capturado_en: answer.capturado_en,
             };

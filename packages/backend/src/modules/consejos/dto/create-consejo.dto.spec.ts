@@ -1,5 +1,7 @@
+import 'reflect-metadata';
 import { validate } from 'class-validator';
 import { CreateConsejoDto } from './create-consejo.dto';
+
 
 describe('CreateConsejoDto', () => {
   it('permite un encargado vacío y lo maneja como valor opcional', async () => {

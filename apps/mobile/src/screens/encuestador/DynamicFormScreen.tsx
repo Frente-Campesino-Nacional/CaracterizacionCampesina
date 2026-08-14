@@ -20,11 +20,14 @@ import {
   enqueueSubmission,
   getFormularioById,
   getDraftAnswers,
+  isRetryableSubmissionError,
   parseFormStructure,
   saveDraftAnswers,
   submitAndMarkFormulario,
   validateAnswers,
 } from '../../services/encuestadorFormService';
+
+import { showErrorAlert } from '../../utils/humanizerUtils';
 import { FormQuestion } from '../../types/formularios';
 
 type DynamicFormRouteParams = {
@@ -122,9 +125,10 @@ export default function DynamicFormScreen() {
 
     const validationError = validateAnswers(questions, answers);
     if (validationError) {
-      Alert.alert('Validación', validationError);
+      showErrorAlert(validationError, 'Por favor verifica la información ingresada', 'Respuestas incompletas');
       return;
     }
+
 
     setSaving(true);
     try {
@@ -211,18 +215,7 @@ export default function DynamicFormScreen() {
   );
 }
 
-function isRetryableSubmissionError(error: unknown): boolean {
-  if (!axios.isAxiosError(error)) {
-    return false;
-  }
 
-  if (!error.response) {
-    return true;
-  }
-
-  const status = error.response.status;
-  return status === 408 || status === 429 || status === 500 || status === 502 || status === 503 || status === 504;
-}
 
 function renderQuestionInput(
   question: FormQuestion,

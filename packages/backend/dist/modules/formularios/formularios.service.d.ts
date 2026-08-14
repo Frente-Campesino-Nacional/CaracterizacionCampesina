@@ -68,9 +68,15 @@ export declare class FormulariosService {
         cedula: any;
         nombre: any;
         apellido: any;
+        telefono: any;
+        email: any;
         consejo_nombre: any;
+        estado: any;
+        municipio: any;
+        parroquia: any;
         pregunta_id: string;
         pregunta_label: string;
+        formulario_titulo: any;
         valor: string;
         capturado_en: string;
     }[]>;

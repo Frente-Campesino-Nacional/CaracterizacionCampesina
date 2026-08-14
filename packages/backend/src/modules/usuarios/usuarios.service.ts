@@ -79,7 +79,7 @@ export class UsuariosService {
         u.id_usuario AS id,
         p.tipo_cedula,
         p.cedula,
-        u.nombre_usuario AS email,
+        p.email AS email,
         p.nombre,
         p.apellido,
         r.tip_rol AS rol,
@@ -92,7 +92,8 @@ export class UsuariosService {
         p.direccion_usuario AS direccion,
         p.consejo_id AS consejo_id,
         c.nombre_consejo AS consejo_nombre,
-        CASE WHEN u.sync_status = 'synced' THEN TRUE ELSE FALSE END AS activo,
+        CASE WHEN COALESCE(u.sync_status, 'synced') = 'disabled' THEN FALSE ELSE TRUE END AS activo,
+        fp.url_nube AS foto_url,
         p.created_at AS creado_en,
         p.update_at AS actualizado_en
       FROM seguridad.usuarios u
@@ -103,10 +104,13 @@ export class UsuariosService {
       LEFT JOIN catalogos.parroquias par ON par.id_parroquia = p.parroquia
       LEFT JOIN catalogos.municipios m ON m.id_municipio = par.municipio
       LEFT JOIN catalogos.estados e ON e.id_estados = m.estado
+      LEFT JOIN operacional.fotos_perfil fp ON fp.persona_id = u.id_usuario
+
       WHERE u.id_usuario::text = ${textValue}
-         OR u.nombre_usuario = ${textValue}
+         OR LOWER(p.email) = LOWER(${textValue})
       LIMIT 1
     `);
+
 
     return rows[0] ?? null;
   }
@@ -120,7 +124,12 @@ export class UsuariosService {
       apellido: usuario.apellido,
       rol: usuario.rol,
       numero_telefono: usuario.numero_telefono,
-      fecha_nacimiento: usuario.fecha_nacimiento,
+      fecha_nacimiento: usuario.fecha_nacimiento
+        ? (usuario.fecha_nacimiento instanceof Date
+            ? usuario.fecha_nacimiento.toISOString().slice(0, 10)
+            : String(usuario.fecha_nacimiento).slice(0, 10))
+        : null,
+
       genero: usuario.genero || null,
       estado: usuario.estado,
       municipio: usuario.municipio,
@@ -129,10 +138,12 @@ export class UsuariosService {
       consejo_id: usuario.consejo_id ?? null,
       consejo_nombre: usuario.consejo_nombre || null,
       activo: Boolean(usuario.activo),
+      foto_url: usuario.foto_url || null,
       creado_en: usuario.creado_en,
       actualizado_en: usuario.actualizado_en ?? usuario.creado_en,
     };
   }
+
 
   private normalizeDateInput(value?: string) {
     if (!value) {
@@ -206,7 +217,7 @@ export class UsuariosService {
         u.id_usuario AS id,
         p.tipo_cedula,
         p.cedula,
-        u.nombre_usuario AS email,
+        p.email AS email,
         p.nombre,
         p.apellido,
         r.tip_rol AS rol,
@@ -219,7 +230,8 @@ export class UsuariosService {
         p.direccion_usuario AS direccion,
         p.consejo_id AS consejo_id,
         c.nombre_consejo AS consejo_nombre,
-        CASE WHEN u.sync_status = 'synced' THEN TRUE ELSE FALSE END AS activo,
+        CASE WHEN COALESCE(u.sync_status, 'synced') = 'disabled' THEN FALSE ELSE TRUE END AS activo,
+        fp.url_nube AS foto_url,
         p.created_at AS creado_en,
         p.update_at AS actualizado_en
       FROM seguridad.usuarios u
@@ -230,7 +242,9 @@ export class UsuariosService {
       LEFT JOIN catalogos.parroquias par ON par.id_parroquia = p.parroquia
       LEFT JOIN catalogos.municipios m ON m.id_municipio = par.municipio
       LEFT JOIN catalogos.estados e ON e.id_estados = m.estado
-      ORDER BY u.nombre_usuario
+      LEFT JOIN operacional.fotos_perfil fp ON fp.persona_id = u.id_usuario
+      ORDER BY p.email
+
     `);
 
     return usuarios.map((usuario) => this.mapUsuario(usuario));
@@ -249,15 +263,41 @@ export class UsuariosService {
     return this.mapUsuario(usuario);
   }
 
+  private isValidGmail(email: string): boolean {
+    if (!email || typeof email !== 'string') return false;
+    return /^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(email.trim());
+  }
+
+  private validatePhoneInput(phone?: string | null): string | null {
+    if (!phone || !phone.trim()) return null;
+    const trimmed = phone.trim();
+    const digitsOnly = trimmed.replace(/[\s\-()+]/g, '');
+    if (digitsOnly.length < 7 || digitsOnly.length > 15) {
+      throw new BadRequestException('El número telefónico debe contener entre 7 y 15 dígitos (ejemplo: 04141234567)');
+    }
+    return trimmed;
+  }
+
   async create(createUsuarioDto: CreateUsuarioDto) {
-    const desiredNombreUsuario = (createUsuarioDto.nombre_usuario || createUsuarioDto.email).trim();
-    const existingUser = await this.prisma.$queryRaw<Array<{ id_usuario: string }>>(Prisma.sql`
-      SELECT id_usuario FROM seguridad.usuarios WHERE nombre_usuario = ${desiredNombreUsuario} LIMIT 1
+    if (createUsuarioDto.numero_telefono) {
+      this.validatePhoneInput(createUsuarioDto.numero_telefono);
+    }
+
+    const emailValue = createUsuarioDto.email.trim().toLowerCase();
+    if (!this.isValidGmail(emailValue)) {
+
+      throw new BadRequestException('El correo electrónico debe pertenecer al dominio @gmail.com (ej. usuario@gmail.com)');
+    }
+
+    const existingUser = await this.prisma.$queryRaw<Array<{ id_personas: string }>>(Prisma.sql`
+      SELECT id_personas FROM registros.personas WHERE LOWER(email) = LOWER(${emailValue}) LIMIT 1
     `);
 
     if (existingUser[0]) {
-      throw new ConflictException('El nombre de usuario ya está registrado');
+      throw new ConflictException('El correo electrónico ya se encuentra registrado en el sistema. Por favor utiliza un correo diferente.');
     }
+
+
 
     const hashedPassword = await bcrypt.hash(createUsuarioDto.password, 10);
     const roleId = await this.resolveRoleId(this.normalizeRoleValue(createUsuarioDto.rol || 'encuestador'));
@@ -312,7 +352,7 @@ export class UsuariosService {
           ${birthDate ?? new Date('1990-01-01T00:00:00.000Z')},
           ${firstParroquia[0]?.id_parroquia ?? 1},
           ${createUsuarioDto.direccion || ''},
-          ${createUsuarioDto.email},
+          ${emailValue},
           ${createUsuarioDto.numero_telefono ?? null},
           ${firstGenero[0]?.id_genero ?? 1},
           NULL
@@ -322,13 +362,11 @@ export class UsuariosService {
       await tx.$queryRaw(Prisma.sql`
         INSERT INTO seguridad.usuarios (
           id_usuario,
-          nombre_usuario,
           password_hash,
           id_rol,
           creado_por
         ) VALUES (
           CAST(${sharedEntityId} AS uuid),
-          ${desiredNombreUsuario},
           ${hashedPassword},
           ${roleId},
           NULL
@@ -357,44 +395,42 @@ export class UsuariosService {
       delete data.password;
     }
 
-    if (data.nombre_usuario && data.nombre_usuario !== usuario.email) {
-      const existingUser = await this.prisma.$queryRaw<Array<{ id_usuario: string }>>(Prisma.sql`
-        SELECT id_usuario FROM seguridad.usuarios WHERE nombre_usuario = ${data.nombre_usuario} AND id_usuario::text <> ${String(currentUserId)} LIMIT 1
-      `);
-      if (existingUser[0]) {
-        throw new ConflictException('El nombre de usuario ya está registrado');
-      }
-    }
-
-    if (data.nombre_usuario) {
+    if (typeof data.activo === 'boolean') {
+      const syncStatus = data.activo ? 'synced' : 'disabled';
       await this.prisma.$queryRaw(Prisma.sql`
-        UPDATE seguridad.usuarios SET nombre_usuario = ${data.nombre_usuario} WHERE id_usuario::text = ${String(currentUserId)}
+        UPDATE seguridad.usuarios SET sync_status = ${syncStatus} WHERE id_usuario::text = ${String(currentUserId)}
       `);
-      delete data.nombre_usuario;
+      delete data.activo;
     }
 
     if (data.email) {
-      // Ensure no other user already uses this email as nombre_usuario
-      const existing = await this.prisma.$queryRaw<Array<{ id_usuario: string }>>(Prisma.sql`
-        SELECT id_usuario FROM seguridad.usuarios WHERE nombre_usuario = ${data.email} AND id_usuario::text <> ${String(currentUserId)} LIMIT 1
-      `);
-      if (existing[0]) {
-        throw new ConflictException('El nombre de usuario ya está registrado');
+      const emailVal = data.email.trim().toLowerCase();
+      if (!this.isValidGmail(emailVal)) {
+        throw new BadRequestException('El correo electrónico debe pertenecer al dominio @gmail.com (ej. usuario@gmail.com)');
       }
 
-      // Update both the persona email and the seguridad.usuarios.nombre_usuario atomically
-      await this.prisma.$transaction(async (tx) => {
-        await tx.$queryRaw(Prisma.sql`
-          UPDATE registros.personas SET email = ${data.email} WHERE id_personas::text = ${String(currentUserId)}
-        `);
+      const existing = await this.prisma.$queryRaw<Array<{ id_personas: string }>>(Prisma.sql`
+        SELECT id_personas FROM registros.personas WHERE LOWER(email) = LOWER(${emailVal}) AND id_personas::text <> ${String(currentUserId)} LIMIT 1
+      `);
+      if (existing[0]) {
+        throw new ConflictException('El correo electrónico ya se encuentra registrado en el sistema. Por favor utiliza un correo diferente.');
+      }
 
-        await tx.$queryRaw(Prisma.sql`
-          UPDATE seguridad.usuarios SET nombre_usuario = ${data.email} WHERE id_usuario::text = ${String(currentUserId)}
-        `);
-      });
 
+      await this.prisma.$queryRaw(Prisma.sql`
+        UPDATE registros.personas SET email = ${emailVal} WHERE id_personas::text = ${String(currentUserId)}
+      `);
       delete data.email;
     }
+
+    if (data.numero_telefono != null) {
+      this.validatePhoneInput(data.numero_telefono);
+    }
+
+
+
+
+
 
     if (data.password_hash !== undefined) {
       const passwordHashValue = typeof data.password_hash === 'string' ? data.password_hash.trim() : '';
@@ -435,10 +471,14 @@ export class UsuariosService {
           apellido = COALESCE(${data.apellido ?? null}, apellido),
           direccion_usuario = COALESCE(${data.direccion ?? null}, direccion_usuario),
           numero_telefonico = COALESCE(${data.numero_telefono ?? null}, numero_telefonico),
-          fecha_nacimiento = COALESCE(${normalizedBirthDate}, fecha_nacimiento),
-          consejo_id = COALESCE(${normalizedConsejoId}, consejo_id)
+          fecha_nacimiento = COALESCE(CAST(${normalizedBirthDate ?? null} AS date), fecha_nacimiento),
+          consejo_id = CASE
+            WHEN CAST(${normalizedConsejoId ?? null} AS text) IS NULL THEN consejo_id
+            ELSE CAST(${normalizedConsejoId ?? null} AS uuid)
+          END
         WHERE id_personas::text = ${String(currentUserId)}
       `);
+
     }
 
     return this.findUsuarioRow(id);

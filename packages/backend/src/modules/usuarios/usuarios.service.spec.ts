@@ -34,14 +34,15 @@ describe('UsuariosService.create', () => {
     });
 
     await service.create({
-      nombre_usuario: 'nuevo.usuario',
-      email: 'nuevo.usuario@example.com',
+      email: 'nuevo.usuario@gmail.com',
+
       password: '12345678',
       nombre: 'Juan',
       apellido: 'Pérez',
       rol: 'encuestador',
       cedula: 'V-123456',
     } as any);
+
 
     const firstInsertValues = txQueryRaw.mock.calls[0][0].values;
     const secondInsertValues = txQueryRaw.mock.calls[1][0].values;

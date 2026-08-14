@@ -206,14 +206,23 @@ export default function EncuestadorProfileScreen({ navigation }: any) {
         {/* Acciones */}
         <View style={styles.actionsContainer}>
           <Button
+            label="Historial de Cambios"
+            variant="outline"
+            icon="history"
+            onPress={() => navigation.navigate('EncuestadorHistorial')}
+            fullWidth
+            style={{ marginTop: Theme.spacing.sm }}
+          />
+          <Button
             label="Cerrar Sesión"
             variant="danger"
             icon="logout"
             onPress={handleLogout}
             fullWidth
-            style={{ marginTop: Theme.spacing.lg }}
+            style={{ marginTop: Theme.spacing.md }}
           />
         </View>
+
       </ScrollView>
     </View>
   );

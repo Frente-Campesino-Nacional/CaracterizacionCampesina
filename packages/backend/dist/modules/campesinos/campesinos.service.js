@@ -194,6 +194,7 @@ let CampesinosService = class CampesinosService {
         par.nombre_parroquia AS parroquia,
         p.direccion_usuario AS direccion,
         p.consejo_id AS consejo_id,
+        csj.nombre_consejo AS consejo_nombre,
         c.creado_por,
         c.asignado_a,
         c.formularios_pendientes AS tiene_pendientes,
@@ -205,6 +206,7 @@ let CampesinosService = class CampesinosService {
           FROM respuestas.respuesta_form r
           WHERE r.respuestas->>'campesino_id' = c.id_campesinos::text
         ) AS metadata,
+        fp.url_nube AS foto_url,
         p.created_at AS creado_en,
         p.update_at AS actualizado_en
       FROM operacional.campesinos c
@@ -213,6 +215,8 @@ let CampesinosService = class CampesinosService {
       LEFT JOIN catalogos.parroquias par ON par.id_parroquia = p.parroquia
       LEFT JOIN catalogos.municipios m ON m.id_municipio = par.municipio
       LEFT JOIN catalogos.estados e ON e.id_estados = m.estado
+      LEFT JOIN operacional.consejos csj ON csj.consejo_id::text = p.consejo_id::text
+      LEFT JOIN operacional.fotos_perfil fp ON fp.persona_id = c.id_campesinos
       WHERE c.id_campesinos::text = ${textValue}
       LIMIT 1
     `);
@@ -226,18 +230,23 @@ let CampesinosService = class CampesinosService {
             apellido: campesino.apellido,
             telefono: campesino.telefono,
             correo: campesino.correo,
-            fecha_nacimiento: campesino.fecha_nacimiento,
+            fecha_nacimiento: campesino.fecha_nacimiento
+                ? (campesino.fecha_nacimiento instanceof Date
+                    ? campesino.fecha_nacimiento.toISOString().slice(0, 10)
+                    : String(campesino.fecha_nacimiento).slice(0, 10))
+                : null,
             genero: campesino.genero || null,
             estado: campesino.estado,
             municipio: campesino.municipio,
             parroquia: campesino.parroquia,
             direccion: campesino.direccion,
             consejo_id: campesino.consejo_id ?? null,
-            consejo_nombre: null,
+            consejo_nombre: campesino.consejo_nombre || null,
             creado_por: campesino.creado_por ?? null,
             asignado_a: campesino.asignado_a ?? null,
             tiene_pendientes: Boolean(campesino.tiene_pendientes),
             metadata: campesino.metadata ?? { formularios_respondidos: [] },
+            foto_url: campesino.foto_url || null,
             creado_en: campesino.creado_en,
             actualizado_en: campesino.actualizado_en ?? campesino.creado_en,
         };
@@ -271,6 +280,7 @@ let CampesinosService = class CampesinosService {
           par.nombre_parroquia AS parroquia,
           p.direccion_usuario AS direccion,
           p.consejo_id AS consejo_id,
+          csj.nombre_consejo AS consejo_nombre,
           c.creado_por,
           c.asignado_a,
           c.formularios_pendientes AS tiene_pendientes,
@@ -282,6 +292,7 @@ let CampesinosService = class CampesinosService {
             FROM respuestas.respuesta_form r
             WHERE r.respuestas->>'campesino_id' = c.id_campesinos::text
           ) AS metadata,
+          fp.url_nube AS foto_url,
           p.created_at AS creado_en,
           p.update_at AS actualizado_en
         FROM operacional.campesinos c
@@ -290,6 +301,8 @@ let CampesinosService = class CampesinosService {
         LEFT JOIN catalogos.parroquias par ON par.id_parroquia = p.parroquia
         LEFT JOIN catalogos.municipios m ON m.id_municipio = par.municipio
         LEFT JOIN catalogos.estados e ON e.id_estados = m.estado
+        LEFT JOIN operacional.consejos csj ON csj.consejo_id::text = p.consejo_id::text
+        LEFT JOIN operacional.fotos_perfil fp ON fp.persona_id = c.id_campesinos
         WHERE p.consejo_id::text = ${String(currentConsejoId)}
         ORDER BY p.nombre
       `);
@@ -312,6 +325,7 @@ let CampesinosService = class CampesinosService {
         par.nombre_parroquia AS parroquia,
         p.direccion_usuario AS direccion,
         p.consejo_id AS consejo_id,
+        csj.nombre_consejo AS consejo_nombre,
         c.creado_por,
         c.asignado_a,
         c.formularios_pendientes AS tiene_pendientes,
@@ -323,6 +337,7 @@ let CampesinosService = class CampesinosService {
           FROM respuestas.respuesta_form r
           WHERE r.respuestas->>'campesino_id' = c.id_campesinos::text
         ) AS metadata,
+        fp.url_nube AS foto_url,
         p.created_at AS creado_en,
         p.update_at AS actualizado_en
       FROM operacional.campesinos c
@@ -331,6 +346,8 @@ let CampesinosService = class CampesinosService {
       LEFT JOIN catalogos.parroquias par ON par.id_parroquia = p.parroquia
       LEFT JOIN catalogos.municipios m ON m.id_municipio = par.municipio
       LEFT JOIN catalogos.estados e ON e.id_estados = m.estado
+      LEFT JOIN operacional.consejos csj ON csj.consejo_id::text = p.consejo_id::text
+      LEFT JOIN operacional.fotos_perfil fp ON fp.persona_id = c.id_campesinos
       ${resolvedConsejoId ? client_1.Prisma.sql `WHERE p.consejo_id::text = ${resolvedConsejoId}` : client_1.Prisma.empty}
       ORDER BY p.nombre
     `);
@@ -355,10 +372,30 @@ let CampesinosService = class CampesinosService {
         }
         return this.mapCampesino(campesino);
     }
+    validatePhoneInput(phone) {
+        if (!phone || !phone.trim())
+            return null;
+        const trimmed = phone.trim();
+        const digitsOnly = trimmed.replace(/[\s\-()+]/g, '');
+        if (digitsOnly.length < 7 || digitsOnly.length > 15) {
+            throw new common_1.BadRequestException('El número telefónico debe contener entre 7 y 15 dígitos (ejemplo: 04141234567)');
+        }
+        return trimmed;
+    }
     async create(createCampesinDto, requesterId) {
+        if (createCampesinDto.telefono) {
+            this.validatePhoneInput(createCampesinDto.telefono);
+        }
         const trimmedNombre = createCampesinDto.nombre?.trim();
         if (!trimmedNombre) {
             throw new common_1.BadRequestException('El nombre del campesino es obligatorio');
+        }
+        if (createCampesinDto.correo && createCampesinDto.correo.trim()) {
+            const emailVal = createCampesinDto.correo.trim().toLowerCase();
+            createCampesinDto.correo = emailVal;
+            if (!/^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(emailVal)) {
+                throw new common_1.BadRequestException('El correo electrónico debe pertenecer al dominio @gmail.com (ej. usuario@gmail.com)');
+            }
         }
         let tipoCedula;
         let cedula;
@@ -440,6 +477,16 @@ let CampesinosService = class CampesinosService {
         const campesino = await this.findCampesinoRow(id);
         if (!campesino) {
             throw new common_1.NotFoundException('Campesino no encontrado');
+        }
+        if (updateCampesinDto.telefono != null) {
+            this.validatePhoneInput(updateCampesinDto.telefono);
+        }
+        if (updateCampesinDto.correo && updateCampesinDto.correo.trim()) {
+            const emailVal = updateCampesinDto.correo.trim().toLowerCase();
+            updateCampesinDto.correo = emailVal;
+            if (!/^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(emailVal)) {
+                throw new common_1.BadRequestException('El correo electrónico debe pertenecer al dominio @gmail.com (ej. usuario@gmail.com)');
+            }
         }
         let cedula = null;
         let tipoCedula = null;
@@ -530,13 +577,49 @@ let CampesinosService = class CampesinosService {
         return { deleted: true };
     }
     async saveProfileImage(id, dto) {
-        return { id, saved: true, payload: dto };
+        const campesino = await this.findCampesinoRow(id);
+        if (!campesino) {
+            throw new common_1.NotFoundException('Campesino no encontrado');
+        }
+        const storageId = await this.storageService.saveUsuarioPerfilImagen({
+            usuarioId: campesino.id,
+            contentType: dto.content_type,
+            fileName: dto.file_name,
+            sizeBytes: dto.size_bytes,
+            imageBase64: dto.image_base64,
+            imageUrl: dto.image_url,
+            metadata: dto.metadata,
+        });
+        return {
+            campesino_id: campesino.id,
+            postgres_habilitado: this.storageService.isEnabled(),
+            guardado_en_postgres: Boolean(storageId),
+            registro_id: storageId,
+        };
     }
     async getProfileImage(id) {
-        return { id, image: null };
+        const campesino = await this.findCampesinoRow(id);
+        if (!campesino) {
+            throw new common_1.NotFoundException('Campesino no encontrado');
+        }
+        const image = await this.storageService.getUsuarioPerfilImagen(campesino.id);
+        return {
+            campesino_id: campesino.id,
+            postgres_habilitado: this.storageService.isEnabled(),
+            imagen: image,
+        };
     }
     async deleteProfileImage(id) {
-        return { id, deleted: true };
+        const campesino = await this.findCampesinoRow(id);
+        if (!campesino) {
+            throw new common_1.NotFoundException('Campesino no encontrado');
+        }
+        const deleted = await this.storageService.deleteUsuarioPerfilImagen(campesino.id);
+        return {
+            campesino_id: campesino.id,
+            postgres_habilitado: this.storageService.isEnabled(),
+            eliminado: deleted,
+        };
     }
 };
 exports.CampesinosService = CampesinosService;

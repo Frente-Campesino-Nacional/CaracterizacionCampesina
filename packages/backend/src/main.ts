@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { BadRequestException, ValidationError, ValidationPipe, HttpException, HttpStatus } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { json, urlencoded } from 'express';
 import { AppModule } from './app.module';
 
 function flattenValidationErrors(errors: ValidationError[], parentPath = ''): string[] {
@@ -25,6 +26,10 @@ function flattenValidationErrors(errors: ValidationError[], parentPath = ''): st
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  app.use(json({ limit: '50mb' }));
+  app.use(urlencoded({ limit: '50mb', extended: true }));
+
 
   app.useGlobalFilters({
     catch(exception: unknown, host: any) {

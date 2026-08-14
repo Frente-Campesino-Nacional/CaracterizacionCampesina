@@ -1,10 +1,14 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useNavigation, useRoute, NavigatorScreenParams, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { SubmissionHistoryItem } from '../../types/formularios';
 import { getSubmissionHistoryByCampesino } from '../../services/encuestadorFormService';
 import { sharedScreenStyles } from '../../styles/sharedScreenStyles';
+import { DateFilterDropdown, EntityFilterDropdown, ExportMenu } from '../../components';
+import { DateFilterPeriod, filterItemsByDatePeriod } from '../../utils/dateFilterUtils';
+import { EntityFilterType, filterItemsByEntity } from '../../utils/entityFilterUtils';
+import { useAuthStore } from '../../store/authStore';
 
 type RouteParams = {
   campesinoId: string;
@@ -32,13 +36,49 @@ export default function SubmissionResultScreen() {
   const route = useRoute<SubmissionResultRouteProp>();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const params = route.params;
+  const { user } = useAuthStore();
   const [history, setHistory] = useState<SubmissionHistoryItem[]>([]);
+
+  // Date filter state (default 24h)
+  const [datePeriod, setDatePeriod] = useState<DateFilterPeriod>('24h');
+  const [customStart, setCustomStart] = useState('');
+  const [customEnd, setCustomEnd] = useState('');
+
+  // Entity filter state (default 'all')
+  const [selectedEntity, setSelectedEntity] = useState<EntityFilterType>('all');
 
   useEffect(() => {
     getSubmissionHistoryByCampesino(params.campesinoId)
       .then((items) => setHistory(items))
       .catch(() => setHistory([]));
   }, [params.campesinoId]);
+
+  const filteredHistory = useMemo(() => {
+    const rawMapped = history.map((item) => ({
+      ...item,
+      entidad: 'formulario',
+    }));
+    const byDate = filterItemsByDatePeriod(rawMapped, datePeriod, customStart, customEnd);
+    return filterItemsByEntity(byDate, selectedEntity);
+  }, [history, datePeriod, customStart, customEnd, selectedEntity]);
+
+  const exportItems = useMemo(() => {
+    return filteredHistory.map((item) => ({
+      id: item.id,
+      createdAt: item.createdAt,
+      formularioTitulo: item.formularioTitulo,
+      target_nombre: item.formularioTitulo || 'Formulario Censo',
+      status: item.status,
+      message: item.message,
+      line: `Formulario "${item.formularioTitulo}" (${item.status}) - ${item.message}`,
+      entidad: 'Formulario',
+      operacion: item.status,
+      actor_nombre: user?.nombre || 'Encuestador',
+      usuario_nombre: user?.nombre || 'Encuestador',
+      actor_rol: 'Encuestador',
+      tipo_usuario: 'Encuestador',
+    }));
+  }, [filteredHistory, user]);
 
   return (
     <ScrollView style={sharedScreenStyles.surfaceSoft} contentContainerStyle={sharedScreenStyles.contentMd}>
@@ -53,8 +93,30 @@ export default function SubmissionResultScreen() {
 
       <View style={sharedScreenStyles.card}>
         <Text style={styles.historyTitle}>Historial de envíos</Text>
-        {history.length ? (
-          history.map((item) => (
+
+        {/* Dropdown de Filtro por Fecha */}
+        <DateFilterDropdown
+          selectedPeriod={datePeriod}
+          onSelectPeriod={setDatePeriod}
+          customStartDate={customStart}
+          customEndDate={customEnd}
+          onChangeCustomDates={(start, end) => {
+            setCustomStart(start);
+            setCustomEnd(end);
+          }}
+        />
+
+        {/* Dropdown de Filtro por Tipo de Entidad */}
+        <EntityFilterDropdown
+          selectedEntity={selectedEntity}
+          onSelectEntity={setSelectedEntity}
+        />
+
+        {/* Menú de Exportación PDF / Excel */}
+        <ExportMenu items={exportItems} title="Historial Envíos Encuestador" />
+
+        {filteredHistory.length ? (
+          filteredHistory.map((item) => (
             <View key={item.id} style={styles.historyItem}>
               <Text style={styles.itemTitle}>{item.formularioTitulo}</Text>
               <Text style={styles.itemStatus}>Estado: {item.status}</Text>
@@ -63,7 +125,7 @@ export default function SubmissionResultScreen() {
             </View>
           ))
         ) : (
-          <Text style={styles.empty}>Sin historial aún.</Text>
+          <Text style={styles.empty}>Sin registros para los filtros seleccionados.</Text>
         )}
       </View>
 
@@ -103,5 +165,5 @@ const styles = StyleSheet.create({
   itemStatus: { color: '#334155' },
   itemMessage: { color: '#64748b' },
   itemDate: { color: '#94a3b8', fontSize: 12, marginTop: 2 },
-  empty: { color: '#64748b' },
+  empty: { color: '#64748b', textAlign: 'center', paddingVertical: 12 },
 });

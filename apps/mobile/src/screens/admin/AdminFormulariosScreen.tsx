@@ -30,7 +30,9 @@ import { FormQuestion, FormQuestionOption } from '../../types/formularios';
 import { useAuthStore } from '../../store/authStore';
 import { exportTableToPdf } from '../../utils/pdfExport';
 import { exportTableToExcelCsv } from '../../utils/excelExport';
+import { showErrorAlert, showSuccessAlert } from '../../utils/humanizerUtils';
 import { sharedFormStyles } from '../../styles/sharedFormStyles';
+
 
 const QUESTION_TYPE_OPTIONS = [
   { key: 'text', label: 'Texto' },
@@ -276,25 +278,25 @@ export default function AdminFormulariosScreen() {
     if (!token || !user) return;
 
     if (!form.titulo.trim()) {
-      Alert.alert('Validación', 'El título es obligatorio');
+      showErrorAlert('El título del formulario es obligatorio (*).', 'Campo requerido');
       return;
     }
 
     if (!form.preguntas.length) {
-      Alert.alert('Validación', 'Debes agregar al menos una pregunta');
+      showErrorAlert('Debes agregar al menos una pregunta al formulario.', 'Estructura requerida');
       return;
     }
 
     for (const question of form.preguntas) {
       if (!question.label.trim()) {
-        Alert.alert('Validación', 'Todas las preguntas deben tener texto');
+        showErrorAlert('Todas las preguntas deben contener un texto o enunciado.', 'Texto de pregunta requerido');
         return;
       }
 
       if (isSelectKind(question.kind)) {
         const validOptions = question.options.filter((option) => option.label.trim() || option.value.trim());
         if (!validOptions.length) {
-          Alert.alert('Validación', `La pregunta "${question.label}" necesita al menos una opción`);
+          showErrorAlert(`La pregunta "${question.label}" requiere al menos una opción de respuesta.`, 'Opciones requeridas');
           return;
         }
       }
@@ -318,18 +320,24 @@ export default function AdminFormulariosScreen() {
       setForm(createEmptyEditorState());
       setModal(false);
       await load();
+      showSuccessAlert(
+        editing?.id ? 'Formulario Actualizado' : 'Formulario Creado',
+        editing?.id
+          ? `El formulario "${form.titulo}" ha sido actualizado correctamente.`
+          : `El formulario "${form.titulo}" fue creado exitosamente.`
+      );
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'No se pudo guardar');
+      showErrorAlert(error, 'No se pudo guardar la estructura del formulario');
     }
   };
 
   const remove = (item: FormularioRecord) => {
     if (!token) return;
     if (!item?.id) {
-      Alert.alert('Error', 'El formulario no tiene ID válido para eliminar. Recarga la lista e intenta de nuevo.');
+      showErrorAlert('El formulario no tiene un ID válido para eliminar. Por favor recarga la lista.', 'ID no válido');
       return;
     }
-    Alert.alert('Eliminar', `¿Eliminar formulario ${item.titulo}?`, [
+    Alert.alert('Eliminar formulario', `¿Estás seguro de eliminar el formulario "${item.titulo}"?`, [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Eliminar',
@@ -338,13 +346,15 @@ export default function AdminFormulariosScreen() {
           try {
             await deleteFormulario(token, item.id);
             await load();
+            showSuccessAlert('Formulario Eliminado', `El formulario "${item.titulo}" fue eliminado exitosamente.`);
           } catch (error: any) {
-            Alert.alert('Error', error.message || 'No se pudo eliminar');
+            showErrorAlert(error, 'No se pudo eliminar el formulario');
           }
         },
       },
     ]);
   };
+
 
   const exportPdf = async () => {
     try {
@@ -598,82 +608,7 @@ export default function AdminFormulariosScreen() {
         }
       />
 
-      <Card style={styles.filtersCard}>
-        <View style={styles.filtersHeaderRow}>
-          <View>
-            <Text style={styles.filtersTitle}>Filtros</Text>
-            <Text style={styles.filtersSubtitle}>
-              Preguntas marcadas con "usar como filtro".
-            </Text>
-          </View>
-          <View style={styles.filterActionsRow}>
-            <TouchableOpacity
-              style={sharedFormStyles.smallButton}
-              onPress={exportFilterResultsPdf}
-              disabled={!selectedFilterQuestion || !filterResults.length}
-            >
-              <Text
-                style={[
-                  sharedFormStyles.smallButtonText,
-                  !selectedFilterQuestion || !filterResults.length ? styles.disabledButtonText : null,
-                ]}
-              >
-                PDF
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={sharedFormStyles.smallButton}
-              onPress={exportFilterResultsExcel}
-              disabled={!selectedFilterQuestion || !filterResults.length}
-            >
-              <Text
-                style={[
-                  sharedFormStyles.smallButtonText,
-                  !selectedFilterQuestion || !filterResults.length ? styles.disabledButtonText : null,
-                ]}
-              >
-                Excel
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
 
-        {filterQuestions.length ? (
-          <LookupSelectField
-            label="Pregunta de filtro"
-            value={selectedFilterKey}
-            options={filterQuestionOptions}
-            onChange={selectFilterQuestionByKey}
-            placeholder="Selecciona una pregunta"
-            searchPlaceholder="Buscar pregunta o formulario..."
-            allowClear
-            clearLabel="Quitar filtro"
-          />
-        ) : (
-          <Text style={styles.helperText}>No hay preguntas configuradas como filtro.</Text>
-        )}
-
-        {selectedFilterQuestion ? (
-          <View style={styles.filterResultsWrapper}>
-            <Text style={styles.filterResultTitle}>Campesinos encontrados: {filterResults.length}</Text>
-            {loadingFilterResults ? (
-              <Text style={styles.helperText}>Cargando resultados...</Text>
-            ) : filterResults.length ? (
-              filterResults.map((item) => (
-                <View key={`${item.campesino_id}-${item.pregunta_id}`} style={styles.filterResultRow}>
-                  <View style={styles.filterResultMain}>
-                    <Text style={styles.filterResultName}>{item.nombre} {item.apellido || ''}</Text>
-                    <Text style={styles.filterResultMeta}>CI: {item.cedula} · Consejo: {item.consejo_nombre || '-'}</Text>
-                  </View>
-                  <Text style={styles.filterResultValue}>{item.valor}</Text>
-                </View>
-              ))
-            ) : (
-              <Text style={styles.helperText}>Sin resultados para esta pregunta.</Text>
-            )}
-          </View>
-        ) : null}
-      </Card>
 
       <FlatList
         data={filtered}

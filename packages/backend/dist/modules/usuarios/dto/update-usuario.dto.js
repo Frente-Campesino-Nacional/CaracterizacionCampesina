@@ -18,13 +18,9 @@ exports.UpdateUsuarioDto = UpdateUsuarioDto;
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsEmail)(),
+    (0, class_validator_1.Matches)(/^[a-zA-Z0-9._%+-]+@gmail\.com$/i, { message: 'El correo electrónico debe pertenecer al dominio @gmail.com' }),
     __metadata("design:type", String)
 ], UpdateUsuarioDto.prototype, "email", void 0);
-__decorate([
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsString)(),
-    __metadata("design:type", String)
-], UpdateUsuarioDto.prototype, "nombre_usuario", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
@@ -50,6 +46,8 @@ __decorate([
 ], UpdateUsuarioDto.prototype, "rol", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.Matches)(/^\+?[0-9\s\-()]{7,15}$/, { message: 'El número telefónico debe contener entre 7 y 15 dígitos (ejemplo: 04141234567)' }),
     __metadata("design:type", String)
 ], UpdateUsuarioDto.prototype, "numero_telefono", void 0);
 __decorate([

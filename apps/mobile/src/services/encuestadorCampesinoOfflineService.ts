@@ -5,13 +5,22 @@ import {
   CampesinoRecord,
   createCampesino,
   listCampesinos,
+  saveCampesinoProfileImage,
 } from './adminService';
 import { reassignQueuedSubmissionsCampesinoId } from '../database/sync/formOfflineRepository';
+
+export type PhotoOptions = {
+  photoBase64?: string | undefined;
+  photoMimeType?: string | undefined;
+  photoFileName?: string | undefined;
+  photoSource?: string | null | undefined;
+};
 
 type QueuedCampesinoCreate = {
   queueId: string;
   tempId: string;
   payload: CampesinoPayload;
+  photoOptions?: PhotoOptions | undefined;
   createdAtIso: string;
 };
 
@@ -93,10 +102,12 @@ function upsertById(items: CampesinoRecord[], record: CampesinoRecord): Campesin
   return next;
 }
 
-function buildLocalCampesinoRecord(payload: CampesinoPayload, tempId: string): CampesinoRecord {
+function buildLocalCampesinoRecord(payload: CampesinoPayload, tempId: string, photoOptions?: PhotoOptions): CampesinoRecord {
+  const fotoUrl = photoOptions?.photoSource || (photoOptions?.photoBase64 ? `data:${photoOptions.photoMimeType || 'image/jpeg'};base64,${photoOptions.photoBase64}` : null);
+
   return {
     id: tempId,
-    cedula: payload.cedula || `LOCAL-${tempId}`,
+    cedula: payload.cedula || 'Guardado localmente esperando sincronización',
     nombre: payload.nombre,
     apellido: payload.apellido || null,
     telefono: payload.telefono || null,
@@ -111,11 +122,13 @@ function buildLocalCampesinoRecord(payload: CampesinoPayload, tempId: string): C
     creado_por: payload.creado_por ?? null,
     asignado_a: payload.asignado_a ?? null,
     tiene_pendientes: payload.tiene_pendientes ?? true,
+    foto_url: fotoUrl,
     metadata: { offline_local: true },
     creado_en: payload.creado_en || new Date().toISOString(),
     actualizado_en: new Date().toISOString(),
   };
 }
+
 
 function filterForUser(items: CampesinoRecord[], userId: string): CampesinoRecord[] {
   return items.filter((item) => item.asignado_a === userId || item.creado_por === userId);
@@ -145,9 +158,22 @@ export async function getCachedCampesinoById(campesinoId: string): Promise<Campe
 export async function createCampesinoWithOfflineFallback(
   token: string,
   payload: CampesinoPayload,
+  photoOptions?: PhotoOptions,
 ): Promise<{ record: CampesinoRecord; queuedOffline: boolean }> {
   try {
     const created = await createCampesino(token, payload);
+    if (photoOptions?.photoBase64) {
+      try {
+        await saveCampesinoProfileImage(token, created.id, {
+          content_type: photoOptions.photoMimeType || 'image/jpeg',
+          file_name: photoOptions.photoFileName || 'foto-perfil.jpg',
+          image_base64: photoOptions.photoBase64,
+        });
+        created.foto_url = photoOptions.photoSource || `data:${photoOptions.photoMimeType || 'image/jpeg'};base64,${photoOptions.photoBase64}`;
+      } catch {
+        // photo save non-fatal
+      }
+    }
     const cached = await readCachedCampesinos();
     await writeCachedCampesinos(upsertById(cached, created));
     return { record: created, queuedOffline: false };
@@ -157,11 +183,12 @@ export async function createCampesinoWithOfflineFallback(
     }
 
     const tempId = toTempLocalId();
-    const localRecord = buildLocalCampesinoRecord(payload, tempId);
+    const localRecord = buildLocalCampesinoRecord(payload, tempId, photoOptions);
     const queueItem: QueuedCampesinoCreate = {
       queueId: createOfflineId('campesino-create'),
       tempId,
       payload,
+      photoOptions,
       createdAtIso: new Date().toISOString(),
     };
 
@@ -185,6 +212,17 @@ export async function flushQueuedCampesinoCreates(token: string): Promise<number
   for (const entry of queued) {
     try {
       const created = await createCampesino(token, entry.payload);
+      if (entry.photoOptions?.photoBase64) {
+        try {
+          await saveCampesinoProfileImage(token, created.id, {
+            content_type: entry.photoOptions.photoMimeType || 'image/jpeg',
+            file_name: entry.photoOptions.photoFileName || 'foto-perfil.jpg',
+            image_base64: entry.photoOptions.photoBase64,
+          });
+        } catch {
+          // photo sync non-fatal
+        }
+      }
       cached = cached.filter((item) => item.id !== entry.tempId);
       cached = upsertById(cached, created);
       pending = pending.filter((item) => item.queueId !== entry.queueId);
@@ -202,4 +240,4 @@ export async function flushQueuedCampesinoCreates(token: string): Promise<number
 
   await Promise.all([writeCachedCampesinos(cached), writeQueuedCreates(pending)]);
   return synced;
-}
+}

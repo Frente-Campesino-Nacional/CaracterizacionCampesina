@@ -22,6 +22,7 @@ export declare class UsuariosController {
         consejo_id: any;
         consejo_nombre: any;
         activo: boolean;
+        foto_url: any;
         creado_en: any;
         actualizado_en: any;
     }[]>;
@@ -42,6 +43,7 @@ export declare class UsuariosController {
         consejo_id: any;
         consejo_nombre: any;
         activo: boolean;
+        foto_url: any;
         creado_en: any;
         actualizado_en: any;
     }>;

@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, FlatList, Image, Modal, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
+
 import DatePickerField from '../../components/DatePickerField';
 import SearchBar from '../../components/SearchBar';
 import { Card, OptionSelector, GENDER_OPTIONS, LookupSelectField, RoleSectionHeader, FormModalSheet, StatusPill } from '../../components';
@@ -10,6 +12,8 @@ import { Theme } from '../../theme/colors';
 import { CampesinoPayload, CampesinoProfileImageRecord, CampesinoRecord, ConsejoRecord, GeneroRecord, UsuarioRecord, createCampesino, deleteCampesino, deleteCampesinoProfileImage, getCampesinoProfileImage, listCampesinos, listConsejos, listGeneros, listUsuarios, saveCampesinoProfileImage, updateCampesino } from '../../services/adminService';
 import { useAuthStore } from '../../store/authStore';
 import { exportTableToPdf } from '../../utils/pdfExport';
+import { exportTableToExcelCsv } from '../../utils/excelExport';
+import { showErrorAlert, showSuccessAlert } from '../../utils/humanizerUtils';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { sharedFormStyles } from '../../styles/sharedFormStyles';
@@ -254,9 +258,27 @@ export default function AdminCampesinosScreen() {
   const save = async () => {
     if (!token) return;
     if (!form.nombre) {
-      Alert.alert('Validación', 'El nombre es obligatorio');
+      showErrorAlert('El nombre del campesino es un campo obligatorio (*).', 'Campo requerido');
       return;
     }
+
+    const correoTrimmed = form.correo ? form.correo.trim().toLowerCase() : undefined;
+    if (correoTrimmed) {
+      if (!/^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(correoTrimmed)) {
+        showErrorAlert('El correo electrónico debe pertenecer al dominio @gmail.com (ejemplo: usuario@gmail.com).', 'Correo inválido');
+        return;
+      }
+    }
+
+    const telefonoTrimmed = form.telefono ? form.telefono.trim() : undefined;
+    if (telefonoTrimmed) {
+      const cleanPhone = telefonoTrimmed.replace(/[\s\-()+]/g, '');
+      if (cleanPhone.length < 7 || cleanPhone.length > 15 || !/^\+?\d+$/.test(telefonoTrimmed.replace(/[\s\-()]/g, ''))) {
+        showErrorAlert('El número telefónico no es válido. Debe contener entre 7 y 15 dígitos (ejemplo: 04141234567).', 'Teléfono inválido');
+        return;
+      }
+    }
+
 
     const cedulaValue = buildCedulaValue(form.cedulaMode, form.cedula);
 
@@ -264,7 +286,8 @@ export default function AdminCampesinosScreen() {
       nombre: form.nombre.trim(),
       apellido: toOptionalString(form.apellido),
       telefono: toOptionalString(form.telefono),
-      correo: toOptionalString(form.correo),
+      correo: correoTrimmed,
+
       fecha_nacimiento: toOptionalIsoDate(form.fecha_nacimiento),
       estado_id: toOptionalNumber(form.estado_id),
       genero: toOptionalString(form.genero),
@@ -282,62 +305,98 @@ export default function AdminCampesinosScreen() {
     }
 
     try {
+      let targetId: string;
       if (editing) {
         await updateCampesino(token, editing.id, payload);
+        targetId = editing.id;
       } else {
         const created = await createCampesino(token, payload);
-        if (photoState === 'new' && photoBase64 && photoMimeType) {
-          await saveCampesinoProfileImage(token, created.id, {
-            content_type: photoMimeType,
-            file_name: photoFileName || undefined,
-            image_base64: photoBase64,
-          });
-        }
-        if (photoState === 'delete') {
-          await deleteCampesinoProfileImage(token, created.id);
-        }
+        targetId = created.id;
       }
-      if (editing && photoState === 'new' && photoBase64 && photoMimeType) {
-        await saveCampesinoProfileImage(token, editing.id, {
-          content_type: photoMimeType,
-          file_name: photoFileName || undefined,
+
+      if (photoState === 'new' && photoBase64) {
+        await saveCampesinoProfileImage(token, targetId, {
+          content_type: photoMimeType || 'image/jpeg',
+          file_name: photoFileName || 'foto-perfil.jpg',
           image_base64: photoBase64,
         });
+      } else if (photoState === 'delete') {
+        await deleteCampesinoProfileImage(token, targetId);
       }
-      if (editing && photoState === 'delete') {
-        await deleteCampesinoProfileImage(token, editing.id);
-      }
+
       setModal(false);
       await load();
+      showSuccessAlert(
+        editing ? 'Campesino Actualizado' : 'Campesino Registrado',
+        editing
+          ? `Los datos de ${form.nombre} ${form.apellido || ''} se actualizaron correctamente.`
+          : `El campesino ${form.nombre} ${form.apellido || ''} ha sido registrado exitosamente.`
+      );
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'No se pudo guardar');
+      showErrorAlert(error, 'No se pudo guardar la información del campesino');
     }
   };
 
-  const pickPhoto = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      quality: 0.7,
-      base64: true,
-    });
-
-    if (result.canceled || !result.assets.length) {
-      return;
-    }
-
-    const asset = result.assets[0];
-    if (!asset) {
-      return;
+  const processImageAsset = async (asset: ImagePicker.ImagePickerAsset) => {
+    let base64Data = asset.base64 || '';
+    if (!base64Data && asset.uri) {
+      try {
+        base64Data = await FileSystem.readAsStringAsync(asset.uri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+      } catch {
+        // fallback
+      }
     }
     setPhotoSource(asset.uri);
-    setPhotoBase64(asset.base64 || '');
+    setPhotoBase64(base64Data);
     setPhotoMimeType(asset.mimeType || 'image/jpeg');
     setPhotoFileName(asset.fileName || 'foto-perfil.jpg');
     setPhotoState('new');
   };
 
-  const clearPhoto = async () => {
+  const pickPhoto = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      showErrorAlert('Se requieren permisos de galería para seleccionar fotos.', 'Permiso denegado');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.3,
+      base64: false,
+    });
+
+    if (result.canceled || !result.assets.length) return;
+    const asset = result.assets[0];
+    if (asset) await processImageAsset(asset);
+  };
+
+  const takePhoto = async () => {
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      showErrorAlert('Se requieren permisos de cámara para tomar fotos con el dispositivo.', 'Permiso denegado');
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.3,
+      base64: false,
+    });
+
+    if (result.canceled || !result.assets.length) return;
+    const asset = result.assets[0];
+    if (asset) await processImageAsset(asset);
+  };
+
+
+  const clearPhoto = () => {
     setPhotoSource(null);
     setPhotoBase64('');
     setPhotoMimeType('');
@@ -345,9 +404,11 @@ export default function AdminCampesinosScreen() {
     setPhotoState(editing ? 'delete' : 'keep');
   };
 
+
+
   const remove = (item: CampesinoRecord) => {
     if (!token) return;
-    Alert.alert('Eliminar', `¿Eliminar campesino ${item.nombre}?`, [
+    Alert.alert('Eliminar campesino', `¿Estás seguro de eliminar al campesino ${item.nombre} ${item.apellido || ''}?`, [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Eliminar',
@@ -356,8 +417,9 @@ export default function AdminCampesinosScreen() {
           try {
             await deleteCampesino(token, item.id);
             await load();
+            showSuccessAlert('Campesino Eliminado', `El campesino ${item.nombre} ${item.apellido || ''} fue eliminado con éxito.`);
           } catch (error: any) {
-            Alert.alert('Error', error.message || 'No se pudo eliminar');
+            showErrorAlert(error, 'No se pudo eliminar el registro del campesino');
           }
         },
       },
@@ -471,8 +533,13 @@ export default function AdminCampesinosScreen() {
             <Card variant="elevated" padding="sm" style={styles.itemCard}>
             <View style={styles.itemHeader}>
               <View style={styles.avatarContainer}>
-                <MaterialCommunityIcons name="account-group" size={36} color={Theme.colors.greenMedium} />
+                {item.foto_url ? (
+                  <Image source={{ uri: item.foto_url }} style={styles.listAvatarImage} />
+                ) : (
+                  <MaterialCommunityIcons name="account-group" size={36} color={Theme.colors.greenMedium} />
+                )}
               </View>
+
               <View style={styles.itemTitleGroup}>
                 <Text style={styles.itemTitle}>{item.nombre} {item.apellido || ''}</Text>
                 <Text style={styles.itemSubtitle}>Cédula {item.cedula}</Text>
@@ -579,21 +646,29 @@ export default function AdminCampesinosScreen() {
                     )}
                   </View>
                   <View style={styles.photoPreviewActions}>
-                    <TouchableOpacity style={styles.photoActionButton} onPress={pickPhoto}>
-                      <Text style={styles.photoActionButtonText}>Elegir foto</Text>
+                    <TouchableOpacity style={styles.photoActionButton} onPress={takePhoto}>
+                      <Text style={styles.photoActionButtonText}>📷 Tomar foto</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={[styles.photoActionButton, styles.photoActionButtonSecondary]} onPress={clearPhoto}>
-                      <Text style={styles.photoActionButtonText}>Quitar foto</Text>
+                    <TouchableOpacity style={[styles.photoActionButton, styles.photoActionButtonSecondary]} onPress={pickPhoto}>
+                      <Text style={[styles.photoActionButtonText, { color: Theme.colors.greenDark }]}>🖼️ Galería</Text>
                     </TouchableOpacity>
+                    {photoSource ? (
+                      <TouchableOpacity style={[styles.photoActionButton, styles.photoActionButtonSecondary]} onPress={clearPhoto}>
+                        <Text style={[styles.photoActionButtonText, { color: Theme.colors.error }]}>Quitar</Text>
+                      </TouchableOpacity>
+                    ) : null}
+
                   </View>
+
                 </View>
               </View>
               <View style={styles.readOnlyInfoBox}>
                 <Text style={styles.readOnlyLabel}>Creado por</Text>
                 <Text style={styles.readOnlyValue}>
                   {editing
-                    ? (form.creado_por ? userNameById.get(form.creado_por) || form.creado_por : 'N/A')
-                    : `${user?.nombre || 'Usuario'} (${user?.id ?? 'N/A'})`}
+                    ? (form.creado_por ? (userNameById.get(form.creado_por) || (/^[0-9a-f-]{36}$/i.test(form.creado_por) ? 'N/A' : form.creado_por)) : 'N/A')
+                    : ([user?.nombre, user?.apellido].filter(Boolean).join(' ') || 'Usuario')}
+
                 </Text>
               </View>
               <View style={sharedFormStyles.switchRow}>
@@ -672,7 +747,9 @@ const styles = StyleSheet.create({
   textAreaLarge: { minHeight: 130, textAlignVertical: 'top' },
   itemCard: { marginBottom: 8 },
   avatarContainer: { marginRight: 12 },
+  listAvatarImage: { width: 36, height: 36, borderRadius: 18 },
   itemHeader: { flexDirection: 'row', alignItems: 'center' },
+
   itemTitleGroup: { flex: 1 },
   itemTitle: { color: '#0f172a', fontSize: 16, fontWeight: '800' },
   itemSubtitle: { color: '#475569', marginTop: 2 },

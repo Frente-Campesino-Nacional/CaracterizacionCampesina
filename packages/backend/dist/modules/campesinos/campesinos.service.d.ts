@@ -41,6 +41,7 @@ export declare class CampesinosService {
         asignado_a: any;
         tiene_pendientes: boolean;
         metadata: any;
+        foto_url: any;
         creado_en: any;
         actualizado_en: any;
     }[]>;
@@ -66,9 +67,11 @@ export declare class CampesinosService {
         asignado_a: any;
         tiene_pendientes: boolean;
         metadata: any;
+        foto_url: any;
         creado_en: any;
         actualizado_en: any;
     }>;
+    private validatePhoneInput;
     create(createCampesinDto: CreateCampesinDto, requesterId?: string): Promise<{
         id: any;
         cedula: string;
@@ -88,6 +91,7 @@ export declare class CampesinosService {
         asignado_a: any;
         tiene_pendientes: boolean;
         metadata: any;
+        foto_url: any;
         creado_en: any;
         actualizado_en: any;
     }>;
@@ -110,6 +114,7 @@ export declare class CampesinosService {
         asignado_a: any;
         tiene_pendientes: boolean;
         metadata: any;
+        foto_url: any;
         creado_en: any;
         actualizado_en: any;
     }>;
@@ -117,16 +122,19 @@ export declare class CampesinosService {
         deleted: boolean;
     }>;
     saveProfileImage(id: string | number, dto: SaveCampesinoProfileImageDto): Promise<{
-        id: string | number;
-        saved: boolean;
-        payload: SaveCampesinoProfileImageDto;
+        campesino_id: any;
+        postgres_habilitado: boolean;
+        guardado_en_postgres: boolean;
+        registro_id: string;
     }>;
     getProfileImage(id: string | number): Promise<{
-        id: string | number;
-        image: any;
+        campesino_id: any;
+        postgres_habilitado: boolean;
+        imagen: Record<string, unknown>;
     }>;
     deleteProfileImage(id: string | number): Promise<{
-        id: string | number;
-        deleted: boolean;
+        campesino_id: any;
+        postgres_habilitado: boolean;
+        eliminado: boolean;
     }>;
 }

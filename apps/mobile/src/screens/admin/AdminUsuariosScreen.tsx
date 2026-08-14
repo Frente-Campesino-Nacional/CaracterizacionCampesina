@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, FlatList, Image, Modal, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
+
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import DatePickerField from '../../components/DatePickerField';
@@ -12,13 +14,15 @@ import StateMunicipioPicker from '../../components/StateMunicipioPicker';
 import { ConsejoRecord, GeneroRecord, RoleRecord, UserRole, UsuarioPayload, UsuarioRecord, createUsuario, deleteUsuario, deleteUsuarioProfileImage, getUsuarioProfileImage, listConsejos, listGeneros, listRoles, listUsuarios, saveUsuarioProfileImage, updateUsuario } from '../../services/adminService';
 import { useAuthStore } from '../../store/authStore';
 import { exportTableToPdf } from '../../utils/pdfExport';
+import { exportTableToExcelCsv } from '../../utils/excelExport';
+import { showErrorAlert, showSuccessAlert } from '../../utils/humanizerUtils';
 import { sharedFormStyles } from '../../styles/sharedFormStyles';
 
 const roleFallbacks: Array<'admin' | 'encuestador'> = ['admin', 'encuestador'];
 
 type UserFormState = {
-  cedulaMode: 'manual' | 'foreign' | 'venezolano' | 'none';
-  nombre_usuario: string;
+  cedulaMode: 'foreign' | 'venezolano' | 'none';
+
   email: string;
   password: string;
   rol: UserRole;
@@ -37,13 +41,11 @@ type UserFormState = {
   direccion: string;
   consejo_id: string;
   activo: boolean;
-  creado_en: string;
 };
 
 function defaultUserForm(): UserFormState {
   return {
     cedulaMode: 'none',
-    nombre_usuario: '',
     email: '',
     password: '',
     rol: 'encuestador',
@@ -62,9 +64,10 @@ function defaultUserForm(): UserFormState {
     direccion: '',
     consejo_id: '',
     activo: true,
-    creado_en: '',
   };
 }
+
+
 
 function toOptionalString(value: string): string | undefined {
   const trimmed = value.trim();
@@ -171,9 +174,9 @@ export default function AdminUsuariosScreen() {
   const openEdit = (item: UsuarioRecord) => {
     setEditing(item);
     setForm({
-      cedulaMode: item.cedula ? (/^V-/.test(item.cedula) ? 'venezolano' : /^E-/.test(item.cedula) ? 'foreign' : 'manual') : 'none',
+      cedulaMode: item.cedula ? (/^V-/.test(item.cedula) ? 'venezolano' : /^E-/.test(item.cedula) ? 'foreign' : 'none') : 'none',
+
       cedula: item.cedula || '',
-      nombre_usuario: item.email || '',
       email: item.email,
       password: '',
       rol: item.rol,
@@ -191,7 +194,6 @@ export default function AdminUsuariosScreen() {
       direccion: item.direccion || '',
       consejo_id: item.consejo_id || '',
       activo: item.activo,
-      creado_en: item.creado_en ? String(item.creado_en) : '',
     });
     void loadPhoto(item.id);
     setModal(true);
@@ -199,14 +201,29 @@ export default function AdminUsuariosScreen() {
 
   const save = async () => {
     if (!token) return;
-      if (!form.nombre_usuario || !form.email || !form.nombre || !form.apellido || (!editing && !form.password)) {
-      Alert.alert('Validación', 'Completa los campos requeridos');
+    if (!form.email || !form.nombre || !form.apellido || (!editing && !form.password)) {
+      showErrorAlert('Por favor completa todos los campos requeridos (*).', 'Campos obligatorios');
       return;
     }
 
+    const emailTrimmed = form.email.trim().toLowerCase();
+    if (!/^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(emailTrimmed)) {
+      showErrorAlert('El correo electrónico debe pertenecer al dominio @gmail.com (ejemplo: usuario@gmail.com).', 'Correo inválido');
+      return;
+    }
+
+    const telefonoTrimmed = form.numero_telefono ? form.numero_telefono.trim() : undefined;
+    if (telefonoTrimmed) {
+      const cleanPhone = telefonoTrimmed.replace(/[\s\-()+]/g, '');
+      if (cleanPhone.length < 7 || cleanPhone.length > 15 || !/^\+?\d+$/.test(telefonoTrimmed.replace(/[\s\-()]/g, ''))) {
+        showErrorAlert('El número telefónico no es válido. Debe contener entre 7 y 15 dígitos (ejemplo: 04141234567).', 'Teléfono inválido');
+        return;
+      }
+    }
+
+
     const payload: UsuarioPayload = {
-      nombre_usuario: form.nombre_usuario.trim(),
-      email: form.email.trim(),
+      email: emailTrimmed,
       password: toOptionalString(form.password),
       cedula: buildCedulaValue(form.cedulaMode, form.cedula),
       nombre: form.nombre.trim(),
@@ -221,45 +238,46 @@ export default function AdminUsuariosScreen() {
       direccion: toOptionalString(form.direccion),
       consejo_id: toOptionalString(form.consejo_id),
       activo: form.activo,
-      creado_en: toOptionalString(form.creado_en),
     };
 
+
     try {
+      let targetId: string;
       if (editing) {
         await updateUsuario(token, editing.id, payload);
+        targetId = editing.id;
       } else {
         const created = await createUsuario(token, payload);
-        if (photoState === 'new' && photoBase64 && photoMimeType) {
-          await saveUsuarioProfileImage(token, created.id, {
-            content_type: photoMimeType,
-            file_name: photoFileName || undefined,
-            image_base64: photoBase64,
-          });
-        }
-        if (photoState === 'delete') {
-          await deleteUsuarioProfileImage(token, created.id);
-        }
+        targetId = created.id;
       }
-      if (editing && photoState === 'new' && photoBase64 && photoMimeType) {
-        await saveUsuarioProfileImage(token, editing.id, {
-          content_type: photoMimeType,
-          file_name: photoFileName || undefined,
+
+      if (photoState === 'new' && photoBase64) {
+        await saveUsuarioProfileImage(token, targetId, {
+          content_type: photoMimeType || 'image/jpeg',
+          file_name: photoFileName || 'foto-perfil.jpg',
           image_base64: photoBase64,
         });
+      } else if (photoState === 'delete') {
+        await deleteUsuarioProfileImage(token, targetId);
       }
-      if (editing && photoState === 'delete') {
-        await deleteUsuarioProfileImage(token, editing.id);
-      }
+
       setModal(false);
       await load();
+      showSuccessAlert(
+        editing ? 'Usuario Actualizado' : 'Usuario Registrado',
+        editing
+          ? `Los datos de ${form.nombre} ${form.apellido} han sido actualizados correctamente.`
+          : `El usuario ${form.nombre} ${form.apellido} ha sido registrado exitosamente.`
+      );
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'No se pudo guardar');
+      showErrorAlert(error, 'No se pudo guardar la información del usuario');
     }
+
   };
 
   const remove = (item: UsuarioRecord) => {
     if (!token) return;
-    Alert.alert('Eliminar', `¿Eliminar a ${item.nombre} ${item.apellido}?`, [
+    Alert.alert('Eliminar usuario', `¿Estás seguro de eliminar a ${item.nombre} ${item.apellido}?`, [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Eliminar',
@@ -268,13 +286,15 @@ export default function AdminUsuariosScreen() {
           try {
             await deleteUsuario(token, item.id);
             await load();
+            showSuccessAlert('Usuario Eliminado', `El usuario ${item.nombre} ${item.apellido} ha sido eliminado del sistema.`);
           } catch (error: any) {
-            Alert.alert('Error', error.message || 'No se pudo eliminar');
+            showErrorAlert(error, 'No se pudo eliminar el usuario');
           }
         },
       },
     ]);
   };
+
 
   const exportPdf = async () => {
     try {
@@ -352,28 +372,64 @@ export default function AdminUsuariosScreen() {
     }
   };
 
-  const pickPhoto = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      quality: 0.7,
-      base64: true,
-    });
-
-    if (result.canceled || !result.assets.length) {
-      return;
-    }
-
-    const asset = result.assets[0];
-    if (!asset) {
-      return;
+  const processImageAsset = async (asset: ImagePicker.ImagePickerAsset) => {
+    let base64Data = asset.base64 || '';
+    if (!base64Data && asset.uri) {
+      try {
+        base64Data = await FileSystem.readAsStringAsync(asset.uri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+      } catch {
+        // fallback
+      }
     }
     setPhotoSource(asset.uri);
-    setPhotoBase64(asset.base64 || '');
+    setPhotoBase64(base64Data);
     setPhotoMimeType(asset.mimeType || 'image/jpeg');
     setPhotoFileName(asset.fileName || 'foto-perfil.jpg');
     setPhotoState('new');
   };
+
+  const pickPhoto = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      showErrorAlert('Se requieren permisos de galería para seleccionar fotos.', 'Permiso denegado');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.3,
+      base64: false,
+    });
+
+    if (result.canceled || !result.assets.length) return;
+    const asset = result.assets[0];
+    if (asset) await processImageAsset(asset);
+  };
+
+  const takePhoto = async () => {
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      showErrorAlert('Se requieren permisos de cámara para tomar fotos con el dispositivo.', 'Permiso denegado');
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.3,
+      base64: false,
+    });
+
+    if (result.canceled || !result.assets.length) return;
+    const asset = result.assets[0];
+    if (asset) await processImageAsset(asset);
+  };
+
 
   const clearPhoto = () => {
     setPhotoSource(null);
@@ -382,6 +438,7 @@ export default function AdminUsuariosScreen() {
     setPhotoFileName('');
     setPhotoState(editing ? 'delete' : 'keep');
   };
+
 
   return (
     <View style={sharedFormStyles.pageContainer}>
@@ -422,8 +479,13 @@ export default function AdminUsuariosScreen() {
           <Card variant="elevated" padding="sm" style={styles.itemCard}>
             <View style={styles.itemHeader}>
               <View style={styles.avatarContainer}>
-                <MaterialCommunityIcons name="account-circle" size={40} color="#2563eb" />
+                {item.foto_url ? (
+                  <Image source={{ uri: item.foto_url }} style={styles.listAvatarImage} />
+                ) : (
+                  <MaterialCommunityIcons name="account-circle" size={40} color="#2563eb" />
+                )}
               </View>
+
               <View style={styles.itemTitleGroup}>
                 <Text style={styles.itemTitle}>{item.nombre} {item.apellido}</Text>
                 <Text style={styles.itemSubtitle}>{item.email}</Text>
@@ -455,8 +517,8 @@ export default function AdminUsuariosScreen() {
         onClose={() => setModal(false)}
         onSave={save}
       >
-              <TextInput value={form.nombre_usuario} onChangeText={(value) => setForm((s) => ({ ...s, nombre_usuario: value }))} style={sharedFormStyles.input} placeholder="Nombre de usuario *" autoCapitalize="none" />
               <TextInput value={form.email} onChangeText={(value) => setForm((s) => ({ ...s, email: value }))} style={sharedFormStyles.input} placeholder="Email *" autoCapitalize="none" />
+
               <View style={styles.filterRow}>
                 {([
                   { key: 'none', label: 'No posee cédula' },
@@ -535,17 +597,24 @@ export default function AdminUsuariosScreen() {
                     )}
                   </View>
                   <View style={styles.photoPreviewActions}>
-                    <TouchableOpacity style={styles.photoActionButton} onPress={pickPhoto}>
-                      <Text style={styles.photoActionButtonText}>Elegir foto</Text>
+                    <TouchableOpacity style={styles.photoActionButton} onPress={takePhoto}>
+                      <Text style={styles.photoActionButtonText}>📷 Tomar foto</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={[styles.photoActionButton, styles.photoActionButtonSecondary]} onPress={clearPhoto}>
-                      <Text style={styles.photoActionButtonText}>Quitar foto</Text>
+                    <TouchableOpacity style={[styles.photoActionButton, styles.photoActionButtonSecondary]} onPress={pickPhoto}>
+                      <Text style={[styles.photoActionButtonText, { color: Theme.colors.greenDark }]}>🖼️ Galería</Text>
                     </TouchableOpacity>
+                    {photoSource ? (
+                      <TouchableOpacity style={[styles.photoActionButton, styles.photoActionButtonSecondary]} onPress={clearPhoto}>
+                        <Text style={[styles.photoActionButtonText, { color: Theme.colors.error }]}>Quitar</Text>
+                      </TouchableOpacity>
+                    ) : null}
+
                   </View>
+
                 </View>
               </View>
-              <TextInput value={form.creado_en} onChangeText={(value) => setForm((s) => ({ ...s, creado_en: value }))} style={sharedFormStyles.input} placeholder="Creado en (ISO opcional)" autoCapitalize="none" />
               <View style={sharedFormStyles.switchRow}>
+
                 <Text>Activo</Text>
                 <Switch value={form.activo} onValueChange={(value) => setForm((s) => ({ ...s, activo: value }))} />
               </View>
@@ -584,7 +653,9 @@ const styles = StyleSheet.create({
   photoActionButtonText: { color: Theme.colors.white, fontWeight: '700' },
   itemCard: { marginBottom: 8 },
   avatarContainer: { marginRight: 12 },
+  listAvatarImage: { width: 40, height: 40, borderRadius: 20 },
   itemHeader: { flexDirection: 'row', alignItems: 'center' },
+
   itemTitleGroup: { flex: 1 },
   itemTitle: { color: '#0f172a', fontSize: 16, fontWeight: '800' },
   itemSubtitle: { color: '#475569', marginTop: 2 },
