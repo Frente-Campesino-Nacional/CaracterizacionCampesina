@@ -3,7 +3,7 @@ import { getApiBaseUrl } from '../config/api';
 
 import { useAuthStore } from '../store/authStore';
 
-const API_BASE_URL = getApiBaseUrl();
+export const API_BASE_URL = 'https://censo-campesino-api.onrender.com'
 
 function createApiClient(token: string) {
   const instance = axios.create({
