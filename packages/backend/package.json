@@ -4,7 +4,7 @@
   "description": "CensoCampesino Backend - NestJS API",
   "private": true,
   "scripts": {
-    "build": "node ../../scripts/fix-anymatch-read.cjs && node ../../node_modules/@nestjs/cli/bin/nest.js build",
+    "build": "npx prisma generate && node ../../scripts/fix-anymatch-read.cjs && node ../../node_modules/@nestjs/cli/bin/nest.js build",
     "start": "node ../../scripts/fix-anymatch-read.cjs && node ../../node_modules/@nestjs/cli/bin/nest.js start",
     "start:dev": "node ../../scripts/fix-anymatch-read.cjs && node --watch -r ts-node/register -r tsconfig-paths/register src/main.ts",
     "start:debug": "node ../../scripts/fix-anymatch-read.cjs && node --watch --inspect=0.0.0.0:9229 -r ts-node/register -r tsconfig-paths/register src/main.ts",

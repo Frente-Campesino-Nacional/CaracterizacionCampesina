@@ -235,7 +235,7 @@ export class FormulariosService {
       selectedQuestion.label ?? selectedQuestion.etiqueta ?? selectedQuestion.titulo ?? preguntaId,
     ).trim();
 
-    const responseRows = await this.prisma.$queryRaw<Array<{ respuestas: Prisma.JsonValue; created_at: Date | null }>>(Prisma.sql`
+   const responseRows = await this.prisma.$queryRaw<Array<{ respuestas: any; created_at: Date | null }>>(Prisma.sql`
       SELECT respuestas, created_at
       FROM respuestas.respuesta_form
       WHERE id_formulario = CAST(${String(formulario.id)} AS uuid)

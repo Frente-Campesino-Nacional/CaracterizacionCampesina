@@ -5,9 +5,10 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-  schemas  = ["_prisma", "auditoria", "catalogos", "operacional", "registros", "respuestas", "seguridad"]
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+  schemas   = ["_prisma", "auditoria", "catalogos", "operacional", "registros", "respuestas", "seguridad"]
 }
 
 model Rol {
@@ -15,7 +16,6 @@ model Rol {
   tipo_rol String    @map("tip_rol")
   des_rol  String
   usuarios Usuario[]
-
   @@map("roles")
   @@schema("seguridad")
 }
