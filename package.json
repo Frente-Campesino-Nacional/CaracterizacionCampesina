@@ -2,6 +2,7 @@
   "name": "censo-campesino",
   "version": "1.0.0",
   "private": true,
+  "main": "./index.js",
   "workspaces": [
     "packages/*",
     "apps/*"
