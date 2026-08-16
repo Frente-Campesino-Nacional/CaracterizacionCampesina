@@ -10,7 +10,8 @@
       "web"
     ],
     "android": {
-      "package": "com.censocampesino"
+      "package": "com.censocampesino",
+      "versionCode": 1
     }
   }
 }
