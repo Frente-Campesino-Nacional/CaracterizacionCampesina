@@ -3,12 +3,11 @@ import { getApiBaseUrl } from '../config/api';
 
 import { useAuthStore } from '../store/authStore';
 
-export const API_BASE_URL = 'https://censo-campesino-api.onrender.com'
-
+export const API_BASE_URL = getApiBaseUrl();
 function createApiClient(token: string) {
   const instance = axios.create({
-    baseURL: API_BASE_URL,
-    timeout: 10000,
+    baseURL: getApiBaseUrl(),
+    timeout: 30000,
   });
 
   instance.interceptors.request.use((config) => {
