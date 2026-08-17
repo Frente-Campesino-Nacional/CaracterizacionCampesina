@@ -81,27 +81,58 @@ export default function AdminAuditoriaScreen() {
   const rawLogs = useMemo(() => {
     const text = search.toLowerCase();
 
-    return syncItems
-      .map((item) => {
+    let list: Array<{
+      id: string;
+      line: string;
+      creado_en: string;
+      entidad: string;
+      operacion?: string;
+      target_nombre: string;
+      actor_nombre: string;
+      actor_rol: string;
+      tipo_usuario: string;
+    }> = [];
+
+    if (syncItems && syncItems.length > 0) {
+      list = syncItems.map((item) => {
         const line = String((item as any).mensaje || '').trim() || `${item.entidad || 'Registro'} fue ${item.operacion || 'actualizado'}`;
         const target_nombre = (item as any).target_nombre || (item.datos as any)?.nombre || (item.datos as any)?.nombre_completo || 'N/A';
         const actor_nombre = (item as any).actor_nombre || (item.datos as any)?.usuario_nombre || 'Administrador';
         const actor_rol = (item as any).actor_rol || 'Administrador';
+        const dateVal = item.creado_en || (item as any).created_at || (item as any).fecha || (item as any).actualizado_en || new Date().toISOString();
 
         return {
-          id: item.id,
+          id: String(item.id),
           line,
-          creado_en: item.creado_en,
+          creado_en: String(dateVal),
           entidad: item.entidad || 'Sistema',
-          operacion: item.operacion,
+          operacion: item.operacion || 'Registro',
           target_nombre,
           actor_nombre,
           actor_rol,
           tipo_usuario: actor_rol,
         };
-      })
-      .filter((item) => item.line.toLowerCase().includes(text));
-  }, [search, syncItems]);
+      });
+    } else if (campesinos && campesinos.length > 0) {
+      // Fallback: Generar logs a partir de los registros de campesinos
+      list = campesinos.map((c) => {
+        const dateVal = c.actualizado_en || c.creado_en || new Date().toISOString();
+        return {
+          id: `audit-${c.id}`,
+          line: `Campesino ${c.nombre} ${c.apellido || ''} fue registrado/actualizado`,
+          creado_en: String(dateVal),
+          entidad: 'Campesino',
+          operacion: 'Actualización',
+          target_nombre: `${c.nombre} ${c.apellido || ''}`.trim(),
+          actor_nombre: 'Sistema',
+          actor_rol: 'Administrador',
+          tipo_usuario: 'Administrador',
+        };
+      });
+    }
+
+    return list.filter((item) => item.line.toLowerCase().includes(text));
+  }, [search, syncItems, campesinos]);
 
   const filteredLogs = useMemo(() => {
     const byDate = filterItemsByDatePeriod(rawLogs, datePeriod, customStart, customEnd);

@@ -249,11 +249,13 @@ export default function AdminUsuariosScreen() {
     try {
       let targetId: string;
       if (editing) {
-        await updateUsuario(token, editing.id, payload);
+        const updated = await updateUsuario(token, editing.id, payload);
         targetId = editing.id;
+        setItems((prev) => prev.map((item) => (item.id === targetId ? ({ ...item, ...updated } as UsuarioRecord) : item)));
       } else {
         const created = await createUsuario(token, payload);
         targetId = created.id;
+        setItems((prev) => [created, ...prev]);
       }
 
       if (photoState === 'new' && photoBase64) {
@@ -267,7 +269,7 @@ export default function AdminUsuariosScreen() {
       }
 
       setModal(false);
-      await load();
+      void load();
       showSuccessAlert(
         editing ? 'Usuario Actualizado' : 'Usuario Registrado',
         editing

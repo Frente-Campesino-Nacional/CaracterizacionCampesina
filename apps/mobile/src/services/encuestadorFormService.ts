@@ -160,8 +160,8 @@ export function getPreguntasFromStructure(estructura: Record<string, unknown> | 
       const rawId = item.id ?? item.key ?? item.name ?? `pregunta_${index + 1}`;
       const rawLabel = item.label ?? item.etiqueta ?? item.titulo ?? `Pregunta ${index + 1}`;
       const rawType = item.type ?? item.tipo ?? 'text';
-      const rawRequired = item.required ?? item.requerida ?? false;
-      const rawUseAsFilter = item.use_as_filter ?? item.usar_como_filtro ?? item.useAsFilter ?? false;
+      const rawRequired = item.required ?? item.requerida ?? item.obligatoria ?? item.es_obligatoria ?? item.is_required ?? false;
+      const rawUseAsFilter = item.use_as_filter ?? item.usar_como_filtro ?? item.useAsFilter ?? item.es_filtro ?? item.filtro ?? item.pregunta_filtro ?? false;
       const rawSelectionMode = item.selectionMode ?? item.modoSeleccion ?? item.tipoSeleccion ?? item.multiple;
 
       const normalizedType = String(rawType).toLowerCase();

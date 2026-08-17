@@ -313,11 +313,13 @@ export default function AdminCampesinosScreen() {
     try {
       let targetId: string;
       if (editing) {
-        await updateCampesino(token, editing.id, payload);
+        const updated = await updateCampesino(token, editing.id, payload);
         targetId = editing.id;
+        setItems((prev) => prev.map((item) => (item.id === targetId ? ({ ...item, ...updated } as CampesinoRecord) : item)));
       } else {
         const created = await createCampesino(token, payload);
         targetId = created.id;
+        setItems((prev) => [created, ...prev]);
       }
 
       if (photoState === 'new' && photoBase64) {
@@ -331,7 +333,7 @@ export default function AdminCampesinosScreen() {
       }
 
       setModal(false);
-      await load();
+      void load();
       showSuccessAlert(
         editing ? 'Campesino Actualizado' : 'Campesino Registrado',
         editing
