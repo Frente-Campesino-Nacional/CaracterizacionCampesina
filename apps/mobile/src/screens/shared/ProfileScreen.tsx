@@ -201,12 +201,19 @@ export default function ProfileScreen({ title }: ProfileScreenProps) {
 
   return (
     <ScrollView style={sharedScreenStyles.surfaceWhite} contentContainerStyle={sharedScreenStyles.contentLg}>
-      {navigation.canGoBack?.() ? (
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <MaterialCommunityIcons name="chevron-left" size={24} color={Theme.colors.greenDark} />
-          <Text style={styles.backButtonText}>Volver</Text>
-        </TouchableOpacity>
-      ) : null}
+      <TouchableOpacity
+        style={styles.backButton}
+        onPress={() => {
+          if (navigation.canGoBack()) {
+            navigation.goBack();
+          } else {
+            navigation.navigate('MainTabs' as any);
+          }
+        }}
+      >
+        <MaterialCommunityIcons name="chevron-left" size={24} color={Theme.colors.greenDark} />
+        <Text style={styles.backButtonText}>Volver</Text>
+      </TouchableOpacity>
       <View style={styles.headerCard}>
         <View style={styles.avatarCircle}>
           {currentPhotoSource ? (

@@ -122,9 +122,14 @@ export default function AdminUsuariosScreen() {
     setItems(data);
   };
 
-  useEffect(() => {
-    load().catch((error) => Alert.alert('Error', error.message || 'No se pudo cargar usuarios'));
-  }, [token]);
+  const { useFocusEffect } = require('@react-navigation/native');
+
+  useFocusEffect(
+    React.useCallback(() => {
+      load().catch(() => undefined);
+      return () => undefined;
+    }, [token])
+  );
 
   useEffect(() => {
     if (!token) return;
@@ -185,11 +190,11 @@ export default function AdminUsuariosScreen() {
       numero_telefono: item.numero_telefono || '',
       fecha_nacimiento: item.fecha_nacimiento ? String(item.fecha_nacimiento).slice(0, 10) : '',
       genero: item.genero || '',
-      estado_id: '',
+      estado_id: (item as any).estado_id != null ? String((item as any).estado_id) : '',
       estado_nombre: item.estado || '',
-      municipio_id: '',
+      municipio_id: (item as any).municipio_id != null ? String((item as any).municipio_id) : '',
       municipio_nombre: item.municipio || '',
-      parroquia_id: '',
+      parroquia_id: (item as any).parroquia_id != null ? String((item as any).parroquia_id) : '',
       parroquia_nombre: item.parroquia || '',
       direccion: item.direccion || '',
       consejo_id: item.consejo_id || '',

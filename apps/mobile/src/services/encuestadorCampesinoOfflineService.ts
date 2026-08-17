@@ -30,8 +30,11 @@ const STORAGE_KEYS = {
 };
 
 function isRetryableNetworkError(error: unknown): boolean {
+  if (!error) return true;
+
   if (!axios.isAxiosError(error)) {
-    return false;
+    // Cualquier Error o mensaje de desconexion/red debe activar el guardado local offline
+    return true;
   }
 
   if (!error.response) {
@@ -39,7 +42,7 @@ function isRetryableNetworkError(error: unknown): boolean {
   }
 
   const status = error.response.status;
-  return status === 408 || status === 429 || status === 500 || status === 502 || status === 503 || status === 504;
+  return status === 408 || status === 429 || status >= 500;
 }
 
 function createOfflineId(prefix: string): string {
@@ -240,4 +243,4 @@ export async function flushQueuedCampesinoCreates(token: string): Promise<number
 
   await Promise.all([writeCachedCampesinos(cached), writeQueuedCreates(pending)]);
   return synced;
-}
+}

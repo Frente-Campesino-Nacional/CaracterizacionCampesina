@@ -1,4 +1,4 @@
-export type DateFilterPeriod = '24h' | 'today' | 'yesterday' | 'week' | 'month' | 'custom';
+export type DateFilterPeriod = 'all' | 'today' | '24h' | 'yesterday' | 'week' | 'month' | 'custom';
 
 export interface DateFilterOption {
   key: DateFilterPeriod;
@@ -6,11 +6,12 @@ export interface DateFilterOption {
 }
 
 export const DATE_FILTER_OPTIONS: DateFilterOption[] = [
+  { key: 'today', label: 'Hoy (00:00 - 23:59)' },
   { key: '24h', label: 'Últimas 24 horas' },
-  { key: 'today', label: 'Hoy' },
   { key: 'yesterday', label: 'Ayer' },
   { key: 'week', label: 'Esta semana' },
   { key: 'month', label: 'Este mes' },
+  { key: 'all', label: 'Todas las fechas' },
   { key: 'custom', label: 'Fecha personalizada' },
 ];
 
@@ -21,13 +22,16 @@ export function getItemDate(item: any): Date | null {
   return isNaN(parsed.getTime()) ? null : parsed;
 }
 
-
 export function filterItemsByDatePeriod<T>(
   items: T[],
   period: DateFilterPeriod,
   customStartStr?: string,
   customEndStr?: string
 ): T[] {
+  if (period === 'all') {
+    return items;
+  }
+
   const now = new Date();
 
   return items.filter((item) => {
@@ -53,7 +57,6 @@ export function filterItemsByDatePeriod<T>(
       }
       case 'week': {
         const dayOfWeek = now.getDay();
-        // Adjust for Monday as start of week (0 = Sun, 1 = Mon, ..., 6 = Sat)
         const diffToMonday = (dayOfWeek === 0 ? 6 : dayOfWeek - 1);
         const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - diffToMonday, 0, 0, 0, 0);
         return itemDate >= monday && itemDate <= now;

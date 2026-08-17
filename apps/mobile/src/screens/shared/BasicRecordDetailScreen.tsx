@@ -16,7 +16,7 @@ type RootStackParamList = {
 
 type Props = NativeStackScreenProps<RootStackParamList, 'BasicRecordDetail'>;
 
-export default function BasicRecordDetailScreen({ route }: Props) {
+export default function BasicRecordDetailScreen({ route, navigation }: Props) {
   const { token, user } = useAuthStore();
   const [loading, setLoading] = useState(true);
   const [record, setRecord] = useState<UsuarioRecord | CampesinoRecord | null>(null);
@@ -89,7 +89,13 @@ export default function BasicRecordDetailScreen({ route }: Props) {
 
   return (
     <View style={sharedScreenStyles.surfaceWhite}>
-      <Header title={title} subtitle={isUsuario ? 'Información básica del usuario' : 'Información básica del campesino'} showBorder />
+      <Header
+        title={title}
+        subtitle={isUsuario ? 'Información básica del usuario' : 'Información básica del campesino'}
+        leftIcon="arrow-left"
+        onLeftPress={() => navigation.goBack()}
+        showBorder
+      />
       <ScrollView contentContainerStyle={sharedScreenStyles.contentLg}>
         <Card variant="elevated" padding="lg" style={styles.headerCard}>
           {record.foto_url ? (

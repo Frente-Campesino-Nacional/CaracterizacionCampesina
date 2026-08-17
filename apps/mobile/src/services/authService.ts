@@ -10,7 +10,6 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-
 export interface LoginResponse {
   user: {
     id: string;

@@ -55,7 +55,7 @@ export default function AdminAuditoriaScreen() {
 
   const buildFilterKey = (formularioId: string, preguntaId: string) => `${formularioId}::${preguntaId}`;
 
-  useEffect(() => {
+  const loadData = React.useCallback(() => {
     if (!token) return;
     Promise.all([
       listSyncRecords(token),
@@ -63,9 +63,9 @@ export default function AdminAuditoriaScreen() {
       listFormularioFilterQuestions(token),
     ])
       .then(([syncData, campesinosData, preguntasFiltro]) => {
-        setSyncItems(syncData);
-        setCampesinos(campesinosData);
-        setFilterQuestions(preguntasFiltro);
+        setSyncItems(Array.isArray(syncData) ? syncData : []);
+        setCampesinos(Array.isArray(campesinosData) ? campesinosData : []);
+        setFilterQuestions(Array.isArray(preguntasFiltro) ? preguntasFiltro : []);
       })
       .catch(() => {
         setSyncItems([]);
@@ -73,6 +73,10 @@ export default function AdminAuditoriaScreen() {
         setFilterQuestions([]);
       });
   }, [token]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const rawLogs = useMemo(() => {
     const text = search.toLowerCase();

@@ -122,6 +122,8 @@ export default function CampesinoDetailScreen({ route, navigation }: Props) {
       <Header
         title="Detalle de Campesino"
         subtitle={`${campesino.nombre} ${campesino.apellido ?? ''}`.trim()}
+        leftIcon="arrow-left"
+        onLeftPress={() => navigation.goBack()}
         showBorder
       />
       <ScrollView contentContainerStyle={sharedScreenStyles.contentLg}>
