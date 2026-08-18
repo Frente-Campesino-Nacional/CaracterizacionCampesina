@@ -153,34 +153,25 @@ export class CampesinosService {
     return fallback[0]?.id_parroquia ?? 1;
   }
 
-  private async resolveGeneroId(genero?: string): Promise<number> {
-    const cleaned = genero?.trim();
+  private async resolveGeneroId(genero?: string | number | null): Promise<number> {
+    if (genero == null || genero === '') return 2;
+    if (typeof genero === 'number') return genero;
+    const textVal = String(genero).trim().toLowerCase();
+    if (textVal === 'femenino' || textVal === 'f' || textVal === '1') return 1;
+    if (textVal === 'masculino' || textVal === 'm' || textVal === '2') return 2;
 
-    if (cleaned && /^\d+$/.test(cleaned)) {
-      return Number(cleaned);
-    }
-
-    if (cleaned) {
-      const rows = await this.prisma.$queryRaw<Array<{ id_genero: number }>>(Prisma.sql`
-        SELECT id_genero
-        FROM catalogos.generos
-        WHERE LOWER(genero) = LOWER(${cleaned})
-        ORDER BY id_genero
-        LIMIT 1
-      `);
-      if (rows[0]?.id_genero != null) {
-        return rows[0].id_genero;
-      }
-    }
-
-    const fallback = await this.prisma.$queryRaw<Array<{ id_genero: number }>>(Prisma.sql`
+    const rows = await this.prisma.$queryRaw<Array<{ id_genero: number }>>(Prisma.sql`
       SELECT id_genero
       FROM catalogos.generos
+      WHERE LOWER(genero) = LOWER(${textVal})
       ORDER BY id_genero
       LIMIT 1
     `);
+    if (rows[0]?.id_genero != null) {
+      return rows[0].id_genero;
+    }
 
-    return fallback[0]?.id_genero ?? 1;
+    return 2;
   }
 
   private isValidCampesinoCedula(value: string): boolean {

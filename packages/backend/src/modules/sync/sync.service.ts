@@ -57,6 +57,7 @@ export class SyncService {
       tipo_cedula: 'Tipo de Cédula',
       fecha_nacimiento: 'Fecha de nacimiento',
       numero_telefonico: 'Teléfono',
+      numero_telefono: 'Teléfono',
       telefono: 'Teléfono',
       id_rol: 'Rol',
       rol: 'Rol',
@@ -78,7 +79,7 @@ export class SyncService {
   }
 
   private formatFieldValue(key: string, val: any): string {
-    if (val == null || val === '') return 'vacío';
+    if (val == null || val === '') return '';
     if (typeof val === 'boolean') return val ? 'Activo' : 'Inactivo';
     if (key === 'sync_status') {
       if (val === 'disabled') return 'Inactivo';
@@ -95,6 +96,16 @@ export class SyncService {
       if (trimmed.startsWith('$2')) return '[Contraseña protegida]';
       if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(trimmed)) {
         return '[Asignación]';
+      }
+      // Formatear fechas ISO (ej. 2000-10-06T00:00:00.000Z -> 06/10/2000)
+      if (/^\d{4}-\d{2}-\d{2}T/.test(trimmed)) {
+        const d = new Date(trimmed);
+        if (!isNaN(d.getTime())) {
+          const day = String(d.getDate()).padStart(2, '0');
+          const month = String(d.getMonth() + 1).padStart(2, '0');
+          const year = d.getFullYear();
+          return `${day}/${month}/${year}`;
+        }
       }
     }
     return String(val);
@@ -146,7 +157,11 @@ export class SyncService {
 
         if (formattedOld === '[Asignación]' || formattedNew === '[Asignación]') {
           changes.push(`Se actualizó ${label}`);
-        } else {
+        } else if (!formattedOld && formattedNew) {
+          changes.push(`${label}: "${formattedNew}"`);
+        } else if (formattedOld && !formattedNew) {
+          changes.push(`${label}: borrado`);
+        } else if (formattedOld && formattedNew) {
           changes.push(`${label}: "${formattedOld}" ➔ "${formattedNew}"`);
         }
       }
