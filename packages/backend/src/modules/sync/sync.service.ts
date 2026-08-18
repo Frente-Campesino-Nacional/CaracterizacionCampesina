@@ -51,22 +51,24 @@ export class SyncService {
     const labels: Record<string, string> = {
       nombre: 'Nombre',
       apellido: 'Apellido',
-      email: 'Correo',
-      correo: 'Correo',
+      email: 'Correo electrónico',
+      correo: 'Correo electrónico',
       cedula: 'Cédula',
       tipo_cedula: 'Tipo de Cédula',
-      fecha_nacimiento: 'Fecha de Nacimiento',
+      fecha_nacimiento: 'Fecha de nacimiento',
       numero_telefonico: 'Teléfono',
       telefono: 'Teléfono',
       id_rol: 'Rol',
       rol: 'Rol',
       direccion_usuario: 'Dirección',
       direccion: 'Dirección',
-      consejo_id: 'Consejo Comunal',
       genero: 'Género',
       parroquia: 'Parroquia',
-      sync_status: 'Estado',
-      activo: 'Estado',
+      municipio: 'Municipio',
+      estado: 'Estado',
+      consejo_nombre: 'Consejo Comunal',
+      sync_status: 'Estado de cuenta',
+      activo: 'Estado de cuenta',
       formularios_pendientes: 'Formularios pendientes',
       password_hash: 'Contraseña',
       password: 'Contraseña',
@@ -83,14 +85,17 @@ export class SyncService {
       if (val === 'synced') return 'Activo';
       return String(val);
     }
-    if (key === 'id_rol') {
-      if (Number(val) === 1) return 'Administrador';
-      if (Number(val) === 2) return 'Encuestador';
+    if (key === 'id_rol' || key === 'rol') {
+      if (Number(val) === 1 || String(val).toLowerCase() === 'administrador') return 'Administrador';
+      if (Number(val) === 2 || String(val).toLowerCase() === 'encuestador') return 'Encuestador';
       return String(val);
     }
-    if (typeof val === 'string' && val.length > 25) {
-      if (val.startsWith('$2')) return '[Contraseña]';
-      return `${val.slice(0, 22)}...`;
+    if (typeof val === 'string') {
+      const trimmed = val.trim();
+      if (trimmed.startsWith('$2')) return '[Contraseña protegida]';
+      if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(trimmed)) {
+        return '[Asignación]';
+      }
     }
     return String(val);
   }
@@ -111,6 +116,11 @@ export class SyncService {
       'registro_id',
       'creado_por',
       'asignado_a',
+      'consejo_id',
+      'parroquia_id',
+      'municipio_id',
+      'estado_id',
+      'genero_id',
     ]);
 
     const changes: string[] = [];
@@ -126,14 +136,19 @@ export class SyncService {
       const newStr = newVal != null ? String(newVal).trim() : '';
 
       if (oldStr !== newStr) {
-        if (key === 'password_hash' && oldVal && newVal) {
+        if (key === 'password_hash' || key === 'password') {
           changes.push('Contraseña actualizada');
           continue;
         }
         const label = this.formatFieldLabel(key);
         const formattedOld = this.formatFieldValue(key, oldVal);
         const formattedNew = this.formatFieldValue(key, newVal);
-        changes.push(`${label} cambió de "${formattedOld}" a "${formattedNew}"`);
+
+        if (formattedOld === '[Asignación]' || formattedNew === '[Asignación]') {
+          changes.push(`Se actualizó ${label}`);
+        } else {
+          changes.push(`${label}: "${formattedOld}" ➔ "${formattedNew}"`);
+        }
       }
     }
 

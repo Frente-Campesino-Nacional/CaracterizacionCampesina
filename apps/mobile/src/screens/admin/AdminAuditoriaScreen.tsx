@@ -95,7 +95,14 @@ export default function AdminAuditoriaScreen() {
 
     if (syncItems && syncItems.length > 0) {
       list = syncItems.map((item) => {
-        const line = String((item as any).mensaje || '').trim() || `${item.entidad || 'Registro'} fue ${item.operacion || 'actualizado'}`;
+        let rawLine = String((item as any).mensaje || '').trim() || `${item.entidad || 'Registro'} fue ${item.operacion || 'actualizado'}`;
+        // Remover cualquier cadena de UUID o IDs tecnicos
+        const line = rawLine
+          .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/gi, '')
+          .replace(/_id/gi, '')
+          .replace(/\s{2,}/g, ' ')
+          .trim();
+
         const target_nombre = (item as any).target_nombre || (item.datos as any)?.nombre || (item.datos as any)?.nombre_completo || 'N/A';
         const actor_nombre = (item as any).actor_nombre || (item.datos as any)?.usuario_nombre || 'Administrador';
         const actor_rol = (item as any).actor_rol || 'Administrador';

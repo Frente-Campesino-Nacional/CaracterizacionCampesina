@@ -16,6 +16,85 @@ export class UsuariosService {
     private storageService: PostgresStorageService,
   ) {}
 
+  private async recordAuditLog(params: {
+    usuarioId?: string | null;
+    tablaNombre: string;
+    registroId: string;
+    accion: 'INSERT' | 'UPDATE' | 'DELETE';
+    valoresAnteriores?: any;
+    valoresNuevos?: any;
+  }) {
+    try {
+      const userUuid = params.usuarioId ? Prisma.sql`CAST(${params.usuarioId} AS uuid)` : Prisma.sql`NULL`;
+      const regUuid = Prisma.sql`CAST(${params.registroId} AS uuid)`;
+      const oldJson = params.valoresAnteriores ? JSON.stringify(params.valoresAnteriores) : null;
+      const newJson = params.valoresNuevos ? JSON.stringify(params.valoresNuevos) : null;
+
+      await this.prisma.$queryRaw(Prisma.sql`
+        INSERT INTO auditoria.historial_cambios (
+          id_historial,
+          usuario_id_reg,
+          tabla_nombre,
+          registro_id,
+          accion,
+          valores_anteriores,
+          valores_nuevos,
+          origen,
+          created_at
+        ) VALUES (
+          gen_random_uuid(),
+          ${userUuid},
+          ${params.tablaNombre},
+          ${regUuid},
+          ${params.accion},
+          ${oldJson ? Prisma.sql`CAST(${oldJson} AS jsonb)` : Prisma.sql`NULL`},
+          ${newJson ? Prisma.sql`CAST(${newJson} AS jsonb)` : Prisma.sql`NULL`},
+          'MOBILE_APP',
+          NOW()
+        )
+      `);
+    } catch {
+      // Ignorar errores no criticos de auditoria
+    }
+  }
+
+  private async resolveParroquiaId(input: {
+    parroquiaId?: number;
+    municipioId?: number;
+    estadoId?: number;
+  }): Promise<number> {
+    if (input.parroquiaId != null) {
+      return input.parroquiaId;
+    }
+
+    if (input.municipioId != null) {
+      const rows = await this.prisma.$queryRaw<Array<{ id_parroquia: number }>>(Prisma.sql`
+        SELECT id_parroquia FROM catalogos.parroquias WHERE municipio = ${input.municipioId} ORDER BY id_parroquia LIMIT 1
+      `);
+      if (rows[0]) return rows[0].id_parroquia;
+    }
+
+    if (input.estadoId != null) {
+      const rows = await this.prisma.$queryRaw<Array<{ id_parroquia: number }>>(Prisma.sql`
+        SELECT par.id_parroquia FROM catalogos.parroquias par
+        JOIN catalogos.municipios m ON m.id_municipio = par.municipio
+        WHERE m.estado = ${input.estadoId} ORDER BY par.id_parroquia LIMIT 1
+      `);
+      if (rows[0]) return rows[0].id_parroquia;
+    }
+
+    return 1;
+  }
+
+  private async resolveGeneroId(genero?: string | number | null): Promise<number> {
+    if (genero == null || genero === '') return 1;
+    if (typeof genero === 'number') return genero;
+    const textVal = String(genero).trim().toLowerCase();
+    if (textVal === 'masculino' || textVal === 'm') return 1;
+    if (textVal === 'femenino' || textVal === 'f') return 2;
+    return 1;
+  }
+
   private normalizeCatalogValue(value?: string | null): string | undefined {
     const normalized = value?.trim();
     return normalized ? normalized : undefined;
@@ -465,12 +544,37 @@ export class UsuariosService {
       delete data.rol;
     }
 
-    if (data.nombre != null || data.apellido != null || data.direccion != null || data.numero_telefono != null || data.fecha_nacimiento != null || data.consejo_id != null) {
+    const hasPersonaChanges = (
+      data.nombre != null ||
+      data.apellido != null ||
+      data.direccion != null ||
+      data.numero_telefono != null ||
+      data.fecha_nacimiento != null ||
+      data.consejo_id != null ||
+      data.genero != null ||
+      data.parroquia_id != null ||
+      data.municipio_id != null ||
+      data.estado_id != null
+    );
+
+    if (hasPersonaChanges) {
       const normalizedBirthDate = data.fecha_nacimiento != null
         ? (this.normalizeDateInput(data.fecha_nacimiento) ?? null)
         : null;
       const normalizedConsejoId = data.consejo_id != null
         ? await this.resolveConsejoUuid(data.consejo_id)
+        : null;
+
+      const parroquiaId = (data.parroquia_id != null || data.municipio_id != null || data.estado_id != null)
+        ? await this.resolveParroquiaId({
+            parroquiaId: data.parroquia_id,
+            municipioId: data.municipio_id,
+            estadoId: data.estado_id,
+          })
+        : null;
+
+      const generoId = data.genero != null
+        ? await this.resolveGeneroId(data.genero)
         : null;
 
       await this.prisma.$queryRaw(Prisma.sql`
@@ -481,16 +585,30 @@ export class UsuariosService {
           direccion_usuario = COALESCE(${data.direccion ?? null}, direccion_usuario),
           numero_telefonico = COALESCE(${data.numero_telefono ?? null}, numero_telefonico),
           fecha_nacimiento = COALESCE(CAST(${normalizedBirthDate ?? null} AS date), fecha_nacimiento),
+          parroquia = COALESCE(CAST(${parroquiaId ?? null} AS integer), parroquia),
+          genero = COALESCE(CAST(${generoId ?? null} AS integer), genero),
           consejo_id = CASE
             WHEN CAST(${normalizedConsejoId ?? null} AS text) IS NULL THEN consejo_id
             ELSE CAST(${normalizedConsejoId ?? null} AS uuid)
-          END
+          END,
+          update_at = NOW()
         WHERE id_personas::text = ${String(currentUserId)}
       `);
-
     }
 
-    return this.findUsuarioRow(id);
+    const updatedUser = await this.findUsuarioRow(id);
+
+    if (updatedUser) {
+      void this.recordAuditLog({
+        tablaNombre: 'usuarios',
+        registroId: String(updatedUser.id),
+        accion: 'UPDATE',
+        valoresAnteriores: { nombre: usuario.nombre, apellido: usuario.apellido },
+        valoresNuevos: data,
+      });
+    }
+
+    return updatedUser;
   }
 
   private async generateUniqueCedula(): Promise<string> {
