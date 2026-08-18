@@ -329,67 +329,19 @@ export class CampesinosService {
 
 
   async findAll(requester: { id: string; rol: string }, consejoId?: string | number) {
-    if (requester.rol === 'encuestador') {
-      const rows = await this.prisma.$queryRaw<Array<any>>(Prisma.sql`
-        SELECT p.consejo_id
-        FROM seguridad.usuarios u
-        LEFT JOIN registros.personas p ON p.id_personas = u.id_usuario
-        WHERE u.id_usuario::text = ${requester.id}
-        LIMIT 1
-      `);
+    let whereClause = Prisma.empty;
+    const isEncuestador = (requester?.rol || '').toLowerCase() === 'encuestador';
 
-      const currentConsejoId = rows[0]?.consejo_id ?? null;
-      if (!currentConsejoId) {
-        throw new ForbiddenException('El encuestador no tiene un consejo asignado');
-      }
-
-      const campesinos = await this.prisma.$queryRaw<Array<any>>(Prisma.sql`
-        SELECT
-          c.id_campesinos AS id,
-          p.tipo_cedula,
-          p.cedula,
-          p.nombre,
-          p.apellido,
-          p.numero_telefonico AS telefono,
-          p.email AS correo,
-          p.fecha_nacimiento,
-          g.genero AS genero,
-          e.nombre_estado AS estado,
-          m.nombre_municipio AS municipio,
-          par.nombre_parroquia AS parroquia,
-          p.direccion_usuario AS direccion,
-          p.consejo_id AS consejo_id,
-          csj.nombre_consejo AS consejo_nombre,
-          c.creado_por,
-          c.asignado_a,
-          c.formularios_pendientes AS tiene_pendientes,
-          (
-            SELECT jsonb_build_object(
-              'formularios_respondidos',
-              COALESCE(jsonb_agg(DISTINCT r.id_formulario::text), '[]'::jsonb)
-            )
-            FROM respuestas.respuesta_form r
-            WHERE r.respuestas->>'campesino_id' = c.id_campesinos::text
-          ) AS metadata,
-          fp.url_nube AS foto_url,
-          p.created_at AS creado_en,
-          p.update_at AS actualizado_en
-        FROM operacional.campesinos c
-        LEFT JOIN registros.personas p ON p.id_personas = c.id_campesinos
-        LEFT JOIN catalogos.generos g ON g.id_genero = p.genero
-        LEFT JOIN catalogos.parroquias par ON par.id_parroquia = p.parroquia
-        LEFT JOIN catalogos.municipios m ON m.id_municipio = par.municipio
-        LEFT JOIN catalogos.estados e ON e.id_estados = m.estado
-        LEFT JOIN operacional.consejos csj ON csj.consejo_id::text = p.consejo_id::text
-        LEFT JOIN operacional.fotos_perfil fp ON fp.persona_id = c.id_campesinos
-        WHERE p.consejo_id::text = ${String(currentConsejoId)}
-        ORDER BY p.nombre
-      `);
-
-      return campesinos.map((campesino) => this.mapCampesino(campesino));
+    if (isEncuestador) {
+      const encuestadorUuid = String(requester.id);
+      whereClause = Prisma.sql`WHERE (c.asignado_a::text = ${encuestadorUuid} OR c.creado_por::text = ${encuestadorUuid})`;
+    } else {
+      const targetConsejoId = await this.resolveConsejoUuid(consejoId);
+      whereClause = targetConsejoId
+        ? Prisma.sql`WHERE p.consejo_id::text = ${targetConsejoId}`
+        : Prisma.empty;
     }
 
-    const resolvedConsejoId = await this.resolveConsejoUuid(consejoId);
     const campesinos = await this.prisma.$queryRaw<Array<any>>(Prisma.sql`
       SELECT
         c.id_campesinos AS id,
@@ -401,8 +353,11 @@ export class CampesinosService {
         p.email AS correo,
         p.fecha_nacimiento,
         g.genero AS genero,
+        e.id_estados AS estado_id,
         e.nombre_estado AS estado,
+        m.id_municipio AS municipio_id,
         m.nombre_municipio AS municipio,
+        par.id_parroquia AS parroquia_id,
         par.nombre_parroquia AS parroquia,
         p.direccion_usuario AS direccion,
         p.consejo_id AS consejo_id,
@@ -429,13 +384,12 @@ export class CampesinosService {
       LEFT JOIN catalogos.estados e ON e.id_estados = m.estado
       LEFT JOIN operacional.consejos csj ON csj.consejo_id::text = p.consejo_id::text
       LEFT JOIN operacional.fotos_perfil fp ON fp.persona_id = c.id_campesinos
-      ${resolvedConsejoId ? Prisma.sql`WHERE p.consejo_id::text = ${resolvedConsejoId}` : Prisma.empty}
+      ${whereClause}
       ORDER BY p.nombre
     `);
 
     return campesinos.map((campesino) => this.mapCampesino(campesino));
   }
-
 
   async findOne(id: string | number, requester: { id: string; rol: string }) {
     const campesino = await this.findCampesinoRow(id);
@@ -443,17 +397,16 @@ export class CampesinosService {
       throw new NotFoundException('Campesino no encontrado');
     }
 
-    if (requester.rol === 'encuestador') {
-      const rows = await this.prisma.$queryRaw<Array<{ consejo_id: string | null }>>(Prisma.sql`
-        SELECT p.consejo_id
-        FROM seguridad.usuarios u
-        LEFT JOIN registros.personas p ON p.id_personas = u.id_usuario
-        WHERE u.id_usuario::text = ${requester.id}
-        LIMIT 1
-      `);
+    if ((requester?.rol || '').toLowerCase() === 'encuestador') {
+      const encuestadorUuid = String(requester.id);
+      const isAssignedOrCreator = (
+        !campesino.asignado_a ||
+        String(campesino.asignado_a) === encuestadorUuid ||
+        String(campesino.creado_por) === encuestadorUuid
+      );
 
-      if (!rows[0]?.consejo_id || rows[0].consejo_id !== campesino.consejo_id) {
-        throw new ForbiddenException('No tiene permiso para ver este campesino');
+      if (!isAssignedOrCreator) {
+        throw new ForbiddenException('No tiene permiso para acceder a este campesino');
       }
     }
 
@@ -521,7 +474,7 @@ export class CampesinosService {
     const generoId = await this.resolveGeneroId(createCampesinDto.genero);
     const consejoId = await this.resolveConsejoUuid(createCampesinDto.consejo_id);
     const creadoPor = await this.resolveUserUuid(createCampesinDto.creado_por ?? requesterId ?? null);
-    const asignadoA = await this.resolveUserUuid(createCampesinDto.asignado_a ?? null);
+    const asignadoA = await this.resolveUserUuid(createCampesinDto.asignado_a ?? requesterId ?? null);
     const fechaNacimiento = this.normalizeDateInput(createCampesinDto.fecha_nacimiento) ?? new Date('1990-01-01T00:00:00.000Z');
     const personId = randomUUID();
 
