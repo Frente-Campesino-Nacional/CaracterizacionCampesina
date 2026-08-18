@@ -15,6 +15,48 @@ export class CampesinosService {
     private storageService: PostgresStorageService,
   ) {}
 
+  private async recordAuditLog(params: {
+    usuarioId?: string | null;
+    tablaNombre: string;
+    registroId: string;
+    accion: 'INSERT' | 'UPDATE' | 'DELETE';
+    valoresAnteriores?: any;
+    valoresNuevos?: any;
+  }) {
+    try {
+      const userUuid = params.usuarioId ? Prisma.sql`CAST(${params.usuarioId} AS uuid)` : Prisma.sql`NULL`;
+      const regUuid = Prisma.sql`CAST(${params.registroId} AS uuid)`;
+      const oldJson = params.valoresAnteriores ? JSON.stringify(params.valoresAnteriores) : null;
+      const newJson = params.valoresNuevos ? JSON.stringify(params.valoresNuevos) : null;
+
+      await this.prisma.$queryRaw(Prisma.sql`
+        INSERT INTO auditoria.historial_cambios (
+          id_historial,
+          usuario_id_reg,
+          tabla_nombre,
+          registro_id,
+          accion,
+          valores_anteriores,
+          valores_nuevos,
+          origen,
+          created_at
+        ) VALUES (
+          gen_random_uuid(),
+          ${userUuid},
+          ${params.tablaNombre},
+          ${regUuid},
+          ${params.accion},
+          ${oldJson ? Prisma.sql`CAST(${oldJson} AS jsonb)` : Prisma.sql`NULL`},
+          ${newJson ? Prisma.sql`CAST(${newJson} AS jsonb)` : Prisma.sql`NULL`},
+          'MOBILE_APP',
+          NOW()
+        )
+      `);
+    } catch {
+      // Ignorar errores no criticos de auditoria
+    }
+  }
+
   private async resolveConsejoUuid(value?: string | number | null): Promise<string | null> {
     if (value == null || value === '') {
       return null;
@@ -222,8 +264,11 @@ export class CampesinosService {
         p.email AS correo,
         p.fecha_nacimiento,
         g.genero AS genero,
+        e.id_estados AS estado_id,
         e.nombre_estado AS estado,
+        m.id_municipio AS municipio_id,
         m.nombre_municipio AS municipio,
+        par.id_parroquia AS parroquia_id,
         par.nombre_parroquia AS parroquia,
         p.direccion_usuario AS direccion,
         p.consejo_id AS consejo_id,
@@ -272,9 +317,12 @@ export class CampesinosService {
         : null,
 
       genero: campesino.genero || null,
-      estado: campesino.estado,
-      municipio: campesino.municipio,
-      parroquia: campesino.parroquia,
+      estado_id: campesino.estado_id ?? null,
+      estado: campesino.estado || null,
+      municipio_id: campesino.municipio_id ?? null,
+      municipio: campesino.municipio || null,
+      parroquia_id: campesino.parroquia_id ?? null,
+      parroquia: campesino.parroquia || null,
       direccion: campesino.direccion,
       consejo_id: campesino.consejo_id ?? null,
       consejo_nombre: campesino.consejo_nombre || null,
@@ -537,6 +585,14 @@ export class CampesinosService {
       throw new NotFoundException('No se pudo crear el campesino');
     }
 
+    void this.recordAuditLog({
+      usuarioId: requesterId,
+      tablaNombre: 'campesinos',
+      registroId: personId,
+      accion: 'INSERT',
+      valoresNuevos: { nombre: trimmedNombre, apellido: createCampesinDto.apellido },
+    });
+
     return this.mapCampesino(created);
   }
 
@@ -654,6 +710,14 @@ export class CampesinosService {
     if (!updated) {
       throw new NotFoundException('No se pudo actualizar el campesino');
     }
+
+    void this.recordAuditLog({
+      tablaNombre: 'campesinos',
+      registroId: String(campesino.id),
+      accion: 'UPDATE',
+      valoresAnteriores: { nombre: campesino.nombre, apellido: campesino.apellido },
+      valoresNuevos: updateCampesinDto,
+    });
 
     return this.mapCampesino(updated);
   }
