@@ -170,7 +170,9 @@ export async function listQueuedSubmissions(): Promise<QueueEntry[]> {
   const watermelon = getWatermelonContext();
   if (!watermelon) {
     const queue = await readQueueMap();
-    return Object.values(queue).sort((a, b) => a.capturedAtIso.localeCompare(b.capturedAtIso));
+    return Object.values(queue || {})
+      .filter((item): item is QueueEntry => Boolean(item && item.capturedAtIso))
+      .sort((a, b) => (a.capturedAtIso || '').localeCompare(b.capturedAtIso || ''));
   }
 
   const { queueCollection } = watermelon;
@@ -411,9 +413,16 @@ async function readDraftMap(): Promise<Record<string, JsonObject>> {
 
   try {
     const parsed = JSON.parse(raw) as unknown;
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-      ? (parsed as Record<string, JsonObject>)
-      : {};
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      const result: Record<string, JsonObject> = {};
+      for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+        if (v && typeof v === 'object' && !Array.isArray(v)) {
+          result[k] = v as JsonObject;
+        }
+      }
+      return result;
+    }
+    return {};
   } catch {
     return {};
   }
@@ -427,9 +436,16 @@ async function readQueueMap(): Promise<Record<string, QueueEntry>> {
 
   try {
     const parsed = JSON.parse(raw) as unknown;
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-      ? (parsed as Record<string, QueueEntry>)
-      : {};
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      const result: Record<string, QueueEntry> = {};
+      for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+        if (v && typeof v === 'object' && !Array.isArray(v)) {
+          result[k] = v as QueueEntry;
+        }
+      }
+      return result;
+    }
+    return {};
   } catch {
     return {};
   }
@@ -443,9 +459,16 @@ async function readHistoryMap(): Promise<Record<string, SubmissionHistoryEntry>>
 
   try {
     const parsed = JSON.parse(raw) as unknown;
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-      ? (parsed as Record<string, SubmissionHistoryEntry>)
-      : {};
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      const result: Record<string, SubmissionHistoryEntry> = {};
+      for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+        if (v && typeof v === 'object' && !Array.isArray(v)) {
+          result[k] = v as SubmissionHistoryEntry;
+        }
+      }
+      return result;
+    }
+    return {};
   } catch {
     return {};
   }

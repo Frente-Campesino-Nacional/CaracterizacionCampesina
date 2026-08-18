@@ -217,20 +217,26 @@ export class SyncService {
 
         for (const r of rows) {
           if (r.tabla_nombre.includes('campesino')) entidad = 'campesino';
-          else if (r.tabla_nombre.includes('usuario')) entidad = 'usuario';
+          else if (r.tabla_nombre.includes('usuario') || r.tabla_nombre.includes('personas')) entidad = 'usuario';
           else if (r.tabla_nombre.includes('consejo')) entidad = 'consejo';
           else if (r.tabla_nombre.includes('formulario')) entidad = 'formulario';
-          else if (r.tabla_nombre.includes('personas') && entidad === 'registro') entidad = 'persona';
         }
 
-        const entidadLabel = entidad.charAt(0).toUpperCase() + entidad.slice(1);
+        const entidadMap: Record<string, string> = {
+          campesino: 'campesino',
+          usuario: 'usuario',
+          consejo: 'Consejo',
+          formulario: 'formulario',
+          registro: 'registro',
+        };
+        const entidadDisplay = entidadMap[entidad] || entidad;
         const operacion = mainRow.accion.toLowerCase();
 
         let targetName = '';
         for (const r of rows) {
           const datos = r.valores_nuevos || r.valores_anteriores || {};
-          if (datos.nombre) {
-            targetName = `${datos.nombre} ${datos.apellido || ''}`.trim();
+          if (datos.nombre || datos.nombre_consejo || datos.titulo) {
+            targetName = (datos.nombre ? `${datos.nombre} ${datos.apellido || ''}` : (datos.nombre_consejo || datos.titulo || '')).trim();
             break;
           }
           if (datos.email) {
@@ -249,17 +255,17 @@ export class SyncService {
         }
 
         let mensaje = '';
-        const actorText = mainRow.actor_nombre ? ` por ${mainRow.actor_nombre}` : '';
+        const actorName = mainRow.actor_nombre ? mainRow.actor_nombre : 'Sistema';
 
         if (operacion === 'insert' || operacion === 'create') {
-          mensaje = `${entidadLabel}${targetName ? ` "${targetName}"` : ''} fue registrado${actorText}`;
+          mensaje = `${entidadDisplay.charAt(0).toUpperCase() + entidadDisplay.slice(1)}${targetName ? ` "${targetName}"` : ''} fue creado por ${actorName}`;
         } else if (operacion === 'delete' || operacion === 'remove') {
-          mensaje = `${entidadLabel}${targetName ? ` "${targetName}"` : ''} fue eliminado${actorText}`;
+          mensaje = `${entidadDisplay.charAt(0).toUpperCase() + entidadDisplay.slice(1)}${targetName ? ` "${targetName}"` : ''} fue eliminado por ${actorName}`;
         } else {
           if (allChanges.length > 0) {
-            mensaje = `${entidadLabel}${targetName ? ` "${targetName}"` : ''}: ${allChanges.join(' | ')}${actorText}`;
+            mensaje = `Se cambió ${allChanges.join(', ')} al ${entidadDisplay}${targetName ? ` "${targetName}"` : ''} por ${actorName}`;
           } else {
-            mensaje = `${entidadLabel}${targetName ? ` "${targetName}"` : ''} fue actualizado${actorText}`;
+            mensaje = `Se actualizó el ${entidadDisplay}${targetName ? ` "${targetName}"` : ''} por ${actorName}`;
           }
         }
 
