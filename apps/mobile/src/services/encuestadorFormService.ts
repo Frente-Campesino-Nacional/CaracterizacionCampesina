@@ -36,14 +36,14 @@ const STORAGE_KEYS = {
 type CampesinoMetadataCache = Record<string, Record<string, unknown>>;
 
 export function normalizeMetadata(metadata: Record<string, unknown> | null | undefined): CampesinoMetadataNormalized {
-  if (!metadata || Array.isArray(metadata)) {
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
     return { formularios_respondidos: [] };
   }
 
   const raw = metadata.formularios_respondidos;
   const ids = Array.isArray(raw)
     ? raw
-        .map((item) => String(item).trim())
+        .map((item) => String(item ?? '').trim())
         .filter((item) => item.length > 0)
     : typeof raw === 'string'
       ? raw
@@ -62,14 +62,17 @@ function mergeMetadataSources(
   baseMetadata: Record<string, unknown> | null | undefined,
   localMetadata: Record<string, unknown> | null | undefined,
 ): Record<string, unknown> {
+  const safeBase = baseMetadata && typeof baseMetadata === 'object' && !Array.isArray(baseMetadata) ? baseMetadata : {};
+  const safeLocal = localMetadata && typeof localMetadata === 'object' && !Array.isArray(localMetadata) ? localMetadata : {};
+
   const merged = {
-    ...(baseMetadata ?? {}),
-    ...(localMetadata ?? {}),
+    ...safeBase,
+    ...safeLocal,
   } as Record<string, unknown>;
 
   const ids = Array.from(new Set([
-    ...normalizeMetadata(baseMetadata).formularios_respondidos,
-    ...normalizeMetadata(localMetadata).formularios_respondidos,
+    ...normalizeMetadata(safeBase).formularios_respondidos,
+    ...normalizeMetadata(safeLocal).formularios_respondidos,
   ]));
 
   return {
@@ -100,7 +103,13 @@ async function readCampesinoMetadataCache(): Promise<CampesinoMetadataCache> {
   try {
     const parsed = JSON.parse(raw) as unknown;
     if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      return parsed as CampesinoMetadataCache;
+      const cleanMap: CampesinoMetadataCache = {};
+      for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+        if (v && typeof v === 'object' && !Array.isArray(v)) {
+          cleanMap[k] = v as Record<string, unknown>;
+        }
+      }
+      return cleanMap;
     }
   } catch {
     // Ignorar cache corrupto y volver a empezar.
@@ -231,7 +240,9 @@ function normalizeSelectionMode(value: unknown): 'single' | 'multiple' {
 }
 
 export function buildDefaultAnswers(questions: FormQuestion[]): Record<string, unknown> {
+  if (!Array.isArray(questions)) return {};
   return questions.reduce<Record<string, unknown>>((acc, question) => {
+    if (!question || !question.id) return acc;
     if (question.type === 'boolean') {
       acc[question.id] = false;
       return acc;
@@ -251,8 +262,9 @@ export function validateAnswers(
   questions: FormQuestion[],
   answers: Record<string, unknown>,
 ): string | null {
+  if (!Array.isArray(questions) || !answers || typeof answers !== 'object') return null;
   for (const question of questions) {
-    if (!question.required) {
+    if (!question || !question.required) {
       continue;
     }
 
@@ -283,7 +295,8 @@ export function validateAnswers(
 export async function getCampesinoById(token: string, campesinoId: string): Promise<CampesinoRecord | null> {
   try {
     const all = await listCampesinos(token);
-    const found = all.find((item) => item.id === campesinoId);
+    const safeAll = Array.isArray(all) ? all : [];
+    const found = safeAll.find((item) => Boolean(item && item.id === campesinoId));
     if (!found) {
       return null;
     }
@@ -314,13 +327,15 @@ export async function getCampesinoById(token: string, campesinoId: string): Prom
 
 export async function getFormularioById(token: string, formularioId: string): Promise<FormularioRecord | null> {
   const all = await getFormulariosActivos(token);
-  return all.find((item) => item.id === formularioId) || null;
+  const safeAll = Array.isArray(all) ? all : [];
+  return safeAll.find((item) => Boolean(item && item.id === formularioId)) || null;
 }
 
 export async function getFormulariosActivos(token: string): Promise<FormularioRecord[]> {
   try {
     const all = await listFormularios(token);
-    const active = all.filter((item) => item.activo);
+    const safeAll = Array.isArray(all) ? all : [];
+    const active = safeAll.filter((item) => Boolean(item && item.activo));
     await AsyncStorage.setItem(STORAGE_KEYS.formulariosActivos, JSON.stringify(active));
     return active;
   } catch (error) {
@@ -335,7 +350,7 @@ export async function getFormulariosActivos(token: string): Promise<FormularioRe
 
     try {
       const parsed = JSON.parse(raw) as unknown;
-      return Array.isArray(parsed) ? (parsed as FormularioRecord[]) : [];
+      return Array.isArray(parsed) ? (parsed as FormularioRecord[]).filter((item) => Boolean(item && item.activo)) : [];
     } catch {
       return [];
     }
@@ -346,9 +361,10 @@ export function getPendingFormularios(
   formulariosActivos: FormularioRecord[],
   metadata: Record<string, unknown> | null | undefined,
 ): FormularioRecord[] {
+  const safeFormularios = Array.isArray(formulariosActivos) ? formulariosActivos : [];
   const normalizedMetadata = normalizeMetadata(metadata);
   const completedIds = new Set(normalizedMetadata.formularios_respondidos);
-  return formulariosActivos.filter((item) => !completedIds.has(item.id));
+  return safeFormularios.filter((item) => Boolean(item && item.id && !completedIds.has(item.id)));
 }
 
 export async function submitAndMarkFormulario(
