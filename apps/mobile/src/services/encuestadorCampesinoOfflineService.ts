@@ -64,14 +64,15 @@ async function readCachedCampesinos(): Promise<CampesinoRecord[]> {
     if (!Array.isArray(parsed)) {
       return [];
     }
-    return parsed as CampesinoRecord[];
+    return (parsed as CampesinoRecord[]).filter((item): item is CampesinoRecord => Boolean(item && item.id));
   } catch {
     return [];
   }
 }
 
 async function writeCachedCampesinos(items: CampesinoRecord[]): Promise<void> {
-  await AsyncStorage.setItem(STORAGE_KEYS.cache, JSON.stringify(items));
+  const safeItems = (Array.isArray(items) ? items : []).filter((item): item is CampesinoRecord => Boolean(item && item.id));
+  await AsyncStorage.setItem(STORAGE_KEYS.cache, JSON.stringify(safeItems));
 }
 
 async function readQueuedCreates(): Promise<QueuedCampesinoCreate[]> {
@@ -85,22 +86,27 @@ async function readQueuedCreates(): Promise<QueuedCampesinoCreate[]> {
     if (!Array.isArray(parsed)) {
       return [];
     }
-    return parsed as QueuedCampesinoCreate[];
+    return (parsed as QueuedCampesinoCreate[]).filter((item): item is QueuedCampesinoCreate => Boolean(item && item.queueId));
   } catch {
     return [];
   }
 }
 
 async function writeQueuedCreates(items: QueuedCampesinoCreate[]): Promise<void> {
-  await AsyncStorage.setItem(STORAGE_KEYS.queue, JSON.stringify(items));
+  const safeItems = (Array.isArray(items) ? items : []).filter((item): item is QueuedCampesinoCreate => Boolean(item && item.queueId));
+  await AsyncStorage.setItem(STORAGE_KEYS.queue, JSON.stringify(safeItems));
 }
 
 function upsertById(items: CampesinoRecord[], record: CampesinoRecord): CampesinoRecord[] {
-  const idx = items.findIndex((item) => item.id === record.id);
-  if (idx === -1) {
-    return [record, ...items];
+  const safeItems = (Array.isArray(items) ? items : []).filter((item): item is CampesinoRecord => Boolean(item && item.id));
+  if (!record || !record.id) {
+    return safeItems;
   }
-  const next = [...items];
+  const idx = safeItems.findIndex((item) => item.id === record.id);
+  if (idx === -1) {
+    return [record, ...safeItems];
+  }
+  const next = [...safeItems];
   next[idx] = record;
   return next;
 }
@@ -132,9 +138,9 @@ function buildLocalCampesinoRecord(payload: CampesinoPayload, tempId: string, ph
   };
 }
 
-
 function filterForUser(items: CampesinoRecord[], userId: string): CampesinoRecord[] {
-  return items.filter((item) => item.asignado_a === userId || item.creado_por === userId);
+  const safeItems = (Array.isArray(items) ? items : []).filter((item): item is CampesinoRecord => Boolean(item && item.id));
+  return safeItems.filter((item) => item.asignado_a === userId || item.creado_por === userId);
 }
 
 export async function loadCampesinosForEncuestador(token: string, userId: string): Promise<CampesinoRecord[]> {
@@ -155,7 +161,7 @@ export async function loadCampesinosForEncuestador(token: string, userId: string
 
 export async function getCachedCampesinoById(campesinoId: string): Promise<CampesinoRecord | null> {
   const cached = await readCachedCampesinos();
-  return cached.find((item) => item.id === campesinoId) || null;
+  return cached.find((item) => Boolean(item && item.id === campesinoId)) || null;
 }
 
 export async function createCampesinoWithOfflineFallback(
