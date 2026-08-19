@@ -10,7 +10,7 @@ function flattenValidationErrors(errors: ValidationError[], parentPath = ''): st
   for (const error of errors) {
     const currentPath = parentPath ? `${parentPath}.${error.property}` : error.property;
 
-    if (error.constraints) {
+    if (error.constraints && typeof error.constraints === 'object') {
       for (const constraintMessage of Object.values(error.constraints)) {
         messages.push(`${currentPath}: ${constraintMessage}`);
       }

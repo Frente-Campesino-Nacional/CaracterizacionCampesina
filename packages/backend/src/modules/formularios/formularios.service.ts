@@ -357,7 +357,7 @@ export class FormulariosService {
       return true;
     }
 
-    if (typeof value === 'object') {
+    if (value && typeof value === 'object') {
       return Object.keys(value as Record<string, unknown>).length > 0;
     }
 

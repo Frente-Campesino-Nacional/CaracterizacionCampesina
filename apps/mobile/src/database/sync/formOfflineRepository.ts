@@ -214,7 +214,8 @@ export async function reassignQueuedSubmissionsCampesinoId(
     const queue = await readQueueMap();
     const updatedQueue: Record<string, QueueEntry> = {};
 
-    for (const [id, entry] of Object.entries(queue)) {
+    for (const [id, entry] of Object.entries(queue || {})) {
+      if (!entry) continue;
       updatedQueue[id] =
         entry.campesinoId === previousCampesinoId
           ? { ...entry, campesinoId: nextCampesinoId }
@@ -285,9 +286,9 @@ export async function getSubmissionHistoryByCampesino(
   const watermelon = getWatermelonContext();
   if (!watermelon) {
     const history = await readHistoryMap();
-    return Object.values(history)
-      .filter((item) => item.campesinoId === campesinoId)
-      .sort((a, b) => b.createdAt - a.createdAt)
+    return Object.values(history || {})
+      .filter((item): item is SubmissionHistoryEntry => Boolean(item && item.campesinoId === campesinoId))
+      .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
       .slice(0, limit);
   }
 

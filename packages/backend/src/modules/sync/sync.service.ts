@@ -135,13 +135,15 @@ export class SyncService {
     ]);
 
     const changes: string[] = [];
-    const allKeys = new Set([...Object.keys(anteriores), ...Object.keys(nuevos)]);
+    const oldObj = anteriores && typeof anteriores === 'object' && !Array.isArray(anteriores) ? anteriores : {};
+    const newObj = nuevos && typeof nuevos === 'object' && !Array.isArray(nuevos) ? nuevos : {};
+    const allKeys = new Set([...Object.keys(oldObj), ...Object.keys(newObj)]);
 
     for (const key of allKeys) {
       if (ignoredKeys.has(key)) continue;
 
-      const oldVal = anteriores[key];
-      const newVal = nuevos[key];
+      const oldVal = oldObj[key];
+      const newVal = newObj[key];
 
       const oldStr = oldVal != null ? String(oldVal).trim() : '';
       const newStr = newVal != null ? String(newVal).trim() : '';
@@ -225,7 +227,7 @@ export class SyncService {
         const entidadMap: Record<string, string> = {
           campesino: 'campesino',
           usuario: 'usuario',
-          consejo: 'Consejo',
+          consejo: 'Consejo Comunal',
           formulario: 'formulario',
           registro: 'registro',
         };
