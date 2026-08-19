@@ -12,6 +12,7 @@ import {
   getPendingFormularios,
   normalizeMetadata,
 } from '../../services/encuestadorFormService';
+import { showErrorAlert } from '../../utils/humanizerUtils';
 import { flushQueuedCampesinoCreates } from '../../services/encuestadorCampesinoOfflineService';
 
 type RootStackParamList = {
@@ -54,7 +55,7 @@ export default function FormulariosPendientesScreen() {
 
   useEffect(() => {
     load().catch((error: Error) => {
-      Alert.alert('Error', error.message || 'No se pudieron cargar los formularios pendientes');
+      showErrorAlert(error, 'No se pudieron cargar los formularios pendientes');
     });
   }, [load]);
 

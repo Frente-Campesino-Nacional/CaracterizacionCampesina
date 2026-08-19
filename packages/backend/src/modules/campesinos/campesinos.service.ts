@@ -294,6 +294,10 @@ export class CampesinosService {
   }
 
   private mapCampesino(campesino: any) {
+    if (!campesino || typeof campesino !== 'object') {
+      return null;
+    }
+
     return {
       id: campesino.id,
       cedula: this.formatCedulaForResponse(campesino.tipo_cedula, campesino.cedula),
@@ -320,13 +324,12 @@ export class CampesinosService {
       creado_por: campesino.creado_por ?? null,
       asignado_a: campesino.asignado_a ?? null,
       tiene_pendientes: Boolean(campesino.tiene_pendientes),
-      metadata: campesino.metadata ?? { formularios_respondidos: [] },
+      metadata: campesino.metadata && typeof campesino.metadata === 'object' && !Array.isArray(campesino.metadata) ? campesino.metadata : { formularios_respondidos: [] },
       foto_url: campesino.foto_url || null,
       creado_en: campesino.creado_en,
       actualizado_en: campesino.actualizado_en ?? campesino.creado_en,
     };
   }
-
 
   async findAll(requester: { id: string; rol: string }, consejoId?: string | number) {
     let whereClause = Prisma.empty;
@@ -388,7 +391,10 @@ export class CampesinosService {
       ORDER BY p.nombre
     `);
 
-    return campesinos.map((campesino) => this.mapCampesino(campesino));
+    const safeList = Array.isArray(campesinos) ? campesinos : [];
+    return safeList
+      .map((campesino) => this.mapCampesino(campesino))
+      .filter((item): item is NonNullable<typeof item> => Boolean(item && item.id));
   }
 
   async findOne(id: string | number, requester: { id: string; rol: string }) {

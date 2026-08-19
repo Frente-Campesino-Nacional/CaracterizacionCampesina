@@ -86,7 +86,7 @@ export default function DynamicFormScreen() {
 
     loadForm()
       .catch((error: Error) => {
-        Alert.alert('Error', error.message || 'No se pudo cargar el formulario');
+        showErrorAlert(error, 'No se pudo cargar el formulario');
       })
       .finally(() => setLoading(false));
   }, [params.campesinoId, params.formularioId, token]);
