@@ -408,7 +408,7 @@ function createOfflineId(prefix: string): string {
 
 async function readDraftMap(): Promise<Record<string, JsonObject>> {
   const raw = await AsyncStorage.getItem(STORAGE_KEYS.drafts);
-  if (!raw) {
+  if (!raw || raw === 'null' || raw === 'undefined') {
     return {};
   }
 
@@ -431,7 +431,7 @@ async function readDraftMap(): Promise<Record<string, JsonObject>> {
 
 async function readQueueMap(): Promise<Record<string, QueueEntry>> {
   const raw = await AsyncStorage.getItem(STORAGE_KEYS.queue);
-  if (!raw) {
+  if (!raw || raw === 'null' || raw === 'undefined') {
     return {};
   }
 
@@ -454,7 +454,7 @@ async function readQueueMap(): Promise<Record<string, QueueEntry>> {
 
 async function readHistoryMap(): Promise<Record<string, SubmissionHistoryEntry>> {
   const raw = await AsyncStorage.getItem(STORAGE_KEYS.history);
-  if (!raw) {
+  if (!raw || raw === 'null' || raw === 'undefined') {
     return {};
   }
 
