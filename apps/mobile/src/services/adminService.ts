@@ -4,11 +4,13 @@ import { getApiBaseUrl } from '../config/api';
 import { useAuthStore } from '../store/authStore';
 
 export const API_BASE_URL = getApiBaseUrl();
+
 function createApiClient(token: string) {
   const instance = axios.create({
     baseURL: getApiBaseUrl(),
     timeout: 30000,
   });
+
 
   instance.interceptors.request.use((config) => {
     config.headers = config.headers || {};
@@ -373,7 +375,7 @@ export const deleteConsejo = async (token: string, id: string): Promise<void> =>
 
 export const listCampesinos = async (token: string): Promise<CampesinoRecord[]> => {
   const response = await createApiClient(token).get('/campesinos');
-  return response.data;
+  return Array.isArray(response.data) ? response.data : [];
 };
 
 export const getCampesino = async (token: string, id: string): Promise<CampesinoRecord> => {

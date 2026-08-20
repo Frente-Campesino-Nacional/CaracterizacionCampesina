@@ -298,7 +298,15 @@ export async function getCampesinoById(token: string, campesinoId: string): Prom
     const safeAll = Array.isArray(all) ? all : [];
     const found = safeAll.find((item) => Boolean(item && item.id === campesinoId));
     if (!found) {
-      return null;
+      const cached = await getCachedCampesinoById(campesinoId);
+      if (!cached) {
+        return null;
+      }
+      const localCache = await readCampesinoMetadataCache();
+      return {
+        ...cached,
+        metadata: mergeMetadataSources(cached.metadata, localCache[campesinoId]),
+      };
     }
 
     const localCache = await readCampesinoMetadataCache();
@@ -308,20 +316,17 @@ export async function getCampesinoById(token: string, campesinoId: string): Prom
       ...found,
       metadata: mergedMetadata,
     };
-  } catch (error) {
-    if (axios.isAxiosError(error) && !error.response) {
-      const cached = await getCachedCampesinoById(campesinoId);
-      if (!cached) {
-        return null;
-      }
-
-      const localCache = await readCampesinoMetadataCache();
-      return {
-        ...cached,
-        metadata: mergeMetadataSources(cached.metadata, localCache[campesinoId]),
-      };
+  } catch {
+    const cached = await getCachedCampesinoById(campesinoId);
+    if (!cached) {
+      return null;
     }
-    throw error;
+
+    const localCache = await readCampesinoMetadataCache();
+    return {
+      ...cached,
+      metadata: mergeMetadataSources(cached.metadata, localCache[campesinoId]),
+    };
   }
 }
 
@@ -338,11 +343,7 @@ export async function getFormulariosActivos(token: string): Promise<FormularioRe
     const active = safeAll.filter((item) => Boolean(item && item.activo));
     await AsyncStorage.setItem(STORAGE_KEYS.formulariosActivos, JSON.stringify(active));
     return active;
-  } catch (error) {
-    if (!(axios.isAxiosError(error) && !error.response)) {
-      throw error;
-    }
-
+  } catch {
     const raw = await AsyncStorage.getItem(STORAGE_KEYS.formulariosActivos);
     if (!raw) {
       return [];
@@ -350,7 +351,7 @@ export async function getFormulariosActivos(token: string): Promise<FormularioRe
 
     try {
       const parsed = JSON.parse(raw) as unknown;
-      return Array.isArray(parsed) ? (parsed as FormularioRecord[]).filter((item) => Boolean(item && item.activo)) : [];
+      return Array.isArray(parsed) ? (parsed as FormularioRecord[]) : [];
     } catch {
       return [];
     }

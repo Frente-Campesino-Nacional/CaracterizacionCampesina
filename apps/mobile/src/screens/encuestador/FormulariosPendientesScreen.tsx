@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { RouteProp, useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { CampesinoRecord, FormularioRecord } from '../../services/adminService';
@@ -12,8 +12,7 @@ import {
   getPendingFormularios,
   normalizeMetadata,
 } from '../../services/encuestadorFormService';
-import { showErrorAlert } from '../../utils/humanizerUtils';
-import { flushQueuedCampesinoCreates } from '../../services/encuestadorCampesinoOfflineService';
+import { flushQueuedCampesinoCreates, getCachedCampesinoById } from '../../services/encuestadorCampesinoOfflineService';
 
 type RootStackParamList = {
   FormulariosPendientes: { campesinoId: string } | undefined;
@@ -33,40 +32,61 @@ export default function FormulariosPendientesScreen() {
   const [campesino, setCampesino] = useState<CampesinoRecord | null>(null);
   const [formulariosActivos, setFormulariosActivos] = useState<FormularioRecord[]>([]);
   const [syncCount, setSyncCount] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const campesinoId = route.params?.campesinoId;
 
   const load = useCallback(async () => {
     if (!token || campesinoId == null) {
+      setLoading(false);
       return;
     }
 
-    await flushQueuedCampesinoCreates(token);
-    const [campesinoData, formulariosData, flushed] = await Promise.all([
-      getCampesinoById(token, campesinoId),
-      getFormulariosActivos(token),
-      flushQueuedSubmissions(token),
-    ]);
+    try {
+      await flushQueuedCampesinoCreates(token).catch(() => 0);
+      const [campesinoData, formulariosData, flushed] = await Promise.all([
+        getCampesinoById(token, campesinoId).catch(() => null),
+        getFormulariosActivos(token).catch(() => []),
+        flushQueuedSubmissions(token).catch(() => 0),
+      ]);
 
-    setCampesino(campesinoData);
-    setFormulariosActivos(formulariosData);
-    setSyncCount(flushed);
+      if (campesinoData) {
+        setCampesino(campesinoData);
+      } else {
+        const cached = await getCachedCampesinoById(campesinoId).catch(() => null);
+        if (cached) {
+          setCampesino(cached);
+        }
+      }
+
+      setFormulariosActivos(formulariosData || []);
+      setSyncCount(flushed || 0);
+    } catch {
+      // Ignorar errores no criticos
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }, [campesinoId, token]);
 
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    load();
+  }, [load]);
+
   useEffect(() => {
-    load().catch((error: Error) => {
-      showErrorAlert(error, 'No se pudieron cargar los formularios pendientes');
-    });
+    load();
   }, [load]);
 
   useFocusEffect(
     useCallback(() => {
-      load().catch(() => undefined);
+      load();
     }, [load]),
   );
 
   const pendingForms = useMemo(() => {
-    return getPendingFormularios(formulariosActivos, campesino?.metadata ?? undefined);
+    return getPendingFormularios(formulariosActivos || [], campesino?.metadata ?? undefined);
   }, [campesino?.metadata, formulariosActivos]);
 
   const metadata = normalizeMetadata(campesino?.metadata ?? undefined);
@@ -79,7 +99,7 @@ export default function FormulariosPendientesScreen() {
     navigation.navigate('DynamicForm', {
       campesinoId,
       formularioId,
-      allActiveFormIds: formulariosActivos.map((item) => item.id),
+      allActiveFormIds: (formulariosActivos || []).map((item) => item.id),
     });
   };
 
@@ -91,7 +111,7 @@ export default function FormulariosPendientesScreen() {
     );
   }
 
-  if (!campesino) {
+  if (!campesino && loading) {
     return (
       <View style={sharedScreenStyles.centered}>
         <Text style={sharedScreenStyles.helperText}>Cargando información del campesino...</Text>
@@ -99,8 +119,25 @@ export default function FormulariosPendientesScreen() {
     );
   }
 
+  if (!campesino) {
+    return (
+      <ScrollView
+        style={sharedScreenStyles.surfaceSoft}
+        contentContainerStyle={sharedScreenStyles.centered}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
+        <Text style={sharedScreenStyles.helperText}>No se pudo cargar la información del campesino.</Text>
+        <Text style={sharedScreenStyles.metaText}>Desliza hacia abajo para reintentar.</Text>
+      </ScrollView>
+    );
+  }
+
   return (
-    <ScrollView style={sharedScreenStyles.surfaceSoft} contentContainerStyle={sharedScreenStyles.contentMd}>
+    <ScrollView
+      style={sharedScreenStyles.surfaceSoft}
+      contentContainerStyle={sharedScreenStyles.contentMd}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+    >
       <View style={sharedScreenStyles.card}>
         <Text style={sharedScreenStyles.cardTitleXl}>Formularios Pendientes</Text>
         <Text style={sharedScreenStyles.subtitleStrong}>Campesino: {campesino.nombre} {campesino.apellido || ''}</Text>
