@@ -169,9 +169,9 @@ export async function enqueueSubmission(input: {
 export async function listQueuedSubmissions(): Promise<QueueEntry[]> {
   const watermelon = getWatermelonContext();
   if (!watermelon) {
-    const queue = await readQueueMap();
-    return Object.values(queue || {})
-      .filter((item): item is QueueEntry => Boolean(item && item.capturedAtIso))
+    const queue = (await readQueueMap()) || {};
+    return Object.values(queue)
+      .filter((item): item is QueueEntry => Boolean(item && typeof item === 'object' && item.capturedAtIso))
       .sort((a, b) => (a.capturedAtIso || '').localeCompare(b.capturedAtIso || ''));
   }
 
@@ -192,7 +192,7 @@ export async function listQueuedSubmissions(): Promise<QueueEntry[]> {
 export async function deleteQueuedSubmission(queueId: string): Promise<void> {
   const watermelon = getWatermelonContext();
   if (!watermelon) {
-    const queue = await readQueueMap();
+    const queue = (await readQueueMap()) || {};
     delete queue[queueId];
     await AsyncStorage.setItem(STORAGE_KEYS.queue, JSON.stringify(queue));
     return;
@@ -211,10 +211,10 @@ export async function reassignQueuedSubmissionsCampesinoId(
 ): Promise<void> {
   const watermelon = getWatermelonContext();
   if (!watermelon) {
-    const queue = await readQueueMap();
+    const queue = (await readQueueMap()) || {};
     const updatedQueue: Record<string, QueueEntry> = {};
 
-    for (const [id, entry] of Object.entries(queue || {})) {
+    for (const [id, entry] of Object.entries(queue)) {
       if (!entry) continue;
       updatedQueue[id] =
         entry.campesinoId === previousCampesinoId
@@ -251,7 +251,7 @@ export async function addSubmissionHistory(input: {
 }): Promise<void> {
   const watermelon = getWatermelonContext();
   if (!watermelon) {
-    const history = await readHistoryMap();
+    const history = (await readHistoryMap()) || {};
     const id = createOfflineId('history');
     history[id] = {
       id,
@@ -285,9 +285,9 @@ export async function getSubmissionHistoryByCampesino(
 ): Promise<SubmissionHistoryEntry[]> {
   const watermelon = getWatermelonContext();
   if (!watermelon) {
-    const history = await readHistoryMap();
-    return Object.values(history || {})
-      .filter((item): item is SubmissionHistoryEntry => Boolean(item && item.campesinoId === campesinoId))
+    const history = (await readHistoryMap()) || {};
+    return Object.values(history)
+      .filter((item): item is SubmissionHistoryEntry => Boolean(item && typeof item === 'object' && item.campesinoId === campesinoId))
       .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
       .slice(0, limit);
   }
