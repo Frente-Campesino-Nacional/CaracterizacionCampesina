@@ -193,7 +193,7 @@ export default function EncuestadorCampesinosScreen() {
   };
 
   useEffect(() => {
-    load().catch((error) => Alert.alert('Error', error.message || 'No se pudo cargar campesinos'));
+    load().catch(() => undefined);
   }, [token, currentUserId]);
 
   useEffect(() => {
@@ -550,4 +550,3 @@ const styles = StyleSheet.create({
   photoActionButtonSecondary: { backgroundColor: '#e2e8f0' },
   photoActionButtonText: { color: '#ffffff', fontSize: 12, fontWeight: '700' },
 });
-

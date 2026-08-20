@@ -441,12 +441,16 @@ export const listFormularios = async (token: string): Promise<FormularioRecord[]
   const rawItems = Array.isArray(response.data) ? response.data : [];
   return rawItems
     .map((item: any) => {
-      const id = item?.id ?? item?.id_formulario;
+      if (!item || typeof item !== 'object') {
+        return null;
+      }
+
+      const id = item.id ?? item.id_formulario ?? item.id_formularios;
       if (!id) {
         return null;
       }
 
-      let estructura = item?.estructura;
+      let estructura = item.estructura;
       if (typeof estructura === 'string') {
         try {
           estructura = JSON.parse(estructura);
@@ -458,6 +462,7 @@ export const listFormularios = async (token: string): Promise<FormularioRecord[]
       return {
         ...item,
         id: String(id),
+        activo: item.activo !== false && item.activo !== 0 && item.activo !== 'false' && item.activo !== '0',
         estructura: estructura && typeof estructura === 'object' && !Array.isArray(estructura)
           ? estructura
           : {},

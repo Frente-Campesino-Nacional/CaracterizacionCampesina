@@ -61,34 +61,39 @@ export default function DynamicFormScreen() {
   useEffect(() => {
     const loadForm = async () => {
       if (!token) {
+        setLoading(false);
         return;
       }
 
-      const formulario = await getFormularioById(token, params.formularioId);
-      if (!formulario) {
-        throw new Error('No se encontró el formulario');
+      try {
+        const formulario = await getFormularioById(token, params.formularioId);
+        if (!formulario) {
+          showErrorAlert('No se encontró la estructura de este formulario.', 'Formulario no disponible');
+          setLoading(false);
+          return;
+        }
+
+        setTitle(formulario.titulo || 'Formulario dinámico');
+        const structure = parseFormStructure(formulario.estructura);
+        const questionsList = Array.isArray(structure?.preguntas) ? structure.preguntas : [];
+        const initialAnswers = buildDefaultAnswers(questionsList);
+
+        const draftAnswers = await getDraftAnswers(params.campesinoId, params.formularioId).catch(() => null);
+        if (draftAnswers && typeof draftAnswers === 'object') {
+          setAnswers({ ...initialAnswers, ...draftAnswers });
+        } else {
+          setAnswers(initialAnswers);
+        }
+
+        setQuestions(questionsList);
+      } catch (error) {
+        showErrorAlert(error, 'No se pudo cargar la información del formulario');
+      } finally {
+        setLoading(false);
       }
-
-      setTitle(formulario.titulo);
-      const structure = parseFormStructure(formulario.estructura);
-      const initialAnswers = buildDefaultAnswers(structure.preguntas);
-
-      const draftAnswers = await getDraftAnswers(params.campesinoId, params.formularioId);
-      if (draftAnswers) {
-        setAnswers({ ...initialAnswers, ...draftAnswers });
-      } else {
-        setAnswers(initialAnswers);
-      }
-
-      setQuestions(structure.preguntas);
-      setLoading(false);
     };
 
-    loadForm()
-      .catch((error: Error) => {
-        showErrorAlert(error, 'No se pudo cargar el formulario');
-      })
-      .finally(() => setLoading(false));
+    loadForm();
   }, [params.campesinoId, params.formularioId, token]);
 
   useEffect(() => {
@@ -120,6 +125,11 @@ export default function DynamicFormScreen() {
 
   const save = async () => {
     if (!token) {
+      return;
+    }
+
+    if (!questions.length) {
+      showErrorAlert('Este formulario no contiene preguntas configuradas para responder.', 'Formulario sin preguntas');
       return;
     }
 
