@@ -15,7 +15,7 @@ import StateMunicipioPicker from '../../components/StateMunicipioPicker';
 import { Theme } from '../../theme/colors';
 import { sharedFormStyles } from '../../styles/sharedFormStyles';
 import { CampesinoPayload, CampesinoRecord, ConsejoRecord, GeneroRecord, createCampesino, listCampesinos, listConsejos, listGeneros } from '../../services/adminService';
-import { flushQueuedSubmissions } from '../../services/encuestadorFormService';
+import { flushQueuedSubmissions, getFormulariosActivos, getPendingFormularios } from '../../services/encuestadorFormService';
 import {
   createCampesinoWithOfflineFallback,
   flushQueuedCampesinoCreates,

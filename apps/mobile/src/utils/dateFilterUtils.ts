@@ -16,8 +16,9 @@ export const DATE_FILTER_OPTIONS: DateFilterOption[] = [
 ];
 
 export function getItemDate(item: any): Date | null {
-  const dateVal = item?.creado_en ?? item?.createdAt ?? item?.created_at ?? item?.fecha;
+  const dateVal = item?.createdAt ?? item?.creado_en ?? item?.created_at ?? item?.fecha ?? item?.actualizado_en;
   if (dateVal === undefined || dateVal === null) return null;
+  if (typeof dateVal === 'number') return new Date(dateVal);
   const parsed = new Date(dateVal);
   return isNaN(parsed.getTime()) ? null : parsed;
 }
@@ -41,12 +42,11 @@ export function filterItemsByDatePeriod<T>(
     switch (period) {
       case '24h': {
         const last24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-        return itemDate >= last24h && itemDate <= now;
+        return itemDate >= last24h;
       }
       case 'today': {
         const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-        const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-        return itemDate >= startOfToday && itemDate <= endOfToday;
+        return itemDate >= startOfToday;
       }
       case 'yesterday': {
         const yesterday = new Date(now);
@@ -59,11 +59,11 @@ export function filterItemsByDatePeriod<T>(
         const dayOfWeek = now.getDay();
         const diffToMonday = (dayOfWeek === 0 ? 6 : dayOfWeek - 1);
         const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - diffToMonday, 0, 0, 0, 0);
-        return itemDate >= monday && itemDate <= now;
+        return itemDate >= monday;
       }
       case 'month': {
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
-        return itemDate >= startOfMonth && itemDate <= now;
+        return itemDate >= startOfMonth;
       }
       case 'custom': {
         if (!customStartStr && !customEndStr) return true;
