@@ -519,7 +519,7 @@ export const submitFormularioRespuesta = async (
   payload: SubmitFormularioRespuestaPayload,
 ): Promise<{ formulario_id: string; guardado_en_postgres: boolean; registro_id?: string }> => {
   const response = await createApiClient(token).post(`/formularios/${formularioId}/respuestas`, payload, {
-    timeout: 6000,
+    timeout: 2500,
   });
   return response.data;
 };
