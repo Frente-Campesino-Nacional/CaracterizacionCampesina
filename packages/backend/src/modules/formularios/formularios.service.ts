@@ -156,7 +156,7 @@ export class FormulariosService {
               SELECT 1
               FROM respuestas.respuesta_form r
               WHERE r.id_formulario = f.id_formulario
-                AND (r.campesino_id::text = c.id_campesinos::text OR r.respuestas->>'campesino_id' = c.id_campesinos::text)
+                AND r.respuestas->>'campesino_id' = c.id_campesinos::text
             )
         )
         WHERE c.id_campesinos::text = ${String(campesinoId)}
