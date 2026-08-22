@@ -22,6 +22,7 @@ import {
   clearDraft,
   deleteQueuedSubmission,
   enqueueSubmission as enqueueSubmissionDb,
+  getAllSubmissionHistory as getAllSubmissionHistoryDb,
   getDraft,
   getSubmissionHistoryByCampesino as getSubmissionHistoryByCampesinoDb,
   listQueuedSubmissions,
@@ -487,6 +488,10 @@ export async function getSubmissionHistoryByCampesino(
   campesinoId: string,
 ): Promise<SubmissionHistoryItem[]> {
   return getSubmissionHistoryByCampesinoDb(campesinoId);
+}
+
+export async function getAllSubmissionHistory(): Promise<SubmissionHistoryItem[]> {
+  return getAllSubmissionHistoryDb();
 }
 
 export function parseFormStructure(estructura: Record<string, unknown> | null | undefined): FormStructure {

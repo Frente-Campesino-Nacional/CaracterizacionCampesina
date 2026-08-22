@@ -124,7 +124,7 @@ export default function DynamicFormScreen() {
   };
 
   const save = async () => {
-    if (!token) {
+    if (!token || saving) {
       return;
     }
 
@@ -138,7 +138,6 @@ export default function DynamicFormScreen() {
       showErrorAlert(validationError, 'Por favor verifica la información ingresada', 'Respuestas incompletas');
       return;
     }
-
 
     setSaving(true);
     try {
@@ -158,7 +157,7 @@ export default function DynamicFormScreen() {
       );
 
       await clearDraftAnswers(params.campesinoId, params.formularioId);
-      navigation.navigate('SubmissionResult', {
+      navigation.replace('SubmissionResult', {
         campesinoId: params.campesinoId,
         formularioId: params.formularioId,
         formularioTitulo: title,
@@ -178,20 +177,19 @@ export default function DynamicFormScreen() {
         });
 
         await clearDraftAnswers(params.campesinoId, params.formularioId);
-        navigation.navigate('SubmissionResult', {
+        navigation.replace('SubmissionResult', {
           campesinoId: params.campesinoId,
           formularioId: params.formularioId,
           formularioTitulo: title,
           status: 'pendiente_offline',
           message:
-            'Se guardo offline y se sincronizara al recuperar conexion o cuando el backend vuelva a estar disponible.',
+            'Se guardó offline y se sincronizará al recuperar conexión o cuando el backend vuelva a estar disponible.',
         });
         return;
       }
 
       const message = error instanceof Error ? error.message : 'No se pudo guardar el formulario';
       Alert.alert('Error al guardar', message);
-    } finally {
       setSaving(false);
     }
   };

@@ -281,31 +281,74 @@ export async function addSubmissionHistory(input: {
 
 export async function getSubmissionHistoryByCampesino(
   campesinoId: string,
-  limit = 20,
+  limit = 50,
 ): Promise<SubmissionHistoryEntry[]> {
+  const targetId = String(campesinoId);
   const watermelon = getWatermelonContext();
   if (!watermelon) {
     const history = (await readHistoryMap()) || {};
     return Object.values(history)
-      .filter((item): item is SubmissionHistoryEntry => Boolean(item && typeof item === 'object' && item.campesinoId === campesinoId))
-      .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+      .filter((item): item is SubmissionHistoryEntry => Boolean(item && typeof item === 'object' && String(item.campesinoId) === targetId))
+      .sort((a, b) => (Number(b.createdAt) || 0) - (Number(a.createdAt) || 0))
       .slice(0, limit);
   }
 
-  const { historyCollection, Q } = watermelon;
-  const records = await historyCollection
-    .query(Q.where('campesino_id', campesinoId), Q.sortBy('created_at', Q.desc), Q.take(limit))
-    .fetch();
+  try {
+    const { historyCollection, Q } = watermelon;
+    const records = await historyCollection
+      .query(Q.where('campesino_id', targetId), Q.sortBy('created_at', Q.desc), Q.take(limit))
+      .fetch();
 
-  return records.map((item: any) => ({
-    id: String(item.id),
-    campesinoId: String(item._raw.campesino_id),
-    formularioId: String(item._raw.formulario_id),
-    formularioTitulo: String(item._raw.formulario_titulo || 'Formulario'),
-    status: normalizeStatus(item._raw.status),
-    message: String(item._raw.message || ''),
-    createdAt: Number(item._raw.created_at || Date.now()),
-  }));
+    return records.map((item: any) => ({
+      id: String(item.id),
+      campesinoId: String(item._raw.campesino_id),
+      formularioId: String(item._raw.formulario_id),
+      formularioTitulo: String(item._raw.formulario_titulo || 'Formulario'),
+      status: normalizeStatus(item._raw.status),
+      message: String(item._raw.message || ''),
+      createdAt: Number(item._raw.created_at || Date.now()),
+    }));
+  } catch {
+    const history = (await readHistoryMap()) || {};
+    return Object.values(history)
+      .filter((item): item is SubmissionHistoryEntry => Boolean(item && typeof item === 'object' && String(item.campesinoId) === targetId))
+      .sort((a, b) => (Number(b.createdAt) || 0) - (Number(a.createdAt) || 0))
+      .slice(0, limit);
+  }
+}
+
+export async function getAllSubmissionHistory(limit = 100): Promise<SubmissionHistoryEntry[]> {
+  const watermelon = getWatermelonContext();
+  if (!watermelon) {
+    const history = (await readHistoryMap()) || {};
+    return Object.values(history)
+      .filter((item): item is SubmissionHistoryEntry => Boolean(item && typeof item === 'object'))
+      .sort((a, b) => (Number(b.createdAt) || 0) - (Number(a.createdAt) || 0))
+      .slice(0, limit);
+  }
+
+  try {
+    const { historyCollection, Q } = watermelon;
+    const records = await historyCollection
+      .query(Q.sortBy('created_at', Q.desc), Q.take(limit))
+      .fetch();
+
+    return records.map((item: any) => ({
+      id: String(item.id),
+      campesinoId: String(item._raw.campesino_id),
+      formularioId: String(item._raw.formulario_id),
+      formularioTitulo: String(item._raw.formulario_titulo || 'Formulario'),
+      status: normalizeStatus(item._raw.status),
+      message: String(item._raw.message || ''),
+      createdAt: Number(item._raw.created_at || Date.now()),
+    }));
+  } catch {
+    const history = (await readHistoryMap()) || {};
+    return Object.values(history)
+      .filter((item): item is SubmissionHistoryEntry => Boolean(item && typeof item === 'object'))
+      .sort((a, b) => (Number(b.createdAt) || 0) - (Number(a.createdAt) || 0))
+      .slice(0, limit);
+  }
 }
 
 function parseJsonObject(value: unknown): JsonObject {
