@@ -59,7 +59,7 @@ export function normalizeMetadata(metadata: Record<string, unknown> | null | und
   };
 }
 
-function mergeMetadataSources(
+export function mergeMetadataSources(
   baseMetadata: Record<string, unknown> | null | undefined,
   localMetadata: Record<string, unknown> | null | undefined,
 ): Record<string, unknown> {
@@ -95,7 +95,7 @@ export function mergeFormularioResponseMetadata(
   };
 }
 
-async function readCampesinoMetadataCache(): Promise<CampesinoMetadataCache> {
+export async function readCampesinoMetadataCache(): Promise<CampesinoMetadataCache> {
   const raw = await AsyncStorage.getItem(STORAGE_KEYS.campesinoMetadata);
   if (!raw) {
     return {};
@@ -123,7 +123,7 @@ async function writeCampesinoMetadataCache(cache: CampesinoMetadataCache): Promi
   await AsyncStorage.setItem(STORAGE_KEYS.campesinoMetadata, JSON.stringify(cache));
 }
 
-async function persistFormularioResponseMetadata(campesinoId: string, formularioId: string): Promise<void> {
+export async function persistFormularioResponseMetadata(campesinoId: string, formularioId: string): Promise<void> {
   if (!campesinoId || !formularioId) {
     return;
   }
@@ -132,6 +132,26 @@ async function persistFormularioResponseMetadata(campesinoId: string, formulario
   const currentMetadata = cache[campesinoId] as Record<string, unknown> | undefined;
   cache[campesinoId] = mergeFormularioResponseMetadata(currentMetadata, formularioId) as Record<string, unknown>;
   await writeCampesinoMetadataCache(cache);
+}
+
+export async function submitAndMarkFormulario(
+  token: string,
+  payload: SubmitFormularioRespuestaPayload,
+  campesinoId: string,
+  formularioId: string,
+  allActiveFormIds: string[],
+  formularioTitulo: string,
+): Promise<void> {
+  await persistFormularioResponseMetadata(campesinoId, formularioId);
+  await submitFormularioRespuesta(token, formularioId, payload);
+
+  await addSubmissionHistory({
+    campesinoId,
+    formularioId,
+    formularioTitulo,
+    status: 'enviado',
+    message: 'Formulario enviado al backend correctamente.',
+  });
 }
 
 function normalizeStructureValue(estructura: Record<string, unknown> | null | undefined): Record<string, unknown> {
@@ -367,26 +387,6 @@ export function getPendingFormularios(
   const normalizedMetadata = normalizeMetadata(metadata);
   const completedIds = new Set(normalizedMetadata.formularios_respondidos);
   return safeFormularios.filter((item) => Boolean(item && item.id && !completedIds.has(item.id)));
-}
-
-export async function submitAndMarkFormulario(
-  token: string,
-  payload: SubmitFormularioRespuestaPayload,
-  campesinoId: string,
-  formularioId: string,
-  allActiveFormIds: string[],
-  formularioTitulo: string,
-): Promise<void> {
-  await submitFormularioRespuesta(token, formularioId, payload);
-  await persistFormularioResponseMetadata(campesinoId, formularioId);
-
-  await addSubmissionHistory({
-    campesinoId,
-    formularioId,
-    formularioTitulo,
-    status: 'enviado',
-    message: 'Formulario enviado al backend correctamente.',
-  });
 }
 
 export async function enqueueSubmission(item: QueuedFormularioSubmission): Promise<void> {

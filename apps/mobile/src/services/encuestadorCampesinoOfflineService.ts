@@ -138,24 +138,35 @@ function buildLocalCampesinoRecord(payload: CampesinoPayload, tempId: string, ph
   };
 }
 
+import { mergeMetadataSources, readCampesinoMetadataCache } from './encuestadorFormService';
+
 function filterForUser(items: CampesinoRecord[], userId: string): CampesinoRecord[] {
   const safeItems = (Array.isArray(items) ? items : []).filter((item): item is CampesinoRecord => Boolean(item && item.id));
   return safeItems.filter((item) => item.asignado_a === userId || item.creado_por === userId);
 }
 
 export async function loadCampesinosForEncuestador(token: string, userId: string): Promise<CampesinoRecord[]> {
+  const localCache = await readCampesinoMetadataCache();
   try {
     const all = await listCampesinos(token);
     const filtered = filterForUser(all, userId);
-    await writeCachedCampesinos(filtered);
-    return filtered;
+    const withMergedMetadata = filtered.map((c) => ({
+      ...c,
+      metadata: mergeMetadataSources(c.metadata, localCache[String(c.id)]),
+    }));
+    await writeCachedCampesinos(withMergedMetadata);
+    return withMergedMetadata;
   } catch (error) {
     if (!isRetryableNetworkError(error)) {
       throw error;
     }
 
     const cached = await readCachedCampesinos();
-    return filterForUser(cached, userId);
+    const filtered = filterForUser(cached, userId);
+    return filtered.map((c) => ({
+      ...c,
+      metadata: mergeMetadataSources(c.metadata, localCache[String(c.id)]),
+    }));
   }
 }
 
