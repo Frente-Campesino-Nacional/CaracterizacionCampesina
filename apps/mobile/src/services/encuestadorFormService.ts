@@ -97,26 +97,50 @@ export function mergeFormularioResponseMetadata(
 
 export async function readCampesinoMetadataCache(): Promise<CampesinoMetadataCache> {
   const raw = await AsyncStorage.getItem(STORAGE_KEYS.campesinoMetadata);
-  if (!raw) {
-    return {};
+  const cleanMap: CampesinoMetadataCache = {};
+
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+          if (v && typeof v === 'object' && !Array.isArray(v)) {
+            cleanMap[String(k)] = v as Record<string, unknown>;
+          }
+        }
+      }
+    } catch {
+      // Ignorar cache corrupto
+    }
   }
 
   try {
-    const parsed = JSON.parse(raw) as unknown;
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      const cleanMap: CampesinoMetadataCache = {};
-      for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
-        if (v && typeof v === 'object' && !Array.isArray(v)) {
-          cleanMap[k] = v as Record<string, unknown>;
-        }
+    const history = await getAllSubmissionHistoryDb();
+    history.forEach((entry) => {
+      if (entry && entry.campesinoId && entry.formularioId) {
+        const cId = String(entry.campesinoId);
+        const fId = String(entry.formularioId);
+        cleanMap[cId] = mergeFormularioResponseMetadata(cleanMap[cId], fId) as Record<string, unknown>;
       }
-      return cleanMap;
-    }
+    });
   } catch {
-    // Ignorar cache corrupto y volver a empezar.
+    // Ignorar si falla lectura de historial
   }
 
-  return {};
+  try {
+    const queue = await listQueuedSubmissions();
+    queue.forEach((entry) => {
+      if (entry && entry.campesinoId && entry.formularioId) {
+        const cId = String(entry.campesinoId);
+        const fId = String(entry.formularioId);
+        cleanMap[cId] = mergeFormularioResponseMetadata(cleanMap[cId], fId) as Record<string, unknown>;
+      }
+    });
+  } catch {
+    // Ignorar si falla lectura de cola
+  }
+
+  return cleanMap;
 }
 
 async function writeCampesinoMetadataCache(cache: CampesinoMetadataCache): Promise<void> {
@@ -385,8 +409,14 @@ export function getPendingFormularios(
 ): FormularioRecord[] {
   const safeFormularios = Array.isArray(formulariosActivos) ? formulariosActivos : [];
   const normalizedMetadata = normalizeMetadata(metadata);
-  const completedIds = new Set(normalizedMetadata.formularios_respondidos);
-  return safeFormularios.filter((item) => Boolean(item && item.id && !completedIds.has(item.id)));
+  const completedIds = new Set(
+    normalizedMetadata.formularios_respondidos.map((id) => String(id).toLowerCase().trim()),
+  );
+  return safeFormularios.filter((item) => {
+    if (!item || item.id == null) return false;
+    const fId = String(item.id).toLowerCase().trim();
+    return !completedIds.has(fId);
+  });
 }
 
 export async function enqueueSubmission(item: QueuedFormularioSubmission): Promise<void> {

@@ -231,6 +231,9 @@ export default function EncuestadorCampesinosScreen() {
         return () => undefined;
       }
 
+      // Cargar e interpretar metadata local inmediatamente al enfocar la pantalla
+      load();
+
       flushQueuedCampesinoCreates(token)
         .then(async (campesinoCount) => {
           setOfflineSavedCount(campesinoCount);
