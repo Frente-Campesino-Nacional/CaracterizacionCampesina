@@ -23,6 +23,7 @@ import {
 } from '../../services/encuestadorCampesinoOfflineService';
 import { showErrorAlert, showSuccessAlert } from '../../utils/humanizerUtils';
 import { useAuthStore } from '../../store/authStore';
+import { syncAllOfflineData } from '../../services/offlineSyncManager';
 
 type RootStackParamList = {
 
@@ -234,12 +235,11 @@ export default function EncuestadorCampesinosScreen() {
       // Cargar e interpretar metadata local inmediatamente al enfocar la pantalla
       load();
 
-      flushQueuedCampesinoCreates(token)
-        .then(async (campesinoCount) => {
-          setOfflineSavedCount(campesinoCount);
-          const formCount = await flushQueuedSubmissions(token);
-          setSyncedCount(formCount);
-          await load();
+      syncAllOfflineData(token)
+        .then(async (res) => {
+          if (res.syncedCampesinos > 0 || res.syncedForms > 0) {
+            await load();
+          }
         })
         .catch(() => undefined);
 

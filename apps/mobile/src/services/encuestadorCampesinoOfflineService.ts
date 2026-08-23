@@ -146,10 +146,22 @@ function filterForUser(items: CampesinoRecord[], userId: string): CampesinoRecor
 }
 
 export async function loadCampesinosForEncuestador(token: string, userId: string): Promise<CampesinoRecord[]> {
-  const localCache = await readCampesinoMetadataCache();
+  const [localCache, queuedCreates] = await Promise.all([
+    readCampesinoMetadataCache(),
+    readQueuedCreates(),
+  ]);
+
   try {
     const all = await listCampesinos(token);
-    const filtered = filterForUser(all, userId);
+    let filtered = filterForUser(all, userId);
+
+    // Conservar campesinos creados offline que aun estan pendientes de sincronizacion
+    for (const q of queuedCreates) {
+      if (!filtered.some((c) => String(c.id) === String(q.tempId))) {
+        filtered.unshift(buildLocalCampesinoRecord(q.payload, q.tempId, q.photoOptions));
+      }
+    }
+
     const withMergedMetadata = filtered.map((c) => ({
       ...c,
       metadata: mergeMetadataSources(c.metadata, localCache[String(c.id)]),
@@ -162,7 +174,14 @@ export async function loadCampesinosForEncuestador(token: string, userId: string
     }
 
     const cached = await readCachedCampesinos();
-    const filtered = filterForUser(cached, userId);
+    let filtered = filterForUser(cached, userId);
+
+    for (const q of queuedCreates) {
+      if (!filtered.some((c) => String(c.id) === String(q.tempId))) {
+        filtered.unshift(buildLocalCampesinoRecord(q.payload, q.tempId, q.photoOptions));
+      }
+    }
+
     return filtered.map((c) => ({
       ...c,
       metadata: mergeMetadataSources(c.metadata, localCache[String(c.id)]),

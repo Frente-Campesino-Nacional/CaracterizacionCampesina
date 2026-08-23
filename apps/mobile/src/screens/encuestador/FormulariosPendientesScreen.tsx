@@ -12,6 +12,7 @@ import {
   getPendingFormularios,
   normalizeMetadata,
 } from '../../services/encuestadorFormService';
+import { syncAllOfflineData } from '../../services/offlineSyncManager';
 import { flushQueuedCampesinoCreates, getCachedCampesinoById } from '../../services/encuestadorCampesinoOfflineService';
 
 type RootStackParamList = {
@@ -23,19 +24,19 @@ type RootStackParamList = {
   };
 };
 
-type FormulariosPendientesRouteProp = RouteProp<RootStackParamList, 'FormulariosPendientes'>;
+type FormulariosPendientesRouteProp = RouteProp<{ params: { campesinoId: string } }, 'params'>;
 
 export default function FormulariosPendientesScreen() {
   const route = useRoute<FormulariosPendientesRouteProp>();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { token } = useAuthStore();
+  const campesinoId = route.params?.campesinoId;
+
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [campesino, setCampesino] = useState<CampesinoRecord | null>(null);
   const [formulariosActivos, setFormulariosActivos] = useState<FormularioRecord[]>([]);
   const [syncCount, setSyncCount] = useState(0);
-  const [refreshing, setRefreshing] = useState(false);
-  const [loading, setLoading] = useState(true);
-
-  const campesinoId = route.params?.campesinoId;
 
   const load = useCallback(async () => {
     if (!token || campesinoId == null) {
@@ -44,11 +45,10 @@ export default function FormulariosPendientesScreen() {
     }
 
     try {
-      await flushQueuedCampesinoCreates(token).catch(() => 0);
-      const [campesinoData, formulariosData, flushed] = await Promise.all([
+      const syncRes = await syncAllOfflineData(token).catch(() => ({ syncedCampesinos: 0, syncedForms: 0 }));
+      const [campesinoData, formulariosData] = await Promise.all([
         getCampesinoById(token, campesinoId).catch(() => null),
         getFormulariosActivos(token).catch(() => []),
-        flushQueuedSubmissions(token).catch(() => 0),
       ]);
 
       if (campesinoData) {
@@ -61,7 +61,7 @@ export default function FormulariosPendientesScreen() {
       }
 
       setFormulariosActivos(formulariosData || []);
-      setSyncCount(flushed || 0);
+      setSyncCount(syncRes.syncedForms || 0);
     } catch {
       // Ignorar errores no criticos
     } finally {

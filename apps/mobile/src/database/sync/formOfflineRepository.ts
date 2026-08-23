@@ -209,6 +209,10 @@ export async function reassignQueuedSubmissionsCampesinoId(
   previousCampesinoId: string,
   nextCampesinoId: string,
 ): Promise<void> {
+  const pId = String(previousCampesinoId);
+  const nId = String(nextCampesinoId);
+
+  // 1. Reassign Queue
   const watermelon = getWatermelonContext();
   if (!watermelon) {
     const queue = (await readQueueMap()) || {};
@@ -217,29 +221,84 @@ export async function reassignQueuedSubmissionsCampesinoId(
     for (const [id, entry] of Object.entries(queue)) {
       if (!entry) continue;
       updatedQueue[id] =
-        entry.campesinoId === previousCampesinoId
-          ? { ...entry, campesinoId: nextCampesinoId }
+        String(entry.campesinoId) === pId
+          ? { ...entry, campesinoId: nId }
           : entry;
     }
 
     await AsyncStorage.setItem(STORAGE_KEYS.queue, JSON.stringify(updatedQueue));
-    return;
+  } else {
+    const { database, queueCollection, Q } = watermelon;
+    await database.write(async () => {
+      const records = await queueCollection
+        .query(Q.where('campesino_id', pId))
+        .fetch();
+
+      await Promise.all(
+        records.map((record: any) =>
+          record.update((item: any) => {
+            item._raw.campesino_id = nId;
+          }),
+        ),
+      );
+    });
   }
 
-  const { database, queueCollection, Q } = watermelon;
-  await database.write(async () => {
-    const records = await queueCollection
-      .query(Q.where('campesino_id', previousCampesinoId))
-      .fetch();
+  // 2. Reassign Campesino Metadata Cache Key
+  try {
+    const rawMeta = await AsyncStorage.getItem('encuestador-campesino-metadata-cache-v1');
+    if (rawMeta) {
+      const meta = JSON.parse(rawMeta) as Record<string, unknown>;
+      if (meta && meta[pId]) {
+        meta[nId] = {
+          ...((meta[nId] as Record<string, unknown>) || {}),
+          ...((meta[pId] as Record<string, unknown>) || {}),
+        };
+        delete meta[pId];
+        await AsyncStorage.setItem('encuestador-campesino-metadata-cache-v1', JSON.stringify(meta));
+      }
+    }
+  } catch {
+    // ignore
+  }
 
-    await Promise.all(
-      records.map((record: any) =>
-        record.update((item: any) => {
-          item._raw.campesino_id = nextCampesinoId;
-        }),
-      ),
-    );
-  });
+  // 3. Reassign History
+  try {
+    const history = (await readHistoryMap()) || {};
+    let changedHistory = false;
+    for (const entry of Object.values(history)) {
+      if (entry && String(entry.campesinoId) === pId) {
+        entry.campesinoId = nId;
+        changedHistory = true;
+      }
+    }
+    if (changedHistory) {
+      await AsyncStorage.setItem(STORAGE_KEYS.history, JSON.stringify(history));
+    }
+  } catch {
+    // ignore
+  }
+
+  // 4. Reassign Drafts
+  try {
+    const drafts = (await readDraftMap()) || {};
+    const updatedDrafts: Record<string, JsonObject> = {};
+    let changedDrafts = false;
+    for (const [k, v] of Object.entries(drafts)) {
+      if (k.startsWith(`${pId}:`)) {
+        const rest = k.slice(pId.length);
+        updatedDrafts[`${nId}${rest}`] = v;
+        changedDrafts = true;
+      } else {
+        updatedDrafts[k] = v;
+      }
+    }
+    if (changedDrafts) {
+      await AsyncStorage.setItem(STORAGE_KEYS.drafts, JSON.stringify(updatedDrafts));
+    }
+  } catch {
+    // ignore
+  }
 }
 
 export async function addSubmissionHistory(input: {
