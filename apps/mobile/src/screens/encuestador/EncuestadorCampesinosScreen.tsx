@@ -259,8 +259,20 @@ export default function EncuestadorCampesinosScreen() {
       return;
     }
 
-    if (!form.nombre) {
+    const nameRegex = /^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/;
+
+    if (!form.nombre.trim()) {
       showErrorAlert('El nombre del campesino es un campo obligatorio (*).', 'Campo obligatorio');
+      return;
+    }
+
+    if (!nameRegex.test(form.nombre.trim())) {
+      showErrorAlert('El nombre del campesino solo debe contener letras y espacios.', 'Nombre inválido');
+      return;
+    }
+
+    if (form.apellido && form.apellido.trim() && !nameRegex.test(form.apellido.trim())) {
+      showErrorAlert('El apellido del campesino solo debe contener letras y espacios.', 'Apellido inválido');
       return;
     }
 

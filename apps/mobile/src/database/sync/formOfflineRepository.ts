@@ -172,6 +172,10 @@ export async function listQueuedSubmissions(): Promise<QueueEntry[]> {
     const queue = (await readQueueMap()) || {};
     return Object.values(queue)
       .filter((item): item is QueueEntry => Boolean(item && typeof item === 'object' && item.capturedAtIso))
+      .map((item) => ({
+        ...item,
+        respuestas: parseJsonObject(item.respuestas),
+      }))
       .sort((a, b) => (a.capturedAtIso || '').localeCompare(b.capturedAtIso || ''));
   }
 
@@ -411,6 +415,12 @@ export async function getAllSubmissionHistory(limit = 100): Promise<SubmissionHi
 }
 
 function parseJsonObject(value: unknown): JsonObject {
+  if (!value) {
+    return {};
+  }
+  if (typeof value === 'object' && !Array.isArray(value)) {
+    return value as JsonObject;
+  }
   if (typeof value !== 'string') {
     return {};
   }

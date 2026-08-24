@@ -7,9 +7,13 @@ export class CreateCampesinDto {
   cedula?: string;
 
   @IsNotEmpty()
+  @IsString()
+  @Matches(/^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/, { message: 'El nombre solo debe contener letras y espacios' })
   nombre: string;
 
   @IsOptional()
+  @IsString()
+  @Matches(/^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/, { message: 'El apellido solo debe contener letras y espacios' })
   apellido?: string;
 
   @IsOptional()
