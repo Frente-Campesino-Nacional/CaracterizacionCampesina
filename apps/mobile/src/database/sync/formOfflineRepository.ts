@@ -463,51 +463,8 @@ function normalizeStatus(status: unknown): SubmissionHistoryEntry['status'] {
 }
 
 function getWatermelonContext(): WatermelonContext | null {
-  if (cachedContext !== undefined) {
-    return cachedContext;
-  }
-
-  // Expo Go does not include custom native modules like WatermelonDB.
-  // Skip loading it entirely to avoid WMDatabaseBridge runtime diagnostics.
-  if (Constants.appOwnership === 'expo') {
-    cachedContext = null;
-    if (!warnedFallback) {
-      console.warn('[offlineRepository] Expo Go detectado, usando AsyncStorage en lugar de WatermelonDB.');
-      warnedFallback = true;
-    }
-    return cachedContext;
-  }
-
-  try {
-    const { Q } = require('@nozbe/watermelondb');
-    const indexModule = require('../index') as { database?: any } | undefined;
-    const database = indexModule?.database;
-
-    if (!Q || !database || typeof database.get !== 'function' || typeof database.write !== 'function') {
-      cachedContext = null;
-      if (!warnedFallback) {
-        console.warn('[offlineRepository] WatermelonDB no disponible, usando AsyncStorage.');
-        warnedFallback = true;
-      }
-      return cachedContext;
-    }
-
-    cachedContext = {
-      database,
-      Q,
-      draftsCollection: database.get('form_drafts'),
-      queueCollection: database.get('form_submission_queue'),
-      historyCollection: database.get('form_submission_history'),
-    };
-    return cachedContext;
-  } catch (error) {
-    cachedContext = null;
-    if (!warnedFallback) {
-      console.warn('[offlineRepository] WatermelonDB no disponible, usando AsyncStorage.');
-      warnedFallback = true;
-    }
-    return cachedContext;
-  }
+  cachedContext = null;
+  return null;
 }
 
 function getDraftKey(campesinoId: string, formularioId: string): string {
