@@ -247,6 +247,7 @@ export async function flushQueuedCampesinoCreates(token: string): Promise<number
   let synced = 0;
   let pending = [...queued];
   let cached = await readCachedCampesinos();
+  let serverCampesinos: CampesinoRecord[] | null = null;
 
   for (const entry of queued) {
     try {
@@ -272,7 +273,37 @@ export async function flushQueuedCampesinoCreates(token: string): Promise<number
         continue;
       }
 
-      // If validation fails permanently, keep local data visible and remove from sync queue.
+      // Si es un conflicto 409/duplicado, buscar el campesino existente en el servidor y reasignar el ID para sincronizar sus formularios
+      const isConflict =
+        axios.isAxiosError(error) &&
+        error.response &&
+        (error.response.status === 409 ||
+          error.response.status === 400 ||
+          JSON.stringify(error.response.data || '').toLowerCase().includes('registrado') ||
+          JSON.stringify(error.response.data || '').toLowerCase().includes('already exists'));
+
+      if (isConflict) {
+        try {
+          if (!serverCampesinos) {
+            serverCampesinos = await listCampesinos(token).catch(() => []);
+          }
+          const match = serverCampesinos.find(
+            (c) =>
+              (entry.payload.cedula && c.cedula && c.cedula.toLowerCase().trim() === entry.payload.cedula.toLowerCase().trim()) ||
+              (entry.payload.correo && c.correo && c.correo.toLowerCase().trim() === entry.payload.correo.toLowerCase().trim()),
+          );
+          if (match) {
+            cached = cached.filter((item) => item.id !== entry.tempId);
+            cached = upsertById(cached, match);
+            await reassignQueuedSubmissionsCampesinoId(entry.tempId, match.id);
+            synced += 1;
+          }
+        } catch {
+          // busqueda de coincidencia no fatal
+        }
+      }
+
+      // Quitar de la cola de sincronizacion para evitar bucles repetidos de error
       pending = pending.filter((item) => item.queueId !== entry.queueId);
     }
   }

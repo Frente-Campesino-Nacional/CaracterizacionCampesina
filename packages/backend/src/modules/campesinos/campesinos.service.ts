@@ -468,6 +468,13 @@ export class CampesinosService {
       const parsedCedula = this.buildCedulaData(normalizedCedula);
       tipoCedula = parsedCedula.tipoCedula;
       cedula = parsedCedula.cedula;
+
+      const existingCedula = await this.prisma.$queryRaw<Array<{ id_personas: string }>>(Prisma.sql`
+        SELECT id_personas FROM registros.personas WHERE LOWER(cedula) = LOWER(${cedula}) LIMIT 1
+      `);
+      if (existingCedula[0]) {
+        throw new ConflictException('La cédula ya se encuentra registrada en el sistema.');
+      }
     } else {
       tipoCedula = 'NP';
       cedula = await this.generateUniqueCedula();
@@ -484,51 +491,68 @@ export class CampesinosService {
     const fechaNacimiento = this.normalizeDateInput(createCampesinDto.fecha_nacimiento) ?? new Date('1990-01-01T00:00:00.000Z');
     const personId = randomUUID();
 
-    await this.prisma.$transaction(async (tx) => {
-      await tx.$queryRaw(Prisma.sql`
-        INSERT INTO registros.personas (
-          id_personas,
-          nombre,
-          apellido,
-          tipo_cedula,
-          cedula,
-          fecha_nacimiento,
-          parroquia,
-          direccion_usuario,
-          email,
-          numero_telefonico,
-          genero,
-          consejo_id
-        ) VALUES (
-          CAST(${personId} AS uuid),
-          ${trimmedNombre},
-          ${createCampesinDto.apellido?.trim() || ''},
-          CAST(${tipoCedula} AS registros.tipo_cedula_enum),
-          ${cedula},
-          ${fechaNacimiento},
-          ${parroquiaId},
-          ${createCampesinDto.direccion?.trim() || ''},
-          ${createCampesinDto.correo?.trim() || null},
-          ${createCampesinDto.telefono?.trim() || null},
-          ${generoId},
-          CAST(${consejoId} AS uuid)
-        )
-      `);
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        await tx.$queryRaw(Prisma.sql`
+          INSERT INTO registros.personas (
+            id_personas,
+            nombre,
+            apellido,
+            tipo_cedula,
+            cedula,
+            fecha_nacimiento,
+            parroquia,
+            direccion_usuario,
+            email,
+            numero_telefonico,
+            genero,
+            consejo_id
+          ) VALUES (
+            CAST(${personId} AS uuid),
+            ${trimmedNombre},
+            ${createCampesinDto.apellido?.trim() || ''},
+            CAST(${tipoCedula} AS registros.tipo_cedula_enum),
+            ${cedula},
+            ${fechaNacimiento},
+            ${parroquiaId},
+            ${createCampesinDto.direccion?.trim() || ''},
+            ${createCampesinDto.correo?.trim() || null},
+            ${createCampesinDto.telefono?.trim() || null},
+            ${generoId},
+            CAST(${consejoId} AS uuid)
+          )
+        `);
 
-      await tx.$queryRaw(Prisma.sql`
-        INSERT INTO operacional.campesinos (
-          id_campesinos,
-          creado_por,
-          asignado_a,
-          formularios_pendientes
-        ) VALUES (
-          CAST(${personId} AS uuid),
-          CAST(${creadoPor} AS uuid),
-          CAST(${asignadoA} AS uuid),
-          ${createCampesinDto.tiene_pendientes ?? false}
-        )
-      `);
-    });
+        await tx.$queryRaw(Prisma.sql`
+          INSERT INTO operacional.campesinos (
+            id_campesinos,
+            creado_por,
+            asignado_a,
+            formularios_pendientes
+          ) VALUES (
+            CAST(${personId} AS uuid),
+            CAST(${creadoPor} AS uuid),
+            CAST(${asignadoA} AS uuid),
+            ${createCampesinDto.tiene_pendientes ?? false}
+          )
+        `);
+      });
+    } catch (error: any) {
+      if (error instanceof ConflictException || error instanceof BadRequestException) {
+        throw error;
+      }
+      const msg = String(error?.message || '');
+      if (error?.code === '23505' || msg.includes('23505') || msg.includes('already exists')) {
+        if (msg.includes('email') || msg.includes('correo')) {
+          throw new ConflictException('El correo electrónico ya se encuentra registrado en el sistema.');
+        }
+        if (msg.includes('cedula')) {
+          throw new ConflictException('La cédula ya se encuentra registrada en el sistema.');
+        }
+        throw new ConflictException('El campesino o sus datos ya se encuentran registrados en el sistema.');
+      }
+      throw error;
+    }
 
     const created = await this.findCampesinoRow(personId);
     if (!created) {
