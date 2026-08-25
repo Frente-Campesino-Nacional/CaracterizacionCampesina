@@ -238,6 +238,48 @@ export async function createCampesinoWithOfflineFallback(
   }
 }
 
+function normalizeCedulaDigits(value?: string | null): string {
+  if (!value) return '';
+  return value.replace(/\D/g, '').trim();
+}
+
+function findExistingServerCampesino(
+  serverList: CampesinoRecord[],
+  payload: CampesinoPayload,
+): CampesinoRecord | undefined {
+  const payloadCedulaDigits = normalizeCedulaDigits(payload.cedula);
+  const payloadEmail = payload.correo ? payload.correo.toLowerCase().trim() : '';
+  const payloadFullName = `${payload.nombre || ''} ${payload.apellido || ''}`.toLowerCase().trim().replace(/\s+/g, ' ');
+
+  return serverList.find((c) => {
+    // 1. Comparar solo los digitos de la cedula
+    if (payloadCedulaDigits.length >= 5) {
+      const cCedulaDigits = normalizeCedulaDigits(c.cedula);
+      if (cCedulaDigits && cCedulaDigits === payloadCedulaDigits) {
+        return true;
+      }
+    }
+
+    // 2. Comparar correo electronico
+    if (payloadEmail.length > 3) {
+      const cEmail = c.correo ? c.correo.toLowerCase().trim() : '';
+      if (cEmail && cEmail === payloadEmail) {
+        return true;
+      }
+    }
+
+    // 3. Comparar nombre completo
+    if (payloadFullName.length > 3) {
+      const cFullName = `${c.nombre || ''} ${c.apellido || ''}`.toLowerCase().trim().replace(/\s+/g, ' ');
+      if (cFullName && cFullName === payloadFullName) {
+        return true;
+      }
+    }
+
+    return false;
+  });
+}
+
 export async function flushQueuedCampesinoCreates(token: string): Promise<number> {
   const queued = await readQueuedCreates();
   if (!queued.length) {
@@ -247,9 +289,22 @@ export async function flushQueuedCampesinoCreates(token: string): Promise<number
   let synced = 0;
   let pending = [...queued];
   let cached = await readCachedCampesinos();
-  let serverCampesinos: CampesinoRecord[] | null = null;
+
+  // Consultar la lista del servidor previamente para evitar enviar POST innecesarios que causen error 409
+  const serverCampesinos = await listCampesinos(token).catch(() => []);
 
   for (const entry of queued) {
+    // Si el campesino ya existe en el servidor, no hacer POST; reasignar directamente el ID para sincronizar sus formularios
+    const existing = findExistingServerCampesino(serverCampesinos, entry.payload);
+    if (existing) {
+      cached = cached.filter((item) => item.id !== entry.tempId);
+      cached = upsertById(cached, existing);
+      pending = pending.filter((item) => item.queueId !== entry.queueId);
+      await reassignQueuedSubmissionsCampesinoId(entry.tempId, existing.id);
+      synced += 1;
+      continue;
+    }
+
     try {
       const created = await createCampesino(token, entry.payload);
       if (entry.photoOptions?.photoBase64) {
@@ -273,7 +328,7 @@ export async function flushQueuedCampesinoCreates(token: string): Promise<number
         continue;
       }
 
-      // Si es un conflicto 409/duplicado, buscar el campesino existente en el servidor y reasignar el ID para sincronizar sus formularios
+      // Si ocurre conflicto 409/duplicado, re-verificar lista fresca y reasignar ID
       const isConflict =
         axios.isAxiosError(error) &&
         error.response &&
@@ -284,14 +339,8 @@ export async function flushQueuedCampesinoCreates(token: string): Promise<number
 
       if (isConflict) {
         try {
-          if (!serverCampesinos) {
-            serverCampesinos = await listCampesinos(token).catch(() => []);
-          }
-          const match = serverCampesinos.find(
-            (c) =>
-              (entry.payload.cedula && c.cedula && c.cedula.toLowerCase().trim() === entry.payload.cedula.toLowerCase().trim()) ||
-              (entry.payload.correo && c.correo && c.correo.toLowerCase().trim() === entry.payload.correo.toLowerCase().trim()),
-          );
+          const freshList = await listCampesinos(token).catch(() => []);
+          const match = findExistingServerCampesino(freshList, entry.payload);
           if (match) {
             cached = cached.filter((item) => item.id !== entry.tempId);
             cached = upsertById(cached, match);
