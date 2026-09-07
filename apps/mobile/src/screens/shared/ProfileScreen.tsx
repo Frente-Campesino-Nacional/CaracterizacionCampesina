@@ -201,12 +201,19 @@ export default function ProfileScreen({ title }: ProfileScreenProps) {
 
   return (
     <ScrollView style={sharedScreenStyles.surfaceWhite} contentContainerStyle={sharedScreenStyles.contentLg}>
-      {navigation.canGoBack?.() ? (
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <MaterialCommunityIcons name="chevron-left" size={24} color={Theme.colors.greenDark} />
-          <Text style={styles.backButtonText}>Volver</Text>
-        </TouchableOpacity>
-      ) : null}
+      <TouchableOpacity
+        style={styles.backButton}
+        onPress={() => {
+          if (navigation.canGoBack()) {
+            navigation.goBack();
+          } else {
+            navigation.navigate('MainTabs' as any);
+          }
+        }}
+      >
+        <MaterialCommunityIcons name="chevron-left" size={24} color={Theme.colors.greenDark} />
+        <Text style={styles.backButtonText}>Volver</Text>
+      </TouchableOpacity>
       <View style={styles.headerCard}>
         <View style={styles.avatarCircle}>
           {currentPhotoSource ? (
@@ -217,44 +224,18 @@ export default function ProfileScreen({ title }: ProfileScreenProps) {
         </View>
         <Text style={styles.userName}>{user.nombre} {user.apellido}</Text>
         <Text style={styles.userSubtitle}>{user.email}</Text>
-        <View style={{ flexDirection: 'row', gap: 10, marginTop: Theme.spacing.xs }}>
-          <TouchableOpacity style={[styles.primaryButton, { flex: 1, paddingVertical: 8 }]} onPress={takePhotoWithCamera}>
+        <View style={{ flexDirection: 'row', gap: 10, marginTop: Theme.spacing.md }}>
+          <TouchableOpacity style={[styles.primaryButton, { flex: 1, paddingVertical: 10 }]} onPress={takePhotoWithCamera}>
             <Text style={styles.primaryButtonText}>📷 Cámara</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.primaryButton, { flex: 1, paddingVertical: 8, backgroundColor: Theme.colors.white, borderWidth: 1, borderColor: Theme.colors.greenDark }]} onPress={pickPhotoFromGallery}>
+          <TouchableOpacity style={[styles.primaryButton, { flex: 1, paddingVertical: 10, backgroundColor: Theme.colors.white, borderWidth: 1, borderColor: Theme.colors.greenDark }]} onPress={pickPhotoFromGallery}>
             <Text style={[styles.primaryButtonText, { color: Theme.colors.greenDark }]}>🖼️ Galería</Text>
           </TouchableOpacity>
-        </View>
-
-      </View>
-
-
-      <View style={styles.infoCard}>
-        <Text style={styles.sectionTitle}>Foto de perfil</Text>
-        <Text style={sharedScreenStyles.fieldLabel}>URL</Text>
-        <TextInput
-          value={photoUrl}
-          onChangeText={setPhotoUrl}
-          placeholder="https://..."
-          autoCapitalize="none"
-          style={styles.input}
-        />
-        <Text style={sharedScreenStyles.fieldLabel}>Base64 opcional</Text>
-        <TextInput
-          value={photoBase64}
-          onChangeText={setPhotoBase64}
-          placeholder="Contenido base64"
-          autoCapitalize="none"
-          style={[styles.input, styles.textArea]}
-          multiline
-        />
-        <View style={styles.photoActionsRow}>
-          <TouchableOpacity style={styles.primaryButton} onPress={onSavePhoto}>
-            <Text style={styles.primaryButtonText}>Guardar foto</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.primaryButton, styles.deleteButton]} onPress={onDeletePhoto}>
-            <Text style={styles.primaryButtonText}>Eliminar</Text>
-          </TouchableOpacity>
+          {profilePhoto ? (
+            <TouchableOpacity style={[styles.primaryButton, styles.deleteButton, { paddingVertical: 10 }]} onPress={onDeletePhoto}>
+              <Text style={styles.primaryButtonText}>🗑️</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
       </View>
 

@@ -10,8 +10,11 @@ export declare class ConsejosService {
         id: any;
         nombre: any;
         descripcion: any;
+        estado_id: any;
         estado: any;
+        municipio_id: any;
         municipio: any;
+        parroquia_id: any;
         parroquia: any;
         encargado_tipo: any;
         encargado_id: any;
@@ -23,8 +26,11 @@ export declare class ConsejosService {
         id: any;
         nombre: any;
         descripcion: any;
+        estado_id: any;
         estado: any;
+        municipio_id: any;
         municipio: any;
+        parroquia_id: any;
         parroquia: any;
         encargado_tipo: any;
         encargado_id: any;
@@ -36,8 +42,11 @@ export declare class ConsejosService {
         id: any;
         nombre: any;
         descripcion: any;
+        estado_id: any;
         estado: any;
+        municipio_id: any;
         municipio: any;
+        parroquia_id: any;
         parroquia: any;
         encargado_tipo: any;
         encargado_id: any;
@@ -49,8 +58,11 @@ export declare class ConsejosService {
         id: any;
         nombre: any;
         descripcion: any;
+        estado_id: any;
         estado: any;
+        municipio_id: any;
         municipio: any;
+        parroquia_id: any;
         parroquia: any;
         encargado_tipo: any;
         encargado_id: any;

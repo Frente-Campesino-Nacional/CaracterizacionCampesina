@@ -102,6 +102,7 @@ export default function AdminCampesinosScreen() {
   const [genderOptions, setGenderOptions] = useState(GENDER_OPTIONS);
   const [search, setSearch] = useState('');
   const [consejoFilter, setConsejoFilter] = useState<string | 'all'>('all');
+  const [pendientesFilter, setPendientesFilter] = useState<'all' | 'pendientes' | 'sin_pendientes'>('all');
   const [consejoDropdownOpen, setConsejoDropdownOpen] = useState(false);
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState<CampesinoRecord | null>(null);
@@ -124,9 +125,15 @@ export default function AdminCampesinosScreen() {
     setUsers(usuariosList);
   };
 
-  useEffect(() => {
-    load().catch((error) => Alert.alert('Error', error.message || 'No se pudo cargar campesinos'));
-  }, [token]);
+  useNavigation();
+  const { useFocusEffect } = require('@react-navigation/native');
+
+  useFocusEffect(
+    React.useCallback(() => {
+      load().catch(() => undefined);
+      return () => undefined;
+    }, [token])
+  );
 
   useEffect(() => {
     if (!token) return;
@@ -143,10 +150,16 @@ export default function AdminCampesinosScreen() {
     const text = search.toLowerCase();
     return items.filter((item) => {
       const byConsejo = consejoFilter === 'all' || item.consejo_id === consejoFilter;
+      const byPendientes =
+        pendientesFilter === 'all'
+          ? true
+          : pendientesFilter === 'pendientes'
+          ? Boolean(item.tiene_pendientes)
+          : !item.tiene_pendientes;
       const byText = item.nombre.toLowerCase().includes(text) || item.cedula.toLowerCase().includes(text);
-      return byConsejo && byText;
+      return byConsejo && byPendientes && byText;
     });
-  }, [consejoFilter, items, search]);
+  }, [consejoFilter, pendientesFilter, items, search]);
 
   const selectedConsejoLabel =
     consejoFilter === 'all'
@@ -239,11 +252,11 @@ export default function AdminCampesinosScreen() {
       correo: item.correo || '',
       fecha_nacimiento: item.fecha_nacimiento ? String(item.fecha_nacimiento).slice(0, 10) : '',
       genero: item.genero || '',
-      estado_id: '',
+      estado_id: (item as any).estado_id != null ? String((item as any).estado_id) : '',
       estado_nombre: item.estado || '',
-      municipio_id: '',
+      municipio_id: (item as any).municipio_id != null ? String((item as any).municipio_id) : '',
       municipio_nombre: item.municipio || '',
-      parroquia_id: '',
+      parroquia_id: (item as any).parroquia_id != null ? String((item as any).parroquia_id) : '',
       parroquia_nombre: item.parroquia || '',
       direccion: item.direccion || '',
       consejo_id: item.consejo_id || '',
@@ -307,11 +320,13 @@ export default function AdminCampesinosScreen() {
     try {
       let targetId: string;
       if (editing) {
-        await updateCampesino(token, editing.id, payload);
+        const updated = await updateCampesino(token, editing.id, payload);
         targetId = editing.id;
+        setItems((prev) => prev.map((item) => (item.id === targetId ? ({ ...item, ...updated } as CampesinoRecord) : item)));
       } else {
         const created = await createCampesino(token, payload);
         targetId = created.id;
+        setItems((prev) => [created, ...prev]);
       }
 
       if (photoState === 'new' && photoBase64) {
@@ -325,7 +340,7 @@ export default function AdminCampesinosScreen() {
       }
 
       setModal(false);
-      await load();
+      void load();
       showSuccessAlert(
         editing ? 'Campesino Actualizado' : 'Campesino Registrado',
         editing
@@ -508,6 +523,26 @@ export default function AdminCampesinosScreen() {
           </View>
         ) : null}
       </View>
+      <View style={styles.filterRow}>
+        <TouchableOpacity
+          style={[styles.pill, pendientesFilter === 'all' && styles.pillActive]}
+          onPress={() => setPendientesFilter('all')}
+        >
+          <Text style={[styles.pillText, pendientesFilter === 'all' && styles.pillTextActive]}>Todos</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.pill, pendientesFilter === 'pendientes' && styles.pillActive]}
+          onPress={() => setPendientesFilter('pendientes')}
+        >
+          <Text style={[styles.pillText, pendientesFilter === 'pendientes' && styles.pillTextActive]}>Con pendientes</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.pill, pendientesFilter === 'sin_pendientes' && styles.pillActive]}
+          onPress={() => setPendientesFilter('sin_pendientes')}
+        >
+          <Text style={[styles.pillText, pendientesFilter === 'sin_pendientes' && styles.pillTextActive]}>Sin pendientes</Text>
+        </TouchableOpacity>
+      </View>
       <RoleSectionHeader
         title="Campesinos"
         subtitle="Visualiza y administra los registros de campesinos."
@@ -591,11 +626,11 @@ export default function AdminCampesinosScreen() {
               <TextInput value={form.correo} onChangeText={(value) => setForm((s) => ({ ...s, correo: value }))} style={sharedFormStyles.input} placeholder="Correo electrónico" autoCapitalize="none" keyboardType="email-address" />
               <DatePickerField label="Fecha de nacimiento" value={form.fecha_nacimiento} onChange={(value) => setForm((s) => ({ ...s, fecha_nacimiento: value }))} onClear={() => setForm((s) => ({ ...s, fecha_nacimiento: '' }))} />
               <OptionSelector
-                label="Género"
+                label="Sexo"
                 value={form.genero}
                 options={genderOptions}
                 onChange={(value) => setForm((s) => ({ ...s, genero: value }))}
-                placeholder="Selecciona el género del campesino"
+                placeholder="Selecciona el sexo del campesino"
               />
               <LookupSelectField
                 label="Consejo"
@@ -671,9 +706,9 @@ export default function AdminCampesinosScreen() {
 
                 </Text>
               </View>
-              <View style={sharedFormStyles.switchRow}>
-                <Text>Tiene pendientes</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12, marginTop: 4 }}>
                 <Switch value={form.tiene_pendientes} onValueChange={(value) => setForm((s) => ({ ...s, tiene_pendientes: value }))} />
+                <Text style={{ fontSize: 14, fontWeight: '500', color: '#0f172a' }}>Tiene pendientes</Text>
               </View>
       </FormModalSheet>
     </View>

@@ -23,8 +23,8 @@ export class FormulariosService {
         estructura,
         activo,
         creado_por,
-        created_at AS creado_en,
-        update_at AS actualizado_en
+        creado_en AS creado_en,
+        actualizado_en AS actualizado_en
       FROM operacional.formularios
       WHERE id_formulario::text = ${textValue}
       LIMIT 1
@@ -55,11 +55,11 @@ export class FormulariosService {
         estructura,
         activo,
         creado_por,
-        created_at AS creado_en,
-        update_at AS actualizado_en
+        creado_en AS creado_en,
+        actualizado_en AS actualizado_en
       FROM operacional.formularios
       WHERE activo = TRUE
-      ORDER BY created_at DESC
+      ORDER BY creado_en DESC
     `);
 
     return formularios.map((formulario) => this.mapFormulario(formulario));
@@ -84,7 +84,7 @@ export class FormulariosService {
         ${createFormularioDto.activo ?? true},
         CAST(${createFormularioDto.creado_por ?? null} AS uuid)
       )
-      RETURNING id_formulario AS id, titulo, version, estructura, activo, creado_por, created_at AS creado_en, update_at AS actualizado_en
+      RETURNING id_formulario AS id, titulo, version, estructura, activo, creado_por, creado_en AS creado_en, actualizado_en AS actualizado_en
     `);
 
     return this.mapFormulario(created[0]);
@@ -104,7 +104,7 @@ export class FormulariosService {
         estructura = COALESCE(${updateFormularioDto.estructura ? JSON.stringify(updateFormularioDto.estructura) : null}::jsonb, estructura),
         activo = COALESCE(${updateFormularioDto.activo ?? null}, activo)
       WHERE id_formulario::text = ${String(formulario.id)}
-      RETURNING id_formulario AS id, titulo, version, estructura, activo, creado_por, created_at AS creado_en, update_at AS actualizado_en
+      RETURNING id_formulario AS id, titulo, version, estructura, activo, creado_por, creado_en AS creado_en, actualizado_en AS actualizado_en
     `);
 
     return this.mapFormulario(updated[0] ?? formulario);
@@ -357,7 +357,7 @@ export class FormulariosService {
       return true;
     }
 
-    if (typeof value === 'object') {
+    if (value && typeof value === 'object') {
       return Object.keys(value as Record<string, unknown>).length > 0;
     }
 

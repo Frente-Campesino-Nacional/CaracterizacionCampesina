@@ -15,8 +15,11 @@ export declare class UsuariosController {
         numero_telefono: any;
         fecha_nacimiento: any;
         genero: any;
+        estado_id: any;
         estado: any;
+        municipio_id: any;
         municipio: any;
+        parroquia_id: any;
         parroquia: any;
         direccion: any;
         consejo_id: any;
@@ -36,8 +39,11 @@ export declare class UsuariosController {
         numero_telefono: any;
         fecha_nacimiento: any;
         genero: any;
+        estado_id: any;
         estado: any;
+        municipio_id: any;
         municipio: any;
+        parroquia_id: any;
         parroquia: any;
         direccion: any;
         consejo_id: any;

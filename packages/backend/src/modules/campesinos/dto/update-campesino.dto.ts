@@ -7,9 +7,13 @@ export class UpdateCampesinDto {
   cedula?: string;
 
   @IsOptional()
+  @IsString()
+  @Matches(/^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/, { message: 'El nombre solo debe contener letras y espacios' })
   nombre?: string;
 
   @IsOptional()
+  @IsString()
+  @Matches(/^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/, { message: 'El apellido solo debe contener letras y espacios' })
   apellido?: string;
 
   @IsOptional()
@@ -27,6 +31,9 @@ export class UpdateCampesinDto {
   @IsOptional()
   @IsDateString()
   fecha_nacimiento?: string;
+
+  @IsOptional()
+  sexo?: string;
 
   @IsOptional()
   genero?: string;

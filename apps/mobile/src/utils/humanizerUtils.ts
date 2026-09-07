@@ -95,8 +95,8 @@ function translateValidationString(text: string): string {
   if (lower.includes('user not found') || lower.includes('usuario no encontrado')) {
     return 'El usuario indicado no existe en el sistema.';
   }
-  if (lower.includes('ya existe') || lower.includes('duplicad')) {
-    return 'Este registro o valor ya se encuentra registrado.';
+  if (lower.includes('cannot convert null') || lower.includes('null value to object') || lower.includes('convertir un valor nulo')) {
+    return 'Ocurrió un inconveniente al cargar la información. Por favor, desliza hacia abajo para actualizar la pantalla.';
   }
 
   // Si ya está en español comprensible, retornarlo con la primera letra en mayúscula

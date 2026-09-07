@@ -7,10 +7,10 @@ export class GenerosService {
   constructor(private prisma: PrismaService) {}
 
   async findAll() {
-    return this.prisma.$queryRaw<Array<{ id_genero: number; tipo_gen: string }>>(Prisma.sql`
-      SELECT id_genero, genero AS tipo_gen
+    return this.prisma.$queryRaw<Array<{ id_sexo: number; id_genero: number; tipo_gen: string }>>(Prisma.sql`
+      SELECT id_sexo, id_sexo AS id_genero, sexo AS tipo_gen
       FROM catalogos.generos
-      ORDER BY genero ASC
+      ORDER BY id_sexo ASC
     `);
   }
 }

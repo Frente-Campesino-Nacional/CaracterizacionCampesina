@@ -122,8 +122,8 @@ export class PostgresStorageService implements OnModuleInit {
         id_formulario,
         respuestas,
         llenado_por,
-        created_at,
-        update_at,
+        creado_en,
+        actualizado_en,
         sync_status,
         sync_attempts,
         last_synced_at,
@@ -160,8 +160,8 @@ export class PostgresStorageService implements OnModuleInit {
         id_fotos,
         persona_id,
         url_nube,
-        created_at,
-        updated_at,
+        creado_en,
+        actualizado_en,
         sync_status,
         sync_attempts,
         last_synced_at,
@@ -180,7 +180,7 @@ export class PostgresStorageService implements OnModuleInit {
       ON CONFLICT (persona_id)
       DO UPDATE SET
         url_nube = EXCLUDED.url_nube,
-        updated_at = EXCLUDED.updated_at,
+        actualizado_en = EXCLUDED.actualizado_en,
         sync_status = EXCLUDED.sync_status,
         sync_attempts = 0,
         last_synced_at = EXCLUDED.last_synced_at,
@@ -196,8 +196,8 @@ export class PostgresStorageService implements OnModuleInit {
       id_fotos: string;
       persona_id: string;
       url_nube: string;
-      created_at: Date;
-      updated_at: Date;
+      creado_en: Date;
+      actualizado_en: Date;
       sync_status: string;
       sync_attempts: number;
       last_synced_at: Date | null;
@@ -207,15 +207,15 @@ export class PostgresStorageService implements OnModuleInit {
         id_fotos,
         persona_id,
         url_nube,
-        created_at,
-        updated_at,
+        creado_en,
+        actualizado_en,
         sync_status,
         sync_attempts,
         last_synced_at,
         sync_error
       FROM operacional.fotos_perfil
       WHERE persona_id::text = ${String(usuarioId)}
-      ORDER BY updated_at DESC, created_at DESC
+      ORDER BY actualizado_en DESC, creado_en DESC
       LIMIT 1;
     `);
 
@@ -235,8 +235,8 @@ export class PostgresStorageService implements OnModuleInit {
       image_base64: parsed.image_base64,
       image_url: parsed.image_url,
       metadata: null,
-      creado_en: document.created_at,
-      actualizado_en: document.updated_at,
+      creado_en: document.creado_en,
+      actualizado_en: document.actualizado_en,
     };
   }
 
@@ -262,8 +262,8 @@ export class PostgresStorageService implements OnModuleInit {
         id_fotos,
         persona_id,
         url_nube,
-        created_at,
-        updated_at,
+        creado_en,
+        actualizado_en,
         sync_status,
         sync_attempts,
         last_synced_at,
@@ -282,7 +282,7 @@ export class PostgresStorageService implements OnModuleInit {
       ON CONFLICT (persona_id)
       DO UPDATE SET
         url_nube = EXCLUDED.url_nube,
-        updated_at = EXCLUDED.updated_at,
+        actualizado_en = EXCLUDED.actualizado_en,
         sync_status = EXCLUDED.sync_status,
         sync_attempts = 0,
         last_synced_at = EXCLUDED.last_synced_at,
@@ -298,8 +298,8 @@ export class PostgresStorageService implements OnModuleInit {
       id_fotos: string;
       persona_id: string;
       url_nube: string;
-      created_at: Date;
-      updated_at: Date;
+      creado_en: Date;
+      actualizado_en: Date;
       sync_status: string;
       sync_attempts: number;
       last_synced_at: Date | null;
@@ -309,15 +309,15 @@ export class PostgresStorageService implements OnModuleInit {
         id_fotos,
         persona_id,
         url_nube,
-        created_at,
-        updated_at,
+        creado_en,
+        actualizado_en,
         sync_status,
         sync_attempts,
         last_synced_at,
         sync_error
       FROM operacional.fotos_perfil
       WHERE persona_id::text = ${String(campesinoId)}
-      ORDER BY updated_at DESC, created_at DESC
+      ORDER BY actualizado_en DESC, creado_en DESC
       LIMIT 1;
     `);
 
@@ -337,8 +337,8 @@ export class PostgresStorageService implements OnModuleInit {
       image_base64: parsed.image_base64,
       image_url: parsed.image_url,
       metadata: null,
-      creado_en: document.created_at,
-      actualizado_en: document.updated_at,
+      creado_en: document.creado_en,
+      actualizado_en: document.actualizado_en,
     };
   }
 

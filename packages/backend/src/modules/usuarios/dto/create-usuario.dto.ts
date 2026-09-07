@@ -38,6 +38,9 @@ export class CreateUsuarioDto {
   fecha_nacimiento?: string;
 
   @IsOptional()
+  sexo?: string;
+
+  @IsOptional()
   genero?: string;
 
   @IsOptional()

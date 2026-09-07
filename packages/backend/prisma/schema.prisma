@@ -21,9 +21,9 @@ model Rol {
 }
 
 model Genero {
-  id_genero Int        @id(map: "id_genero_pkey") @default(autoincrement())
-  tipo_gen  String     @map("genero")
-  personas  personas[]
+  id_sexo  Int        @id(map: "id_sexo_pkey") @default(autoincrement()) @map("id_sexo")
+  tipo_gen String     @map("sexo")
+  personas personas[]
 
   @@map("generos")
   @@schema("catalogos")
@@ -71,8 +71,8 @@ model Consejo {
   parrroquia     Int
   direccion_csj  String?
   encargado_id   String?    @db.Uuid
-  created_at     DateTime   @default(now()) @db.Timestamp(6)
-  updated_at     DateTime   @default(now()) @db.Timestamp(6)
+  creado_en      DateTime   @default(now()) @map("creado_en") @db.Timestamp(6)
+  actualizado_en DateTime   @default(now()) @map("actualizado_en") @db.Timestamp(6)
   usuarios       Usuario?   @relation(fields: [encargado_id], references: [id_usuario], map: "encargado_fkey")
   parroquias     Parroquia  @relation(fields: [parrroquia], references: [id_parroquia], onDelete: NoAction, map: "parroquia_fkey")
   personas       personas[]
@@ -136,8 +136,8 @@ model Formulario {
   estructura     Json
   activo         Boolean         @default(true)
   creado_por     String          @db.Uuid
-  created_at     DateTime        @default(now()) @db.Timestamp(6)
-  update_at      DateTime        @default(now()) @db.Timestamp(6)
+  creado_en      DateTime        @default(now()) @map("creado_en") @db.Timestamp(6)
+  actualizado_en DateTime        @default(now()) @map("actualizado_en") @db.Timestamp(6)
   creador        Usuario         @relation("FormularioCreador", fields: [creado_por], references: [id_usuario], onDelete: SetNull, map: "creado_por_fkey")
   respuesta_form RespuestaForm[]
 
@@ -150,8 +150,8 @@ model RespuestaForm {
   id_formulario  String     @db.Uuid
   respuestas     Json
   llenado_por    String     @db.Uuid
-  created_at     DateTime   @default(now()) @db.Timestamp(6)
-  update_at      DateTime   @default(now()) @db.Timestamp(6)
+  creado_en      DateTime   @default(now()) @map("creado_en") @db.Timestamp(6)
+  actualizado_en DateTime   @default(now()) @map("actualizado_en") @db.Timestamp(6)
   sync_status    String     @default("pending")
   sync_attempts  Int        @default(0)
   last_synced_at DateTime?  @db.Timestamptz(6)
@@ -175,7 +175,7 @@ model HistorialCambio {
   valores_anteriores Json?
   valores_nuevos     Json?
   origen             String   @default("WEB_DIRECTO") @db.VarChar(20)
-  created_at         DateTime @default(now()) @db.Timestamptz(6)
+  creado_en          DateTime @default(now()) @map("creado_en") @db.Timestamptz(6)
   usuario            Usuario? @relation("HistorialUsuario", fields: [usuario_id_reg], references: [id_usuario], map: "usuario_id_reg_fkey")
 
   @@index([tabla_nombre, registro_id], map: "idx_historial_tabla_registro")
@@ -187,8 +187,8 @@ model FotoPerfil {
   id_fotos       String    @id(map: "id_fotos_pky") @db.VarChar(36)
   persona_id     String    @unique(map: "persona_id_unq") @db.Uuid
   url_nube       String
-  created_at     DateTime  @default(now()) @db.Timestamp(6)
-  updated_at     DateTime  @default(now()) @updatedAt @db.Timestamp(6)
+  creado_en      DateTime  @default(now()) @map("creado_en") @db.Timestamp(6)
+  actualizado_en DateTime  @default(now()) @updatedAt @map("actualizado_en") @db.Timestamp(6)
   sync_status    String    @default("pending")
   sync_attempts  Int       @default(0)
   last_synced_at DateTime? @db.Timestamptz(6)
@@ -244,10 +244,10 @@ model personas {
   direccion_usuario String
   email             String?          @unique(map: "email_unique") @db.VarChar(254)
   numero_telefonico String?          @db.VarChar(12)
-  genero            Int
+  sexo              Int              @map("sexo")
   consejo_id        String?          @db.Uuid
-  created_at        DateTime         @default(now()) @db.Timestamp(6)
-  update_at         DateTime         @default(now()) @db.Timestamp(6)
+  creado_en         DateTime         @default(now()) @map("creado_en") @db.Timestamp(6)
+  actualizado_en    DateTime         @default(now()) @map("actualizado_en") @db.Timestamp(6)
   sync_status       String           @default("pending")
   sync_attempts     Int              @default(0)
   last_synced_at    DateTime?        @db.Timestamptz(6)
@@ -255,14 +255,14 @@ model personas {
   campesinos        Campesino?
   fotos_perfil      FotoPerfil?
   consejos          Consejo?         @relation(fields: [consejo_id], references: [consejo_id], map: "consejo_id_fkey")
-  generos           Genero           @relation(fields: [genero], references: [id_genero], onDelete: NoAction, onUpdate: NoAction, map: "genero_fkey")
+  generos           Genero           @relation(fields: [sexo], references: [id_sexo], onDelete: NoAction, onUpdate: NoAction, map: "genero_fkey")
   parroquias        Parroquia        @relation(fields: [parroquia], references: [id_parroquia], map: "parroquia_fkey")
   usuarios          Usuario?
 
   @@index([cedula], map: "idx_personas_cedula")
   @@index([consejo_id], map: "idx_personas_consejo_id")
   @@index([email], map: "idx_personas_email")
-  @@index([genero], map: "idx_personas_genero")
+  @@index([sexo], map: "idx_personas_sexo")
   @@index([parroquia], map: "idx_personas_parroquia")
   @@index([sync_status], map: "idx_personas_sync_status")
   @@schema("registros")

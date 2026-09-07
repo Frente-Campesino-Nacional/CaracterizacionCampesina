@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, FlatList, Image, Modal, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Image, Modal, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
 
@@ -15,7 +15,7 @@ import StateMunicipioPicker from '../../components/StateMunicipioPicker';
 import { Theme } from '../../theme/colors';
 import { sharedFormStyles } from '../../styles/sharedFormStyles';
 import { CampesinoPayload, CampesinoRecord, ConsejoRecord, GeneroRecord, createCampesino, listCampesinos, listConsejos, listGeneros } from '../../services/adminService';
-import { flushQueuedSubmissions } from '../../services/encuestadorFormService';
+import { flushQueuedSubmissions, getFormulariosActivos, getPendingFormularios } from '../../services/encuestadorFormService';
 import {
   createCampesinoWithOfflineFallback,
   flushQueuedCampesinoCreates,
@@ -23,6 +23,8 @@ import {
 } from '../../services/encuestadorCampesinoOfflineService';
 import { showErrorAlert, showSuccessAlert } from '../../utils/humanizerUtils';
 import { useAuthStore } from '../../store/authStore';
+import { syncAllOfflineData } from '../../services/offlineSyncManager';
+import { syncEncuestadorData } from '../../services/encuestadorSyncService';
 
 type RootStackParamList = {
 
@@ -111,10 +113,23 @@ export default function EncuestadorCampesinosScreen() {
   const [consejos, setConsejos] = useState<ConsejoRecord[]>([]);
   const [genderOptions, setGenderOptions] = useState(GENDER_OPTIONS);
   const [search, setSearch] = useState('');
+  const [pendientesFilter, setPendientesFilter] = useState<'all' | 'pendientes' | 'sin_pendientes'>('all');
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState<CampesinoFormState>(defaultForm(user?.consejo_id));
   const [syncedCount, setSyncedCount] = useState(0);
   const [offlineSavedCount, setOfflineSavedCount] = useState(0);
+  const [syncing, setSyncing] = useState(false);
+
+  const handleManualSync = async () => {
+    if (!token || !user?.id || syncing) return;
+    setSyncing(true);
+    try {
+      await syncEncuestadorData(token, user.id, true);
+      await load();
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   // Photo state
   const [photoSource, setPhotoSource] = useState<string | null>(null);
@@ -193,7 +208,7 @@ export default function EncuestadorCampesinosScreen() {
   };
 
   useEffect(() => {
-    load().catch((error) => Alert.alert('Error', error.message || 'No se pudo cargar campesinos'));
+    load().catch(() => undefined);
   }, [token, currentUserId]);
 
   useEffect(() => {
@@ -231,12 +246,14 @@ export default function EncuestadorCampesinosScreen() {
         return () => undefined;
       }
 
-      flushQueuedCampesinoCreates(token)
-        .then(async (campesinoCount) => {
-          setOfflineSavedCount(campesinoCount);
-          const formCount = await flushQueuedSubmissions(token);
-          setSyncedCount(formCount);
-          await load();
+      // Cargar e interpretar metadata local inmediatamente al enfocar la pantalla
+      load();
+
+      syncAllOfflineData(token)
+        .then(async (res) => {
+          if (res.syncedCampesinos > 0 || res.syncedForms > 0) {
+            await load();
+          }
         })
         .catch(() => undefined);
 
@@ -246,8 +263,17 @@ export default function EncuestadorCampesinosScreen() {
 
   const filtered = useMemo(() => {
     const text = search.toLowerCase();
-    return items.filter((item) => item.nombre.toLowerCase().includes(text) || item.cedula.toLowerCase().includes(text));
-  }, [items, search]);
+    return items.filter((item) => {
+      const byPendientes =
+        pendientesFilter === 'all'
+          ? true
+          : pendientesFilter === 'pendientes'
+          ? Boolean(item.tiene_pendientes)
+          : !item.tiene_pendientes;
+      const byText = item.nombre.toLowerCase().includes(text) || item.cedula.toLowerCase().includes(text);
+      return byPendientes && byText;
+    });
+  }, [items, search, pendientesFilter]);
 
   const save = async () => {
     if (!token || !user || !currentUserId) return;
@@ -256,8 +282,20 @@ export default function EncuestadorCampesinosScreen() {
       return;
     }
 
-    if (!form.nombre) {
+    const nameRegex = /^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/;
+
+    if (!form.nombre.trim()) {
       showErrorAlert('El nombre del campesino es un campo obligatorio (*).', 'Campo obligatorio');
+      return;
+    }
+
+    if (!nameRegex.test(form.nombre.trim())) {
+      showErrorAlert('El nombre del campesino solo debe contener letras y espacios.', 'Nombre inválido');
+      return;
+    }
+
+    if (form.apellido && form.apellido.trim() && !nameRegex.test(form.apellido.trim())) {
+      showErrorAlert('El apellido del campesino solo debe contener letras y espacios.', 'Apellido inválido');
       return;
     }
 
@@ -341,11 +379,48 @@ export default function EncuestadorCampesinosScreen() {
         title="Campesinos"
         subtitle="Tus campesinos asignados"
         actions={
-          <TouchableOpacity style={styles.primaryButton} onPress={() => setModal(true)}>
-            <Text style={styles.primaryButtonText}>Registrar</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+            <TouchableOpacity
+              style={[styles.primaryButton, { backgroundColor: Theme.colors.greenDark, flexDirection: 'row', alignItems: 'center' }]}
+              onPress={handleManualSync}
+              disabled={syncing}
+            >
+              {syncing ? (
+                <ActivityIndicator size="small" color="#ffffff" style={{ marginRight: 4 }} />
+              ) : (
+                <MaterialCommunityIcons name="cloud-sync" size={18} color="#ffffff" style={{ marginRight: 4 }} />
+              )}
+              <Text style={styles.primaryButtonText}>{syncing ? 'Cargando...' : 'Sincronizar'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.primaryButton} onPress={() => setModal(true)}>
+              <Text style={styles.primaryButtonText}>Registrar</Text>
+            </TouchableOpacity>
+          </View>
         }
       />
+
+      <SearchBar value={search} onChangeText={setSearch} placeholder="Buscar por cédula o nombre" />
+
+      <View style={styles.filterRow}>
+        <TouchableOpacity
+          style={[styles.pill, pendientesFilter === 'all' && styles.pillActive]}
+          onPress={() => setPendientesFilter('all')}
+        >
+          <Text style={[styles.pillText, pendientesFilter === 'all' && styles.pillTextActive]}>Todos</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.pill, pendientesFilter === 'pendientes' && styles.pillActive]}
+          onPress={() => setPendientesFilter('pendientes')}
+        >
+          <Text style={[styles.pillText, pendientesFilter === 'pendientes' && styles.pillTextActive]}>Con pendientes</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.pill, pendientesFilter === 'sin_pendientes' && styles.pillActive]}
+          onPress={() => setPendientesFilter('sin_pendientes')}
+        >
+          <Text style={[styles.pillText, pendientesFilter === 'sin_pendientes' && styles.pillTextActive]}>Sin pendientes</Text>
+        </TouchableOpacity>
+      </View>
 
       <FlatList
         data={filtered}
@@ -433,11 +508,11 @@ export default function EncuestadorCampesinosScreen() {
               <TextInput value={form.correo} onChangeText={(value) => setForm((s) => ({ ...s, correo: value }))} style={styles.input} placeholder="Correo electrónico" autoCapitalize="none" keyboardType="email-address" />
               <DatePickerField label="Fecha de nacimiento" value={form.fecha_nacimiento} onChange={(value) => setForm((s) => ({ ...s, fecha_nacimiento: value }))} onClear={() => setForm((s) => ({ ...s, fecha_nacimiento: '' }))} />
               <OptionSelector
-                label="Género"
+                label="Sexo"
                 value={form.genero}
                 options={genderOptions}
                 onChange={(value) => setForm((s) => ({ ...s, genero: value }))}
-                placeholder="Selecciona el género"
+                placeholder="Selecciona el sexo"
               />
               <LookupSelectField
                 label="Consejo"
@@ -495,9 +570,9 @@ export default function EncuestadorCampesinosScreen() {
               </View>
 
 
-              <View style={styles.switchRow}>
-                <Text>Tiene pendientes</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12, marginTop: 4 }}>
                 <Switch value={form.tiene_pendientes} onValueChange={(value) => setForm((s) => ({ ...s, tiene_pendientes: value }))} />
+                <Text style={{ fontSize: 14, fontWeight: '500', color: '#0f172a' }}>Tiene pendientes</Text>
               </View>
       </FormModalSheet>
     </View>

@@ -122,9 +122,14 @@ export default function AdminUsuariosScreen() {
     setItems(data);
   };
 
-  useEffect(() => {
-    load().catch((error) => Alert.alert('Error', error.message || 'No se pudo cargar usuarios'));
-  }, [token]);
+  const { useFocusEffect } = require('@react-navigation/native');
+
+  useFocusEffect(
+    React.useCallback(() => {
+      load().catch(() => undefined);
+      return () => undefined;
+    }, [token])
+  );
 
   useEffect(() => {
     if (!token) return;
@@ -185,11 +190,11 @@ export default function AdminUsuariosScreen() {
       numero_telefono: item.numero_telefono || '',
       fecha_nacimiento: item.fecha_nacimiento ? String(item.fecha_nacimiento).slice(0, 10) : '',
       genero: item.genero || '',
-      estado_id: '',
+      estado_id: (item as any).estado_id != null ? String((item as any).estado_id) : '',
       estado_nombre: item.estado || '',
-      municipio_id: '',
+      municipio_id: (item as any).municipio_id != null ? String((item as any).municipio_id) : '',
       municipio_nombre: item.municipio || '',
-      parroquia_id: '',
+      parroquia_id: (item as any).parroquia_id != null ? String((item as any).parroquia_id) : '',
       parroquia_nombre: item.parroquia || '',
       direccion: item.direccion || '',
       consejo_id: item.consejo_id || '',
@@ -244,11 +249,13 @@ export default function AdminUsuariosScreen() {
     try {
       let targetId: string;
       if (editing) {
-        await updateUsuario(token, editing.id, payload);
+        const updated = await updateUsuario(token, editing.id, payload);
         targetId = editing.id;
+        setItems((prev) => prev.map((item) => (item.id === targetId ? ({ ...item, ...updated } as UsuarioRecord) : item)));
       } else {
         const created = await createUsuario(token, payload);
         targetId = created.id;
+        setItems((prev) => [created, ...prev]);
       }
 
       if (photoState === 'new' && photoBase64) {
@@ -262,7 +269,7 @@ export default function AdminUsuariosScreen() {
       }
 
       setModal(false);
-      await load();
+      void load();
       showSuccessAlert(
         editing ? 'Usuario Actualizado' : 'Usuario Registrado',
         editing
@@ -552,11 +559,11 @@ export default function AdminUsuariosScreen() {
               <TextInput value={form.numero_telefono} onChangeText={(value) => setForm((s) => ({ ...s, numero_telefono: value }))} style={sharedFormStyles.input} placeholder="Número de teléfono" keyboardType="phone-pad" />
               <DatePickerField label="Fecha de nacimiento" value={form.fecha_nacimiento} onChange={(value) => setForm((s) => ({ ...s, fecha_nacimiento: value }))} onClear={() => setForm((s) => ({ ...s, fecha_nacimiento: '' }))} />
               <OptionSelector
-                label="Género"
+                label="Sexo"
                 value={form.genero}
                 options={genderOptions}
                 onChange={(value) => setForm((s) => ({ ...s, genero: value }))}
-                placeholder="Selecciona el género del usuario"
+                placeholder="Selecciona el sexo del usuario"
               />
               <StateMunicipioPicker
                 estado={form.estado_nombre}

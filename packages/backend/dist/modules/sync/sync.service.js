@@ -57,22 +57,25 @@ let SyncService = class SyncService {
         const labels = {
             nombre: 'Nombre',
             apellido: 'Apellido',
-            email: 'Correo',
-            correo: 'Correo',
+            email: 'Correo electrónico',
+            correo: 'Correo electrónico',
             cedula: 'Cédula',
             tipo_cedula: 'Tipo de Cédula',
-            fecha_nacimiento: 'Fecha de Nacimiento',
+            fecha_nacimiento: 'Fecha de nacimiento',
             numero_telefonico: 'Teléfono',
+            numero_telefono: 'Teléfono',
             telefono: 'Teléfono',
             id_rol: 'Rol',
             rol: 'Rol',
             direccion_usuario: 'Dirección',
             direccion: 'Dirección',
-            consejo_id: 'Consejo Comunal',
             genero: 'Género',
             parroquia: 'Parroquia',
-            sync_status: 'Estado',
-            activo: 'Estado',
+            municipio: 'Municipio',
+            estado: 'Estado',
+            consejo_nombre: 'Consejo Comunal',
+            sync_status: 'Estado de cuenta',
+            activo: 'Estado de cuenta',
             formularios_pendientes: 'Formularios pendientes',
             password_hash: 'Contraseña',
             password: 'Contraseña',
@@ -82,7 +85,7 @@ let SyncService = class SyncService {
     }
     formatFieldValue(key, val) {
         if (val == null || val === '')
-            return 'vacío';
+            return '';
         if (typeof val === 'boolean')
             return val ? 'Activo' : 'Inactivo';
         if (key === 'sync_status') {
@@ -92,17 +95,29 @@ let SyncService = class SyncService {
                 return 'Activo';
             return String(val);
         }
-        if (key === 'id_rol') {
-            if (Number(val) === 1)
+        if (key === 'id_rol' || key === 'rol') {
+            if (Number(val) === 1 || String(val).toLowerCase() === 'administrador')
                 return 'Administrador';
-            if (Number(val) === 2)
+            if (Number(val) === 2 || String(val).toLowerCase() === 'encuestador')
                 return 'Encuestador';
             return String(val);
         }
-        if (typeof val === 'string' && val.length > 25) {
-            if (val.startsWith('$2'))
-                return '[Contraseña]';
-            return `${val.slice(0, 22)}...`;
+        if (typeof val === 'string') {
+            const trimmed = val.trim();
+            if (trimmed.startsWith('$2'))
+                return '[Contraseña protegida]';
+            if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(trimmed)) {
+                return '[Asignación]';
+            }
+            if (/^\d{4}-\d{2}-\d{2}T/.test(trimmed)) {
+                const d = new Date(trimmed);
+                if (!isNaN(d.getTime())) {
+                    const day = String(d.getDate()).padStart(2, '0');
+                    const month = String(d.getMonth() + 1).padStart(2, '0');
+                    const year = d.getFullYear();
+                    return `${day}/${month}/${year}`;
+                }
+            }
         }
         return String(val);
     }
@@ -123,25 +138,43 @@ let SyncService = class SyncService {
             'registro_id',
             'creado_por',
             'asignado_a',
+            'consejo_id',
+            'parroquia_id',
+            'municipio_id',
+            'estado_id',
+            'genero_id',
         ]);
         const changes = [];
-        const allKeys = new Set([...Object.keys(anteriores), ...Object.keys(nuevos)]);
+        const oldObj = anteriores && typeof anteriores === 'object' && !Array.isArray(anteriores) ? anteriores : {};
+        const newObj = nuevos && typeof nuevos === 'object' && !Array.isArray(nuevos) ? nuevos : {};
+        const allKeys = new Set([...Object.keys(oldObj), ...Object.keys(newObj)]);
         for (const key of allKeys) {
             if (ignoredKeys.has(key))
                 continue;
-            const oldVal = anteriores[key];
-            const newVal = nuevos[key];
+            const oldVal = oldObj[key];
+            const newVal = newObj[key];
             const oldStr = oldVal != null ? String(oldVal).trim() : '';
             const newStr = newVal != null ? String(newVal).trim() : '';
             if (oldStr !== newStr) {
-                if (key === 'password_hash' && oldVal && newVal) {
+                if (key === 'password_hash' || key === 'password') {
                     changes.push('Contraseña actualizada');
                     continue;
                 }
                 const label = this.formatFieldLabel(key);
                 const formattedOld = this.formatFieldValue(key, oldVal);
                 const formattedNew = this.formatFieldValue(key, newVal);
-                changes.push(`${label} cambió de "${formattedOld}" a "${formattedNew}"`);
+                if (formattedOld === '[Asignación]' || formattedNew === '[Asignación]') {
+                    changes.push(`Se actualizó ${label}`);
+                }
+                else if (!formattedOld && formattedNew) {
+                    changes.push(`${label}: "${formattedNew}"`);
+                }
+                else if (formattedOld && !formattedNew) {
+                    changes.push(`${label}: borrado`);
+                }
+                else if (formattedOld && formattedNew) {
+                    changes.push(`${label}: "${formattedOld}" ➔ "${formattedNew}"`);
+                }
             }
         }
         return changes;
@@ -187,22 +220,27 @@ let SyncService = class SyncService {
                 for (const r of rows) {
                     if (r.tabla_nombre.includes('campesino'))
                         entidad = 'campesino';
-                    else if (r.tabla_nombre.includes('usuario'))
+                    else if (r.tabla_nombre.includes('usuario') || r.tabla_nombre.includes('personas'))
                         entidad = 'usuario';
                     else if (r.tabla_nombre.includes('consejo'))
                         entidad = 'consejo';
                     else if (r.tabla_nombre.includes('formulario'))
                         entidad = 'formulario';
-                    else if (r.tabla_nombre.includes('personas') && entidad === 'registro')
-                        entidad = 'persona';
                 }
-                const entidadLabel = entidad.charAt(0).toUpperCase() + entidad.slice(1);
+                const entidadMap = {
+                    campesino: 'campesino',
+                    usuario: 'usuario',
+                    consejo: 'Consejo Comunal',
+                    formulario: 'formulario',
+                    registro: 'registro',
+                };
+                const entidadDisplay = entidadMap[entidad] || entidad;
                 const operacion = mainRow.accion.toLowerCase();
                 let targetName = '';
                 for (const r of rows) {
                     const datos = r.valores_nuevos || r.valores_anteriores || {};
-                    if (datos.nombre) {
-                        targetName = `${datos.nombre} ${datos.apellido || ''}`.trim();
+                    if (datos.nombre || datos.nombre_consejo || datos.titulo) {
+                        targetName = (datos.nombre ? `${datos.nombre} ${datos.apellido || ''}` : (datos.nombre_consejo || datos.titulo || '')).trim();
                         break;
                     }
                     if (datos.email) {
@@ -219,19 +257,19 @@ let SyncService = class SyncService {
                     allChanges = Array.from(new Set(allChanges));
                 }
                 let mensaje = '';
-                const actorText = mainRow.actor_nombre ? ` por ${mainRow.actor_nombre}` : '';
+                const actorName = mainRow.actor_nombre ? mainRow.actor_nombre : 'Sistema';
                 if (operacion === 'insert' || operacion === 'create') {
-                    mensaje = `${entidadLabel}${targetName ? ` "${targetName}"` : ''} fue registrado${actorText}`;
+                    mensaje = `${entidadDisplay.charAt(0).toUpperCase() + entidadDisplay.slice(1)}${targetName ? ` "${targetName}"` : ''} fue creado por ${actorName}`;
                 }
                 else if (operacion === 'delete' || operacion === 'remove') {
-                    mensaje = `${entidadLabel}${targetName ? ` "${targetName}"` : ''} fue eliminado${actorText}`;
+                    mensaje = `${entidadDisplay.charAt(0).toUpperCase() + entidadDisplay.slice(1)}${targetName ? ` "${targetName}"` : ''} fue eliminado por ${actorName}`;
                 }
                 else {
                     if (allChanges.length > 0) {
-                        mensaje = `${entidadLabel}${targetName ? ` "${targetName}"` : ''}: ${allChanges.join(' | ')}${actorText}`;
+                        mensaje = `Se cambió ${allChanges.join(', ')} al ${entidadDisplay}${targetName ? ` "${targetName}"` : ''} por ${actorName}`;
                     }
                     else {
-                        mensaje = `${entidadLabel}${targetName ? ` "${targetName}"` : ''} fue actualizado${actorText}`;
+                        mensaje = `Se actualizó el ${entidadDisplay}${targetName ? ` "${targetName}"` : ''} por ${actorName}`;
                     }
                 }
                 result.push({

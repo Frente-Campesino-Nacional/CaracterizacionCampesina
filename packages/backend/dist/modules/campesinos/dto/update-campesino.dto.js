@@ -22,10 +22,14 @@ __decorate([
 ], UpdateCampesinDto.prototype, "cedula", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.Matches)(/^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/, { message: 'El nombre solo debe contener letras y espacios' }),
     __metadata("design:type", String)
 ], UpdateCampesinDto.prototype, "nombre", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.Matches)(/^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/, { message: 'El apellido solo debe contener letras y espacios' }),
     __metadata("design:type", String)
 ], UpdateCampesinDto.prototype, "apellido", void 0);
 __decorate([

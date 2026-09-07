@@ -169,8 +169,14 @@ export async function enqueueSubmission(input: {
 export async function listQueuedSubmissions(): Promise<QueueEntry[]> {
   const watermelon = getWatermelonContext();
   if (!watermelon) {
-    const queue = await readQueueMap();
-    return Object.values(queue).sort((a, b) => a.capturedAtIso.localeCompare(b.capturedAtIso));
+    const queue = (await readQueueMap()) || {};
+    return Object.values(queue)
+      .filter((item): item is QueueEntry => Boolean(item && typeof item === 'object' && item.capturedAtIso))
+      .map((item) => ({
+        ...item,
+        respuestas: parseJsonObject(item.respuestas),
+      }))
+      .sort((a, b) => (a.capturedAtIso || '').localeCompare(b.capturedAtIso || ''));
   }
 
   const { queueCollection } = watermelon;
@@ -190,7 +196,7 @@ export async function listQueuedSubmissions(): Promise<QueueEntry[]> {
 export async function deleteQueuedSubmission(queueId: string): Promise<void> {
   const watermelon = getWatermelonContext();
   if (!watermelon) {
-    const queue = await readQueueMap();
+    const queue = (await readQueueMap()) || {};
     delete queue[queueId];
     await AsyncStorage.setItem(STORAGE_KEYS.queue, JSON.stringify(queue));
     return;
@@ -207,36 +213,96 @@ export async function reassignQueuedSubmissionsCampesinoId(
   previousCampesinoId: string,
   nextCampesinoId: string,
 ): Promise<void> {
+  const pId = String(previousCampesinoId);
+  const nId = String(nextCampesinoId);
+
+  // 1. Reassign Queue
   const watermelon = getWatermelonContext();
   if (!watermelon) {
-    const queue = await readQueueMap();
+    const queue = (await readQueueMap()) || {};
     const updatedQueue: Record<string, QueueEntry> = {};
 
     for (const [id, entry] of Object.entries(queue)) {
+      if (!entry) continue;
       updatedQueue[id] =
-        entry.campesinoId === previousCampesinoId
-          ? { ...entry, campesinoId: nextCampesinoId }
+        String(entry.campesinoId) === pId
+          ? { ...entry, campesinoId: nId }
           : entry;
     }
 
     await AsyncStorage.setItem(STORAGE_KEYS.queue, JSON.stringify(updatedQueue));
-    return;
+  } else {
+    const { database, queueCollection, Q } = watermelon;
+    await database.write(async () => {
+      const records = await queueCollection
+        .query(Q.where('campesino_id', pId))
+        .fetch();
+
+      await Promise.all(
+        records.map((record: any) =>
+          record.update((item: any) => {
+            item._raw.campesino_id = nId;
+          }),
+        ),
+      );
+    });
   }
 
-  const { database, queueCollection, Q } = watermelon;
-  await database.write(async () => {
-    const records = await queueCollection
-      .query(Q.where('campesino_id', previousCampesinoId))
-      .fetch();
+  // 2. Reassign Campesino Metadata Cache Key
+  try {
+    const rawMeta = await AsyncStorage.getItem('encuestador-campesino-metadata-cache-v1');
+    if (rawMeta) {
+      const meta = JSON.parse(rawMeta) as Record<string, unknown>;
+      if (meta && meta[pId]) {
+        meta[nId] = {
+          ...((meta[nId] as Record<string, unknown>) || {}),
+          ...((meta[pId] as Record<string, unknown>) || {}),
+        };
+        delete meta[pId];
+        await AsyncStorage.setItem('encuestador-campesino-metadata-cache-v1', JSON.stringify(meta));
+      }
+    }
+  } catch {
+    // ignore
+  }
 
-    await Promise.all(
-      records.map((record: any) =>
-        record.update((item: any) => {
-          item._raw.campesino_id = nextCampesinoId;
-        }),
-      ),
-    );
-  });
+  // 3. Reassign History
+  try {
+    const history = (await readHistoryMap()) || {};
+    let changedHistory = false;
+    for (const entry of Object.values(history)) {
+      if (entry && String(entry.campesinoId) === pId) {
+        entry.campesinoId = nId;
+        changedHistory = true;
+      }
+    }
+    if (changedHistory) {
+      await AsyncStorage.setItem(STORAGE_KEYS.history, JSON.stringify(history));
+    }
+  } catch {
+    // ignore
+  }
+
+  // 4. Reassign Drafts
+  try {
+    const drafts = (await readDraftMap()) || {};
+    const updatedDrafts: Record<string, JsonObject> = {};
+    let changedDrafts = false;
+    for (const [k, v] of Object.entries(drafts)) {
+      if (k.startsWith(`${pId}:`)) {
+        const rest = k.slice(pId.length);
+        updatedDrafts[`${nId}${rest}`] = v;
+        changedDrafts = true;
+      } else {
+        updatedDrafts[k] = v;
+      }
+    }
+    if (changedDrafts) {
+      await AsyncStorage.setItem(STORAGE_KEYS.drafts, JSON.stringify(updatedDrafts));
+    }
+  } catch {
+    // ignore
+  }
 }
 
 export async function addSubmissionHistory(input: {
@@ -248,7 +314,7 @@ export async function addSubmissionHistory(input: {
 }): Promise<void> {
   const watermelon = getWatermelonContext();
   if (!watermelon) {
-    const history = await readHistoryMap();
+    const history = (await readHistoryMap()) || {};
     const id = createOfflineId('history');
     history[id] = {
       id,
@@ -278,34 +344,83 @@ export async function addSubmissionHistory(input: {
 
 export async function getSubmissionHistoryByCampesino(
   campesinoId: string,
-  limit = 20,
+  limit = 50,
 ): Promise<SubmissionHistoryEntry[]> {
+  const targetId = String(campesinoId);
   const watermelon = getWatermelonContext();
   if (!watermelon) {
-    const history = await readHistoryMap();
+    const history = (await readHistoryMap()) || {};
     return Object.values(history)
-      .filter((item) => item.campesinoId === campesinoId)
-      .sort((a, b) => b.createdAt - a.createdAt)
+      .filter((item): item is SubmissionHistoryEntry => Boolean(item && typeof item === 'object' && String(item.campesinoId) === targetId))
+      .sort((a, b) => (Number(b.createdAt) || 0) - (Number(a.createdAt) || 0))
       .slice(0, limit);
   }
 
-  const { historyCollection, Q } = watermelon;
-  const records = await historyCollection
-    .query(Q.where('campesino_id', campesinoId), Q.sortBy('created_at', Q.desc), Q.take(limit))
-    .fetch();
+  try {
+    const { historyCollection, Q } = watermelon;
+    const records = await historyCollection
+      .query(Q.where('campesino_id', targetId), Q.sortBy('created_at', Q.desc), Q.take(limit))
+      .fetch();
 
-  return records.map((item: any) => ({
-    id: String(item.id),
-    campesinoId: String(item._raw.campesino_id),
-    formularioId: String(item._raw.formulario_id),
-    formularioTitulo: String(item._raw.formulario_titulo || 'Formulario'),
-    status: normalizeStatus(item._raw.status),
-    message: String(item._raw.message || ''),
-    createdAt: Number(item._raw.created_at || Date.now()),
-  }));
+    return records.map((item: any) => ({
+      id: String(item.id),
+      campesinoId: String(item._raw.campesino_id),
+      formularioId: String(item._raw.formulario_id),
+      formularioTitulo: String(item._raw.formulario_titulo || 'Formulario'),
+      status: normalizeStatus(item._raw.status),
+      message: String(item._raw.message || ''),
+      createdAt: Number(item._raw.created_at || Date.now()),
+    }));
+  } catch {
+    const history = (await readHistoryMap()) || {};
+    return Object.values(history)
+      .filter((item): item is SubmissionHistoryEntry => Boolean(item && typeof item === 'object' && String(item.campesinoId) === targetId))
+      .sort((a, b) => (Number(b.createdAt) || 0) - (Number(a.createdAt) || 0))
+      .slice(0, limit);
+  }
+}
+
+export async function getAllSubmissionHistory(limit = 100): Promise<SubmissionHistoryEntry[]> {
+  const watermelon = getWatermelonContext();
+  if (!watermelon) {
+    const history = (await readHistoryMap()) || {};
+    return Object.values(history)
+      .filter((item): item is SubmissionHistoryEntry => Boolean(item && typeof item === 'object'))
+      .sort((a, b) => (Number(b.createdAt) || 0) - (Number(a.createdAt) || 0))
+      .slice(0, limit);
+  }
+
+  try {
+    const { historyCollection, Q } = watermelon;
+    const records = await historyCollection
+      .query(Q.sortBy('created_at', Q.desc), Q.take(limit))
+      .fetch();
+
+    return records.map((item: any) => ({
+      id: String(item.id),
+      campesinoId: String(item._raw.campesino_id),
+      formularioId: String(item._raw.formulario_id),
+      formularioTitulo: String(item._raw.formulario_titulo || 'Formulario'),
+      status: normalizeStatus(item._raw.status),
+      message: String(item._raw.message || ''),
+      createdAt: Number(item._raw.created_at || Date.now()),
+    }));
+  } catch {
+    const history = (await readHistoryMap()) || {};
+    return Object.values(history)
+      .filter((item): item is SubmissionHistoryEntry => Boolean(item && typeof item === 'object'))
+      .sort((a, b) => (Number(b.createdAt) || 0) - (Number(a.createdAt) || 0))
+      .slice(0, limit);
+  }
 }
 
 function parseJsonObject(value: unknown): JsonObject {
+  if (!value) {
+    return {};
+  }
+  if (typeof value === 'object' && !Array.isArray(value)) {
+    return value as JsonObject;
+  }
   if (typeof value !== 'string') {
     return {};
   }
@@ -348,51 +463,8 @@ function normalizeStatus(status: unknown): SubmissionHistoryEntry['status'] {
 }
 
 function getWatermelonContext(): WatermelonContext | null {
-  if (cachedContext !== undefined) {
-    return cachedContext;
-  }
-
-  // Expo Go does not include custom native modules like WatermelonDB.
-  // Skip loading it entirely to avoid WMDatabaseBridge runtime diagnostics.
-  if (Constants.appOwnership === 'expo') {
-    cachedContext = null;
-    if (!warnedFallback) {
-      console.warn('[offlineRepository] Expo Go detectado, usando AsyncStorage en lugar de WatermelonDB.');
-      warnedFallback = true;
-    }
-    return cachedContext;
-  }
-
-  try {
-    const { Q } = require('@nozbe/watermelondb');
-    const indexModule = require('../index') as { database?: any } | undefined;
-    const database = indexModule?.database;
-
-    if (!Q || !database || typeof database.get !== 'function' || typeof database.write !== 'function') {
-      cachedContext = null;
-      if (!warnedFallback) {
-        console.warn('[offlineRepository] WatermelonDB no disponible, usando AsyncStorage.');
-        warnedFallback = true;
-      }
-      return cachedContext;
-    }
-
-    cachedContext = {
-      database,
-      Q,
-      draftsCollection: database.get('form_drafts'),
-      queueCollection: database.get('form_submission_queue'),
-      historyCollection: database.get('form_submission_history'),
-    };
-    return cachedContext;
-  } catch (error) {
-    cachedContext = null;
-    if (!warnedFallback) {
-      console.warn('[offlineRepository] WatermelonDB no disponible, usando AsyncStorage.');
-      warnedFallback = true;
-    }
-    return cachedContext;
-  }
+  cachedContext = null;
+  return null;
 }
 
 function getDraftKey(campesinoId: string, formularioId: string): string {
@@ -405,15 +477,22 @@ function createOfflineId(prefix: string): string {
 
 async function readDraftMap(): Promise<Record<string, JsonObject>> {
   const raw = await AsyncStorage.getItem(STORAGE_KEYS.drafts);
-  if (!raw) {
+  if (!raw || raw === 'null' || raw === 'undefined') {
     return {};
   }
 
   try {
     const parsed = JSON.parse(raw) as unknown;
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-      ? (parsed as Record<string, JsonObject>)
-      : {};
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      const result: Record<string, JsonObject> = {};
+      for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+        if (v && typeof v === 'object' && !Array.isArray(v)) {
+          result[k] = v as JsonObject;
+        }
+      }
+      return result;
+    }
+    return {};
   } catch {
     return {};
   }
@@ -421,15 +500,22 @@ async function readDraftMap(): Promise<Record<string, JsonObject>> {
 
 async function readQueueMap(): Promise<Record<string, QueueEntry>> {
   const raw = await AsyncStorage.getItem(STORAGE_KEYS.queue);
-  if (!raw) {
+  if (!raw || raw === 'null' || raw === 'undefined') {
     return {};
   }
 
   try {
     const parsed = JSON.parse(raw) as unknown;
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-      ? (parsed as Record<string, QueueEntry>)
-      : {};
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      const result: Record<string, QueueEntry> = {};
+      for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+        if (v && typeof v === 'object' && !Array.isArray(v)) {
+          result[k] = v as QueueEntry;
+        }
+      }
+      return result;
+    }
+    return {};
   } catch {
     return {};
   }
@@ -437,15 +523,22 @@ async function readQueueMap(): Promise<Record<string, QueueEntry>> {
 
 async function readHistoryMap(): Promise<Record<string, SubmissionHistoryEntry>> {
   const raw = await AsyncStorage.getItem(STORAGE_KEYS.history);
-  if (!raw) {
+  if (!raw || raw === 'null' || raw === 'undefined') {
     return {};
   }
 
   try {
     const parsed = JSON.parse(raw) as unknown;
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-      ? (parsed as Record<string, SubmissionHistoryEntry>)
-      : {};
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      const result: Record<string, SubmissionHistoryEntry> = {};
+      for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+        if (v && typeof v === 'object' && !Array.isArray(v)) {
+          result[k] = v as SubmissionHistoryEntry;
+        }
+      }
+      return result;
+    }
+    return {};
   } catch {
     return {};
   }

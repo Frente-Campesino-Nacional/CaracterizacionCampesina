@@ -78,18 +78,29 @@ export default function StateMunicipioPicker({
 
 
   const selectedState = useMemo(
-    () => estados.find((item) => item.nombre === estado),
+    () => estados.find((item) => item.nombre.toLowerCase() === (estado || '').toLowerCase() || String(item.id) === String(estado)) || estados[0],
     [estado, estados],
   );
 
-  const municipioOptions = selectedState?.municipios || [];
+  const municipioOptions = useMemo(
+    () => (selectedState?.municipios && selectedState.municipios.length > 0) ? selectedState.municipios : estados.flatMap((e) => e.municipios),
+    [selectedState, estados],
+  );
+
   const selectedMunicipio = useMemo(
-    () => municipioOptions.find((item) => item.nombre === municipio),
+    () => municipioOptions.find((item) => item.nombre.toLowerCase() === (municipio || '').toLowerCase() || String(item.id) === String(municipio)),
     [municipio, municipioOptions],
   );
-  const parroquiaOptions = selectedMunicipio?.parroquias || [];
+
+  const parroquiaOptions = useMemo(() => {
+    if (selectedMunicipio && selectedMunicipio.parroquias && selectedMunicipio.parroquias.length > 0) {
+      return selectedMunicipio.parroquias;
+    }
+    return municipioOptions.flatMap((m) => m.parroquias || []);
+  }, [selectedMunicipio, municipioOptions]);
+
   const selectedParroquia = useMemo(
-    () => parroquiaOptions.find((item) => item.nombre === parroquia),
+    () => parroquiaOptions.find((item) => item.nombre.toLowerCase() === (parroquia || '').toLowerCase() || String(item.id) === String(parroquia)),
     [parroquia, parroquiaOptions],
   );
   const lastEmittedSelection = useRef('');

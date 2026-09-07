@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native';
 import axios from 'axios';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuthStore } from '../../store/authStore';
 import { sharedScreenStyles } from '../../styles/sharedScreenStyles';
@@ -22,6 +22,7 @@ import {
   getDraftAnswers,
   isRetryableSubmissionError,
   parseFormStructure,
+  persistFormularioResponseMetadata,
   saveDraftAnswers,
   submitAndMarkFormulario,
   validateAnswers,
@@ -30,11 +31,13 @@ import {
 import { showErrorAlert } from '../../utils/humanizerUtils';
 import { FormQuestion } from '../../types/formularios';
 
-type DynamicFormRouteParams = {
+type RouteParams = {
   campesinoId: string;
   formularioId: string;
   allActiveFormIds: string[];
 };
+
+type DynamicFormRouteProp = RouteProp<{ params: RouteParams }, 'params'>;
 
 type RootStackParamList = {
   SubmissionResult: {
@@ -47,67 +50,57 @@ type RootStackParamList = {
 };
 
 export default function DynamicFormScreen() {
-  const route = useRoute();
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const params = route.params as DynamicFormRouteParams;
+  const route = useRoute<DynamicFormRouteProp>();
+  const navigation = useNavigation<NativeStackNavigationProp<any>>();
   const { token, user } = useAuthStore();
-  const [title, setTitle] = useState('Formulario dinámico');
-  const [questions, setQuestions] = useState<FormQuestion[]>([]);
-  const [answers, setAnswers] = useState<Record<string, unknown>>({});
+  const params = route.params;
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [title, setTitle] = useState('Cargando...');
+  const [questions, setQuestions] = useState<FormQuestion[]>([]);
+  const [answers, setAnswers] = useState<Record<string, unknown>>({});
   const saveDraftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    const loadForm = async () => {
-      if (!token) {
-        return;
-      }
+    if (!token) return;
+    setLoading(true);
 
-      const formulario = await getFormularioById(token, params.formularioId);
-      if (!formulario) {
-        throw new Error('No se encontró el formulario');
-      }
+    getFormularioById(token, params.formularioId)
+      .then(async (formulario) => {
+        if (!formulario) {
+          showErrorAlert('No se encontró la estructura de este formulario.', 'Formulario no disponible');
+          setQuestions([]);
+          return;
+        }
 
-      setTitle(formulario.titulo);
-      const structure = parseFormStructure(formulario.estructura);
-      const initialAnswers = buildDefaultAnswers(structure.preguntas);
+        setTitle(formulario.titulo);
+        const structure = parseFormStructure(formulario.estructura as Record<string, unknown>);
+        const questionsList = Array.isArray(structure?.preguntas) ? structure.preguntas : [];
+        setQuestions(questionsList);
 
-      const draftAnswers = await getDraftAnswers(params.campesinoId, params.formularioId);
-      if (draftAnswers) {
-        setAnswers({ ...initialAnswers, ...draftAnswers });
-      } else {
-        setAnswers(initialAnswers);
-      }
-
-      setQuestions(structure.preguntas);
-      setLoading(false);
-    };
-
-    loadForm()
-      .catch((error: Error) => {
-        Alert.alert('Error', error.message || 'No se pudo cargar el formulario');
+        const draft = await getDraftAnswers(params.campesinoId, params.formularioId).catch(() => ({}));
+        const hasDraft = draft && Object.keys(draft).length > 0;
+        setAnswers(hasDraft ? draft : buildDefaultAnswers(questionsList));
+      })
+      .catch(() => {
+        showErrorAlert('Ocurrió un inconveniente al cargar el formulario.', 'Error de carga');
+        setQuestions([]);
       })
       .finally(() => setLoading(false));
-  }, [params.campesinoId, params.formularioId, token]);
+  }, [token, params.campesinoId, params.formularioId]);
 
   useEffect(() => {
-    if (!questions.length) {
-      return;
-    }
+    if (!questions.length) return;
 
-    if (saveDraftTimerRef.current) {
-      clearTimeout(saveDraftTimerRef.current);
-    }
+    if (saveDraftTimerRef.current) clearTimeout(saveDraftTimerRef.current);
 
     saveDraftTimerRef.current = setTimeout(() => {
       saveDraftAnswers(params.campesinoId, params.formularioId, answers).catch(() => undefined);
-    }, 300);
+    }, 1000);
 
     return () => {
-      if (saveDraftTimerRef.current) {
-        clearTimeout(saveDraftTimerRef.current);
-      }
+      if (saveDraftTimerRef.current) clearTimeout(saveDraftTimerRef.current);
     };
   }, [answers, params.campesinoId, params.formularioId, questions.length]);
 
@@ -119,7 +112,10 @@ export default function DynamicFormScreen() {
   };
 
   const save = async () => {
-    if (!token) {
+    if (!token || saving) return;
+
+    if (!questions.length) {
+      showErrorAlert('Este formulario no contiene preguntas configuradas para responder.', 'Formulario sin preguntas');
       return;
     }
 
@@ -129,8 +125,14 @@ export default function DynamicFormScreen() {
       return;
     }
 
-
     setSaving(true);
+
+    try {
+      await persistFormularioResponseMetadata(params.campesinoId, params.formularioId);
+    } catch {
+      // Non-fatal
+    }
+
     try {
       await submitAndMarkFormulario(
         token,
@@ -147,42 +149,35 @@ export default function DynamicFormScreen() {
         title,
       );
 
-      await clearDraftAnswers(params.campesinoId, params.formularioId);
-      navigation.navigate('SubmissionResult', {
+      await clearDraftAnswers(params.campesinoId, params.formularioId).catch(() => undefined);
+
+      navigation.replace('SubmissionResult', {
         campesinoId: params.campesinoId,
         formularioId: params.formularioId,
         formularioTitulo: title,
         status: 'enviado',
-        message: 'Formulario guardado correctamente en el backend.',
+        message: 'Formulario guardado correctamente.',
       });
-    } catch (error) {
-      if (isRetryableSubmissionError(error)) {
-        await enqueueSubmission({
-          campesinoId: params.campesinoId,
-          formularioId: params.formularioId,
-          formularioTitulo: title,
-          respuestas: answers,
-          allActiveFormIds: params.allActiveFormIds,
-          encuestadorId: user?.id,
-          capturedAtIso: new Date().toISOString(),
-        });
+    } catch {
+      await enqueueSubmission({
+        campesinoId: params.campesinoId,
+        formularioId: params.formularioId,
+        formularioTitulo: title,
+        respuestas: answers,
+        allActiveFormIds: params.allActiveFormIds,
+        encuestadorId: user?.id,
+        capturedAtIso: new Date().toISOString(),
+      }).catch(() => undefined);
 
-        await clearDraftAnswers(params.campesinoId, params.formularioId);
-        navigation.navigate('SubmissionResult', {
-          campesinoId: params.campesinoId,
-          formularioId: params.formularioId,
-          formularioTitulo: title,
-          status: 'pendiente_offline',
-          message:
-            'Se guardo offline y se sincronizara al recuperar conexion o cuando el backend vuelva a estar disponible.',
-        });
-        return;
-      }
+      await clearDraftAnswers(params.campesinoId, params.formularioId).catch(() => undefined);
 
-      const message = error instanceof Error ? error.message : 'No se pudo guardar el formulario';
-      Alert.alert('Error al guardar', message);
-    } finally {
-      setSaving(false);
+      navigation.replace('SubmissionResult', {
+        campesinoId: params.campesinoId,
+        formularioId: params.formularioId,
+        formularioTitulo: title,
+        status: 'pendiente_offline',
+        message: 'Guardado localmente. Se sincronizará automáticamente con el servidor.',
+      });
     }
   };
 

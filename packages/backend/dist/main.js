@@ -9,7 +9,7 @@ function flattenValidationErrors(errors, parentPath = '') {
     const messages = [];
     for (const error of errors) {
         const currentPath = parentPath ? `${parentPath}.${error.property}` : error.property;
-        if (error.constraints) {
+        if (error.constraints && typeof error.constraints === 'object') {
             for (const constraintMessage of Object.values(error.constraints)) {
                 messages.push(`${currentPath}: ${constraintMessage}`);
             }
@@ -68,7 +68,7 @@ async function bootstrap() {
         },
     }));
     app.enableCors({
-        origin: ['http://localhost:3008', 'http://localhost:8080'],
+        origin: true,
         credentials: true,
     });
     app.setGlobalPrefix('api', { exclude: [''] });

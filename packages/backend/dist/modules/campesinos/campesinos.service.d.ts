@@ -7,6 +7,7 @@ export declare class CampesinosService {
     private prisma;
     private storageService;
     constructor(prisma: PrismaService, storageService: PostgresStorageService);
+    private recordAuditLog;
     private resolveConsejoUuid;
     private resolveUserUuid;
     private normalizeDateInput;
@@ -31,8 +32,11 @@ export declare class CampesinosService {
         correo: any;
         fecha_nacimiento: any;
         genero: any;
+        estado_id: any;
         estado: any;
+        municipio_id: any;
         municipio: any;
+        parroquia_id: any;
         parroquia: any;
         direccion: any;
         consejo_id: any;
@@ -57,8 +61,11 @@ export declare class CampesinosService {
         correo: any;
         fecha_nacimiento: any;
         genero: any;
+        estado_id: any;
         estado: any;
+        municipio_id: any;
         municipio: any;
+        parroquia_id: any;
         parroquia: any;
         direccion: any;
         consejo_id: any;
@@ -81,8 +88,11 @@ export declare class CampesinosService {
         correo: any;
         fecha_nacimiento: any;
         genero: any;
+        estado_id: any;
         estado: any;
+        municipio_id: any;
         municipio: any;
+        parroquia_id: any;
         parroquia: any;
         direccion: any;
         consejo_id: any;
@@ -104,8 +114,11 @@ export declare class CampesinosService {
         correo: any;
         fecha_nacimiento: any;
         genero: any;
+        estado_id: any;
         estado: any;
+        municipio_id: any;
         municipio: any;
+        parroquia_id: any;
         parroquia: any;
         direccion: any;
         consejo_id: any;

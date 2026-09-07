@@ -1,5 +1,5 @@
-import React from 'react';
-import { Text, TouchableOpacity, View } from 'react-native';
+import React, { useState } from 'react';
+import { ActivityIndicator, Text, TouchableOpacity, View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -9,6 +9,7 @@ import { CustomBottomTabNavigator } from '../components/CustomBottomTabNavigator
 import { adminTabsConfig, encuestadorTabsConfig } from './tabConfigs';
 import { Theme } from '../theme/colors';
 import { isAdminRole } from '../utils/roles';
+import { syncEncuestadorData } from '../services/encuestadorSyncService';
 
 // Screens - Auth
 import LoginScreen from '../screens/auth/LoginScreen';
@@ -49,9 +50,12 @@ function AdminNavigator({ logout }: { logout: () => void }) {
           <TouchableOpacity
             onPress={() => navigation.getParent()?.navigate('AdminPerfil' as never)}
             style={{
+              flexDirection: 'row',
+              alignItems: 'center',
               paddingLeft: Theme.spacing.md,
               paddingRight: Theme.spacing.sm,
               paddingVertical: Theme.spacing.sm,
+              gap: 6,
             }}
           >
             <MaterialCommunityIcons
@@ -59,6 +63,15 @@ function AdminNavigator({ logout }: { logout: () => void }) {
               size={28}
               color={Theme.colors.greenDark}
             />
+            <Text
+              style={{
+                color: Theme.colors.greenDark,
+                fontWeight: Theme.fontWeight.semibold,
+                fontSize: Theme.fontSize.base,
+              }}
+            >
+              Perfil
+            </Text>
           </TouchableOpacity>
         ),
         headerRight: () => (
@@ -137,6 +150,51 @@ function AdminNavigator({ logout }: { logout: () => void }) {
   );
 }
 
+function HeaderSyncButton() {
+  const { token, user } = useAuthStore();
+  const [syncing, setSyncing] = useState(false);
+
+  const handleSync = async () => {
+    if (!token || !user?.id || syncing) return;
+    setSyncing(true);
+    try {
+      await syncEncuestadorData(token, user.id, true);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  return (
+    <TouchableOpacity
+      onPress={handleSync}
+      disabled={syncing}
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        paddingHorizontal: Theme.spacing.md,
+        paddingVertical: Theme.spacing.sm,
+        opacity: syncing ? 0.6 : 1,
+      }}
+    >
+      {syncing ? (
+        <ActivityIndicator size="small" color={Theme.colors.greenDark} />
+      ) : (
+        <MaterialCommunityIcons name="cloud-sync-outline" size={22} color={Theme.colors.greenDark} />
+      )}
+      <Text
+        style={{
+          color: Theme.colors.greenDark,
+          fontWeight: Theme.fontWeight.semibold,
+          fontSize: Theme.fontSize.sm,
+        }}
+      >
+        {syncing ? 'Sincronizando...' : 'Sincronizar'}
+      </Text>
+    </TouchableOpacity>
+  );
+}
+
 /**
  * Encuestador Navigator con Bottom Tabs
  * 3 tabs principales: Campesinos, Pendientes, Perfil
@@ -146,6 +204,7 @@ function EncuestadorNavigator({ logout }: { logout: () => void }) {
     <Tab.Navigator
       screenOptions={{
         headerShown: true,
+        headerLeft: () => <HeaderSyncButton />,
         headerRight: () => (
           <TouchableOpacity
             onPress={logout}

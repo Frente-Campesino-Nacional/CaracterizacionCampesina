@@ -26,6 +26,7 @@ export async function exportFormFilterToPDF(
     const rowsHtml = results
       .map((item, index) => {
         const campesinoNombre = `${item.nombre} ${item.apellido || ''}`.trim() || 'N/A';
+        const cedula = item.cedula || 'N/A';
         const telefono = item.telefono || 'Sin registro';
         const email = item.email || 'Sin registro';
         const consejo = item.consejo_nombre || 'N/A';
@@ -39,6 +40,7 @@ export async function exportFormFilterToPDF(
             <td style="padding: 6px 8px; border-bottom: 1px solid #cbd5e1; font-size: 10px; font-weight: 600;">${formTitle}</td>
             <td style="padding: 6px 8px; border-bottom: 1px solid #cbd5e1; font-size: 10px; color: #1e293b;">${questionLabel}</td>
             <td style="padding: 6px 8px; border-bottom: 1px solid #cbd5e1; font-size: 10px; font-weight: 700; color: #166534;">${item.valor}</td>
+            <td style="padding: 6px 8px; border-bottom: 1px solid #cbd5e1; font-size: 10px; font-weight: 600; color: #334155;">${cedula}</td>
             <td style="padding: 6px 8px; border-bottom: 1px solid #cbd5e1; font-size: 10px; font-weight: 600;">${campesinoNombre}</td>
             <td style="padding: 6px 8px; border-bottom: 1px solid #cbd5e1; font-size: 10px;">${telefono}</td>
             <td style="padding: 6px 8px; border-bottom: 1px solid #cbd5e1; font-size: 10px;">${email}</td>
@@ -88,6 +90,7 @@ export async function exportFormFilterToPDF(
                 <th>Formulario</th>
                 <th>Pregunta</th>
                 <th>Respuesta</th>
+                <th>Cédula</th>
                 <th>Campesino</th>
                 <th>Teléfono</th>
                 <th>Correo</th>
@@ -136,14 +139,29 @@ export async function exportFormFilterToExcel(
       return;
     }
 
-    // CSV Header with BOM for UTF-8 Excel support
+    const generatedAt = new Date().toLocaleString('es-ES', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
+    // CSV Header block with BOM for UTF-8 Excel support
     let csv = '\uFEFF';
-    csv += 'Nombre formulario;Pregunta de filtro;Respuesta;Nombre de campesino;Numero de telefono;Correo;Consejo al que pertenece;Estado;Municipio;Parroquia\n';
+    csv += `"REPORTE DE RESPUESTAS POR FORMULARIO"\n`;
+    csv += `"Formulario:";"${String(formTitle || '').replace(/"/g, '""')}"\n`;
+    csv += `"Pregunta Filtro:";"${String(questionLabel || '').replace(/"/g, '""')}"\n`;
+    csv += `"Total Registros:";"${results.length}"\n`;
+    csv += `"Fecha de Generación:";"${generatedAt}"\n\n`;
+
+    csv += 'Formulario;Pregunta Filtro;Respuesta;Cédula;Nombre del Campesino;Teléfono;Correo Electrónico;Consejo Comunal;Estado;Municipio;Parroquia\n';
 
     results.forEach((item) => {
       const fTitle = String(formTitle || '').replace(/;/g, ',');
       const qLabel = String(questionLabel || '').replace(/;/g, ',');
       const answer = String(item.valor || '').replace(/[\r\n]+/g, ' ').replace(/;/g, ',');
+      const cedula = String(item.cedula || 'N/A').replace(/;/g, ',');
       const campesinoNombre = String(`${item.nombre} ${item.apellido || ''}`.trim() || 'N/A').replace(/;/g, ',');
       const telefono = String(item.telefono || 'Sin registro').replace(/;/g, ',');
       const email = String(item.email || 'Sin registro').replace(/;/g, ',');
@@ -152,7 +170,7 @@ export async function exportFormFilterToExcel(
       const municipio = String(item.municipio || 'N/A').replace(/;/g, ',');
       const parroquia = String(item.parroquia || 'N/A').replace(/;/g, ',');
 
-      csv += `"${fTitle}";"${qLabel}";"${answer}";"${campesinoNombre}";"${telefono}";"${email}";"${consejo}";"${estado}";"${municipio}";"${parroquia}"\n`;
+      csv += `"${fTitle}";"${qLabel}";"${answer}";"${cedula}";"${campesinoNombre}";"${telefono}";"${email}";"${consejo}";"${estado}";"${municipio}";"${parroquia}"\n`;
     });
 
     const safeTitle = formTitle.toLowerCase().replace(/[^a-z0-9]/g, '_');

@@ -68,8 +68,8 @@ export default function CampesinoDetailScreen({ route, navigation }: Props) {
 
     Promise.all([listConsejos(token), listUsuarios(token)])
       .then(([consejosList, usersList]) => {
-        setConsejos(consejosList);
-        setUsers(usersList);
+        setConsejos(Array.isArray(consejosList) ? consejosList.filter(Boolean) : []);
+        setUsers(Array.isArray(usersList) ? usersList.filter(Boolean) : []);
       })
       .catch(() => {
         setConsejos([]);
@@ -78,12 +78,12 @@ export default function CampesinoDetailScreen({ route, navigation }: Props) {
   }, [token]);
 
   const consejoNameById = useMemo(
-    () => new Map(consejos.map((item) => [item.id, item.nombre] as const)),
+    () => new Map((Array.isArray(consejos) ? consejos : []).filter((item) => Boolean(item && item.id)).map((item) => [item.id, item.nombre] as const)),
     [consejos],
   );
 
   const userNameById = useMemo(
-    () => new Map(users.map((item) => [item.id, `${item.nombre} ${item.apellido}`] as const)),
+    () => new Map((Array.isArray(users) ? users : []).filter((item) => Boolean(item && item.id)).map((item) => [item.id, `${item.nombre} ${item.apellido}`] as const)),
     [users],
   );
 
@@ -122,6 +122,8 @@ export default function CampesinoDetailScreen({ route, navigation }: Props) {
       <Header
         title="Detalle de Campesino"
         subtitle={`${campesino.nombre} ${campesino.apellido ?? ''}`.trim()}
+        leftIcon="arrow-left"
+        onLeftPress={() => navigation.goBack()}
         showBorder
       />
       <ScrollView contentContainerStyle={sharedScreenStyles.contentLg}>
@@ -151,7 +153,7 @@ export default function CampesinoDetailScreen({ route, navigation }: Props) {
           {renderField('Teléfono', campesino.telefono)}
           {renderField('Correo', campesino.correo)}
           {renderField('Fecha de nacimiento', campesino.fecha_nacimiento ? String(campesino.fecha_nacimiento).slice(0, 10) : 'N/A')}
-          {renderField('Género', campesino.genero)}
+          {renderField('Sexo', campesino.genero)}
           {renderField('Dirección', campesino.direccion)}
           {renderField('Consejo', campesino.consejo_nombre || (campesino.consejo_id ? consejoNameById.get(campesino.consejo_id) || campesino.consejo_id : 'N/A'))}
           {renderField('Tiene pendientes', campesino.tiene_pendientes ? 'Sí' : 'No')}

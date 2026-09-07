@@ -21,22 +21,18 @@ function buildFromExpoHostUri(port: number): string | undefined {
   return `http://${host}:${port}/api`;
 }
 
-function getFallbackHost(port: number): string {
-  if (Platform.OS === 'android') {
-    return `http://10.0.2.2:${port}/api`;
-  }
-
-  if (Platform.OS === 'ios') {
-    return `http://127.0.0.1:${port}/api`;
-  }
-
-  return `http://localhost:${port}/api`;
+function getFallbackHost(_port: number): string {
+  return 'https://censo-campesino-api.onrender.com/api';
 }
 
 export function getApiBaseUrl(): string {
   const explicit = extra.apiBaseUrl;
   if (explicit && explicit.trim().length > 0) {
     return explicit.trim();
+  }
+
+  if (!__DEV__) {
+    return 'https://censo-campesino-api.onrender.com/api';
   }
 
   const port = normalizePort(extra.apiPort, 3008);

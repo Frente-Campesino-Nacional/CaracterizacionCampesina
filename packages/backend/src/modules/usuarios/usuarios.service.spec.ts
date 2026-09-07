@@ -25,7 +25,7 @@ describe('UsuariosService.create', () => {
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ id_rol: 2 }])
       .mockResolvedValueOnce([{ id_parroquia: 10 }])
-      .mockResolvedValueOnce([{ id_genero: 3 }])
+      .mockResolvedValueOnce([{ id_sexo: 3, id_genero: 3 }])
       .mockResolvedValueOnce([{ id: '11111111-1111-1111-1111-111111111111' }]);
 
     const txQueryRaw = jest.fn();

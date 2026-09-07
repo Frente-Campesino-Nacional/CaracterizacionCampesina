@@ -1,11 +1,13 @@
 import axios from 'axios';
 import { getApiBaseUrl } from '../config/api';
 
-const API_BASE_URL = getApiBaseUrl();
-
 const api = axios.create({
-  baseURL: API_BASE_URL,
-  timeout: 10000,
+  timeout: 30000,
+});
+
+api.interceptors.request.use((config) => {
+  config.baseURL = getApiBaseUrl();
+  return config;
 });
 
 export interface LoginResponse {
@@ -48,7 +50,7 @@ export const login = async (email: string, password: string): Promise<LoginRespo
     } else if (error.code === 'ECONNABORTED') {
       throw new Error('Tiempo de espera agotado. Verifica la IP/puerto del backend.');
     } else if (error.request) {
-      throw new Error(`No se pudo conectar al servidor (${API_BASE_URL})`);
+      throw new Error(`No se pudo conectar al servidor (${getApiBaseUrl()})`);
     } else {
       throw new Error('Error desconocido');
     }

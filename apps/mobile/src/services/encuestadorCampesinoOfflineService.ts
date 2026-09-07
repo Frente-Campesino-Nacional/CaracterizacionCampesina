@@ -30,8 +30,11 @@ const STORAGE_KEYS = {
 };
 
 function isRetryableNetworkError(error: unknown): boolean {
+  if (!error) return true;
+
   if (!axios.isAxiosError(error)) {
-    return false;
+    // Cualquier Error o mensaje de desconexion/red debe activar el guardado local offline
+    return true;
   }
 
   if (!error.response) {
@@ -39,7 +42,7 @@ function isRetryableNetworkError(error: unknown): boolean {
   }
 
   const status = error.response.status;
-  return status === 408 || status === 429 || status === 500 || status === 502 || status === 503 || status === 504;
+  return status === 408 || status === 429 || status >= 500;
 }
 
 function createOfflineId(prefix: string): string {
@@ -61,14 +64,15 @@ async function readCachedCampesinos(): Promise<CampesinoRecord[]> {
     if (!Array.isArray(parsed)) {
       return [];
     }
-    return parsed as CampesinoRecord[];
+    return (parsed as CampesinoRecord[]).filter((item): item is CampesinoRecord => Boolean(item && item.id));
   } catch {
     return [];
   }
 }
 
 async function writeCachedCampesinos(items: CampesinoRecord[]): Promise<void> {
-  await AsyncStorage.setItem(STORAGE_KEYS.cache, JSON.stringify(items));
+  const safeItems = (Array.isArray(items) ? items : []).filter((item): item is CampesinoRecord => Boolean(item && item.id));
+  await AsyncStorage.setItem(STORAGE_KEYS.cache, JSON.stringify(safeItems));
 }
 
 async function readQueuedCreates(): Promise<QueuedCampesinoCreate[]> {
@@ -82,22 +86,27 @@ async function readQueuedCreates(): Promise<QueuedCampesinoCreate[]> {
     if (!Array.isArray(parsed)) {
       return [];
     }
-    return parsed as QueuedCampesinoCreate[];
+    return (parsed as QueuedCampesinoCreate[]).filter((item): item is QueuedCampesinoCreate => Boolean(item && item.queueId));
   } catch {
     return [];
   }
 }
 
 async function writeQueuedCreates(items: QueuedCampesinoCreate[]): Promise<void> {
-  await AsyncStorage.setItem(STORAGE_KEYS.queue, JSON.stringify(items));
+  const safeItems = (Array.isArray(items) ? items : []).filter((item): item is QueuedCampesinoCreate => Boolean(item && item.queueId));
+  await AsyncStorage.setItem(STORAGE_KEYS.queue, JSON.stringify(safeItems));
 }
 
 function upsertById(items: CampesinoRecord[], record: CampesinoRecord): CampesinoRecord[] {
-  const idx = items.findIndex((item) => item.id === record.id);
-  if (idx === -1) {
-    return [record, ...items];
+  const safeItems = (Array.isArray(items) ? items : []).filter((item): item is CampesinoRecord => Boolean(item && item.id));
+  if (!record || !record.id) {
+    return safeItems;
   }
-  const next = [...items];
+  const idx = safeItems.findIndex((item) => item.id === record.id);
+  if (idx === -1) {
+    return [record, ...safeItems];
+  }
+  const next = [...safeItems];
   next[idx] = record;
   return next;
 }
@@ -129,30 +138,60 @@ function buildLocalCampesinoRecord(payload: CampesinoPayload, tempId: string, ph
   };
 }
 
+import { mergeMetadataSources, readCampesinoMetadataCache } from './encuestadorFormService';
 
 function filterForUser(items: CampesinoRecord[], userId: string): CampesinoRecord[] {
-  return items.filter((item) => item.asignado_a === userId || item.creado_por === userId);
+  const safeItems = (Array.isArray(items) ? items : []).filter((item): item is CampesinoRecord => Boolean(item && item.id));
+  return safeItems.filter((item) => item.asignado_a === userId || item.creado_por === userId);
 }
 
 export async function loadCampesinosForEncuestador(token: string, userId: string): Promise<CampesinoRecord[]> {
+  const [localCache, queuedCreates] = await Promise.all([
+    readCampesinoMetadataCache(),
+    readQueuedCreates(),
+  ]);
+
   try {
     const all = await listCampesinos(token);
-    const filtered = filterForUser(all, userId);
-    await writeCachedCampesinos(filtered);
-    return filtered;
+    let filtered = filterForUser(all, userId);
+
+    // Conservar campesinos creados offline que aun estan pendientes de sincronizacion
+    for (const q of queuedCreates) {
+      if (!filtered.some((c) => String(c.id) === String(q.tempId))) {
+        filtered.unshift(buildLocalCampesinoRecord(q.payload, q.tempId, q.photoOptions));
+      }
+    }
+
+    const withMergedMetadata = filtered.map((c) => ({
+      ...c,
+      metadata: mergeMetadataSources(c.metadata, localCache[String(c.id)]),
+    }));
+    await writeCachedCampesinos(withMergedMetadata);
+    return withMergedMetadata;
   } catch (error) {
     if (!isRetryableNetworkError(error)) {
       throw error;
     }
 
     const cached = await readCachedCampesinos();
-    return filterForUser(cached, userId);
+    let filtered = filterForUser(cached, userId);
+
+    for (const q of queuedCreates) {
+      if (!filtered.some((c) => String(c.id) === String(q.tempId))) {
+        filtered.unshift(buildLocalCampesinoRecord(q.payload, q.tempId, q.photoOptions));
+      }
+    }
+
+    return filtered.map((c) => ({
+      ...c,
+      metadata: mergeMetadataSources(c.metadata, localCache[String(c.id)]),
+    }));
   }
 }
 
 export async function getCachedCampesinoById(campesinoId: string): Promise<CampesinoRecord | null> {
   const cached = await readCachedCampesinos();
-  return cached.find((item) => item.id === campesinoId) || null;
+  return cached.find((item) => Boolean(item && item.id === campesinoId)) || null;
 }
 
 export async function createCampesinoWithOfflineFallback(
@@ -199,6 +238,48 @@ export async function createCampesinoWithOfflineFallback(
   }
 }
 
+function normalizeCedulaDigits(value?: string | null): string {
+  if (!value) return '';
+  return value.replace(/\D/g, '').trim();
+}
+
+function findExistingServerCampesino(
+  serverList: CampesinoRecord[],
+  payload: CampesinoPayload,
+): CampesinoRecord | undefined {
+  const payloadCedulaDigits = normalizeCedulaDigits(payload.cedula);
+  const payloadEmail = payload.correo ? payload.correo.toLowerCase().trim() : '';
+  const payloadFullName = `${payload.nombre || ''} ${payload.apellido || ''}`.toLowerCase().trim().replace(/\s+/g, ' ');
+
+  return serverList.find((c) => {
+    // 1. Comparar solo los digitos de la cedula
+    if (payloadCedulaDigits.length >= 5) {
+      const cCedulaDigits = normalizeCedulaDigits(c.cedula);
+      if (cCedulaDigits && cCedulaDigits === payloadCedulaDigits) {
+        return true;
+      }
+    }
+
+    // 2. Comparar correo electronico
+    if (payloadEmail.length > 3) {
+      const cEmail = c.correo ? c.correo.toLowerCase().trim() : '';
+      if (cEmail && cEmail === payloadEmail) {
+        return true;
+      }
+    }
+
+    // 3. Comparar nombre completo
+    if (payloadFullName.length > 3) {
+      const cFullName = `${c.nombre || ''} ${c.apellido || ''}`.toLowerCase().trim().replace(/\s+/g, ' ');
+      if (cFullName && cFullName === payloadFullName) {
+        return true;
+      }
+    }
+
+    return false;
+  });
+}
+
 export async function flushQueuedCampesinoCreates(token: string): Promise<number> {
   const queued = await readQueuedCreates();
   if (!queued.length) {
@@ -209,7 +290,21 @@ export async function flushQueuedCampesinoCreates(token: string): Promise<number
   let pending = [...queued];
   let cached = await readCachedCampesinos();
 
+  // Consultar la lista del servidor previamente para evitar enviar POST innecesarios que causen error 409
+  const serverCampesinos = await listCampesinos(token).catch(() => []);
+
   for (const entry of queued) {
+    // Si el campesino ya existe en el servidor, no hacer POST; reasignar directamente el ID para sincronizar sus formularios
+    const existing = findExistingServerCampesino(serverCampesinos, entry.payload);
+    if (existing) {
+      cached = cached.filter((item) => item.id !== entry.tempId);
+      cached = upsertById(cached, existing);
+      pending = pending.filter((item) => item.queueId !== entry.queueId);
+      await reassignQueuedSubmissionsCampesinoId(entry.tempId, existing.id);
+      synced += 1;
+      continue;
+    }
+
     try {
       const created = await createCampesino(token, entry.payload);
       if (entry.photoOptions?.photoBase64) {
@@ -233,7 +328,31 @@ export async function flushQueuedCampesinoCreates(token: string): Promise<number
         continue;
       }
 
-      // If validation fails permanently, keep local data visible and remove from sync queue.
+      // Si ocurre conflicto 409/duplicado, re-verificar lista fresca y reasignar ID
+      const isConflict =
+        axios.isAxiosError(error) &&
+        error.response &&
+        (error.response.status === 409 ||
+          error.response.status === 400 ||
+          JSON.stringify(error.response.data || '').toLowerCase().includes('registrado') ||
+          JSON.stringify(error.response.data || '').toLowerCase().includes('already exists'));
+
+      if (isConflict) {
+        try {
+          const freshList = await listCampesinos(token).catch(() => []);
+          const match = findExistingServerCampesino(freshList, entry.payload);
+          if (match) {
+            cached = cached.filter((item) => item.id !== entry.tempId);
+            cached = upsertById(cached, match);
+            await reassignQueuedSubmissionsCampesinoId(entry.tempId, match.id);
+            synced += 1;
+          }
+        } catch {
+          // busqueda de coincidencia no fatal
+        }
+      }
+
+      // Quitar de la cola de sincronizacion para evitar bucles repetidos de error
       pending = pending.filter((item) => item.queueId !== entry.queueId);
     }
   }

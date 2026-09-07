@@ -16,7 +16,7 @@ type RootStackParamList = {
 
 type Props = NativeStackScreenProps<RootStackParamList, 'BasicRecordDetail'>;
 
-export default function BasicRecordDetailScreen({ route }: Props) {
+export default function BasicRecordDetailScreen({ route, navigation }: Props) {
   const { token, user } = useAuthStore();
   const [loading, setLoading] = useState(true);
   const [record, setRecord] = useState<UsuarioRecord | CampesinoRecord | null>(null);
@@ -89,7 +89,13 @@ export default function BasicRecordDetailScreen({ route }: Props) {
 
   return (
     <View style={sharedScreenStyles.surfaceWhite}>
-      <Header title={title} subtitle={isUsuario ? 'Información básica del usuario' : 'Información básica del campesino'} showBorder />
+      <Header
+        title={title}
+        subtitle={isUsuario ? 'Información básica del usuario' : 'Información básica del campesino'}
+        leftIcon="arrow-left"
+        onLeftPress={() => navigation.goBack()}
+        showBorder
+      />
       <ScrollView contentContainerStyle={sharedScreenStyles.contentLg}>
         <Card variant="elevated" padding="lg" style={styles.headerCard}>
           {record.foto_url ? (
@@ -137,7 +143,7 @@ export default function BasicRecordDetailScreen({ route }: Props) {
             <Text style={styles.sectionTitle}>Campos adicionales</Text>
             {'numero_telefono' in record ? <Field label="Teléfono" value={record.numero_telefono || 'N/A'} /> : null}
             {'fecha_nacimiento' in record ? <Field label="Fecha de nacimiento" value={record.fecha_nacimiento ? String(record.fecha_nacimiento).slice(0, 10) : 'N/A'} /> : null}
-            {'genero' in record ? <Field label="Género" value={record.genero || 'N/A'} /> : null}
+            {'genero' in record ? <Field label="Sexo" value={record.genero || 'N/A'} /> : null}
             {'estado' in record ? <Field label="Estado" value={record.estado || 'N/A'} /> : null}
             {'municipio' in record ? <Field label="Municipio" value={record.municipio || 'N/A'} /> : null}
             {'direccion' in record ? <Field label="Dirección" value={record.direccion || 'N/A'} /> : null}

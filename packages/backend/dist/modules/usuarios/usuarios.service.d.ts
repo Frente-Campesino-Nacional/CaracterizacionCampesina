@@ -7,6 +7,9 @@ export declare class UsuariosService {
     private prisma;
     private storageService;
     constructor(prisma: PrismaService, storageService: PostgresStorageService);
+    private recordAuditLog;
+    private resolveParroquiaId;
+    private resolveGeneroId;
     private normalizeCatalogValue;
     private normalizeRoleValue;
     private resolveRoleId;
@@ -18,7 +21,7 @@ export declare class UsuariosService {
     private randomNoCedulaCode;
     private parseCedulaData;
     private formatCedulaForResponse;
-    findAll(requester: {
+    findAll(requester?: {
         rol: string;
     }): Promise<{
         id: any;
@@ -30,8 +33,11 @@ export declare class UsuariosService {
         numero_telefono: any;
         fecha_nacimiento: any;
         genero: any;
+        estado_id: any;
         estado: any;
+        municipio_id: any;
         municipio: any;
+        parroquia_id: any;
         parroquia: any;
         direccion: any;
         consejo_id: any;
@@ -41,7 +47,7 @@ export declare class UsuariosService {
         creado_en: any;
         actualizado_en: any;
     }[]>;
-    findOne(id: string | number, requester: {
+    findOne(id: string | number, requester?: {
         rol: string;
     }): Promise<{
         id: any;
@@ -53,8 +59,11 @@ export declare class UsuariosService {
         numero_telefono: any;
         fecha_nacimiento: any;
         genero: any;
+        estado_id: any;
         estado: any;
+        municipio_id: any;
         municipio: any;
+        parroquia_id: any;
         parroquia: any;
         direccion: any;
         consejo_id: any;

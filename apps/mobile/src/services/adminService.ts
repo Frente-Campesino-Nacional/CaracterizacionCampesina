@@ -3,13 +3,14 @@ import { getApiBaseUrl } from '../config/api';
 
 import { useAuthStore } from '../store/authStore';
 
-export const API_BASE_URL = 'https://censo-campesino-api.onrender.com'
+export const API_BASE_URL = getApiBaseUrl();
 
 function createApiClient(token: string) {
   const instance = axios.create({
-    baseURL: API_BASE_URL,
-    timeout: 10000,
+    baseURL: getApiBaseUrl(),
+    timeout: 30000,
   });
+
 
   instance.interceptors.request.use((config) => {
     config.headers = config.headers || {};
@@ -374,7 +375,7 @@ export const deleteConsejo = async (token: string, id: string): Promise<void> =>
 
 export const listCampesinos = async (token: string): Promise<CampesinoRecord[]> => {
   const response = await createApiClient(token).get('/campesinos');
-  return response.data;
+  return Array.isArray(response.data) ? response.data : [];
 };
 
 export const getCampesino = async (token: string, id: string): Promise<CampesinoRecord> => {
@@ -440,12 +441,16 @@ export const listFormularios = async (token: string): Promise<FormularioRecord[]
   const rawItems = Array.isArray(response.data) ? response.data : [];
   return rawItems
     .map((item: any) => {
-      const id = item?.id ?? item?.id_formulario;
+      if (!item || typeof item !== 'object') {
+        return null;
+      }
+
+      const id = item.id ?? item.id_formulario ?? item.id_formularios;
       if (!id) {
         return null;
       }
 
-      let estructura = item?.estructura;
+      let estructura = item.estructura;
       if (typeof estructura === 'string') {
         try {
           estructura = JSON.parse(estructura);
@@ -457,6 +462,7 @@ export const listFormularios = async (token: string): Promise<FormularioRecord[]
       return {
         ...item,
         id: String(id),
+        activo: item.activo !== false && item.activo !== 0 && item.activo !== 'false' && item.activo !== '0',
         estructura: estructura && typeof estructura === 'object' && !Array.isArray(estructura)
           ? estructura
           : {},
@@ -512,7 +518,9 @@ export const submitFormularioRespuesta = async (
   formularioId: string,
   payload: SubmitFormularioRespuestaPayload,
 ): Promise<{ formulario_id: string; guardado_en_postgres: boolean; registro_id?: string }> => {
-  const response = await createApiClient(token).post(`/formularios/${formularioId}/respuestas`, payload);
+  const response = await createApiClient(token).post(`/formularios/${formularioId}/respuestas`, payload, {
+    timeout: 2500,
+  });
   return response.data;
 };
 

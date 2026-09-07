@@ -49,13 +49,14 @@ export default function AdminAuditoriaScreen() {
 
   // Form question filter state
   const [filterQuestions, setFilterQuestions] = useState<FormularioFilterQuestionRecord[]>([]);
+  const [selectedFormularioId, setSelectedFormularioId] = useState<string>('');
   const [selectedFilterKey, setSelectedFilterKey] = useState<string>('');
   const [filterResults, setFilterResults] = useState<CampesinoFiltroResultadoRecord[]>([]);
   const [loadingFilterResults, setLoadingFilterResults] = useState(false);
 
   const buildFilterKey = (formularioId: string, preguntaId: string) => `${formularioId}::${preguntaId}`;
 
-  useEffect(() => {
+  const loadData = React.useCallback(() => {
     if (!token) return;
     Promise.all([
       listSyncRecords(token),
@@ -63,9 +64,9 @@ export default function AdminAuditoriaScreen() {
       listFormularioFilterQuestions(token),
     ])
       .then(([syncData, campesinosData, preguntasFiltro]) => {
-        setSyncItems(syncData);
-        setCampesinos(campesinosData);
-        setFilterQuestions(preguntasFiltro);
+        setSyncItems(Array.isArray(syncData) ? syncData : []);
+        setCampesinos(Array.isArray(campesinosData) ? campesinosData : []);
+        setFilterQuestions(Array.isArray(preguntasFiltro) ? preguntasFiltro : []);
       })
       .catch(() => {
         setSyncItems([]);
@@ -74,50 +75,109 @@ export default function AdminAuditoriaScreen() {
       });
   }, [token]);
 
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
   const rawLogs = useMemo(() => {
     const text = search.toLowerCase();
 
-    return syncItems
-      .map((item) => {
-        const line = String((item as any).mensaje || '').trim() || `${item.entidad || 'Registro'} fue ${item.operacion || 'actualizado'}`;
+    let list: Array<{
+      id: string;
+      line: string;
+      creado_en: string;
+      entidad: string;
+      operacion?: string;
+      target_nombre: string;
+      actor_nombre: string;
+      actor_rol: string;
+      tipo_usuario: string;
+    }> = [];
+
+    if (syncItems && syncItems.length > 0) {
+      list = syncItems.map((item) => {
+        let rawLine = String((item as any).mensaje || '').trim() || `${item.entidad || 'Registro'} fue ${item.operacion || 'actualizado'}`;
+        // Remover cualquier cadena de UUID o IDs tecnicos
+        const line = rawLine
+          .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/gi, '')
+          .replace(/_id/gi, '')
+          .replace(/\s{2,}/g, ' ')
+          .trim();
+
         const target_nombre = (item as any).target_nombre || (item.datos as any)?.nombre || (item.datos as any)?.nombre_completo || 'N/A';
         const actor_nombre = (item as any).actor_nombre || (item.datos as any)?.usuario_nombre || 'Administrador';
         const actor_rol = (item as any).actor_rol || 'Administrador';
+        const dateVal = item.creado_en || (item as any).created_at || (item as any).fecha || (item as any).actualizado_en || new Date().toISOString();
 
         return {
-          id: item.id,
+          id: String(item.id),
           line,
-          creado_en: item.creado_en,
+          creado_en: String(dateVal),
           entidad: item.entidad || 'Sistema',
-          operacion: item.operacion,
+          operacion: item.operacion || 'Registro',
           target_nombre,
           actor_nombre,
           actor_rol,
           tipo_usuario: actor_rol,
         };
-      })
-      .filter((item) => item.line.toLowerCase().includes(text));
-  }, [search, syncItems]);
+      });
+    } else if (campesinos && campesinos.length > 0) {
+      // Fallback: Generar logs a partir de los registros de campesinos
+      list = campesinos.map((c) => {
+        const dateVal = c.actualizado_en || c.creado_en || new Date().toISOString();
+        return {
+          id: `audit-${c.id}`,
+          line: `Campesino ${c.nombre} ${c.apellido || ''} fue registrado/actualizado`,
+          creado_en: String(dateVal),
+          entidad: 'Campesino',
+          operacion: 'Actualización',
+          target_nombre: `${c.nombre} ${c.apellido || ''}`.trim(),
+          actor_nombre: 'Sistema',
+          actor_rol: 'Administrador',
+          tipo_usuario: 'Administrador',
+        };
+      });
+    }
+
+    return list.filter((item) => item.line.toLowerCase().includes(text));
+  }, [search, syncItems, campesinos]);
 
   const filteredLogs = useMemo(() => {
     const byDate = filterItemsByDatePeriod(rawLogs, datePeriod, customStart, customEnd);
     return filterItemsByEntity(byDate, selectedEntity);
   }, [rawLogs, datePeriod, customStart, customEnd, selectedEntity]);
 
-  const filterQuestionOptions = useMemo(
-    () => filterQuestions
+  const formularioOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    filterQuestions.forEach((item) => {
+      if (item.formulario_id && !map.has(item.formulario_id)) {
+        map.set(item.formulario_id, item.formulario_titulo);
+      }
+    });
+    return Array.from(map.entries())
+      .map(([id, title]) => ({
+        label: title,
+        value: id,
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label, 'es', { sensitivity: 'base' }));
+  }, [filterQuestions]);
+
+  const questionOptionsForSelectedForm = useMemo(() => {
+    if (!selectedFormularioId) return [];
+    return filterQuestions
+      .filter((item) => item.formulario_id === selectedFormularioId)
       .map((item) => ({
         label: item.pregunta_label,
         value: buildFilterKey(item.formulario_id, item.pregunta_id),
-        description: item.formulario_titulo,
       }))
-      .sort((a, b) => {
-        const byFormulario = (a.description || '').localeCompare(b.description || '', 'es', { sensitivity: 'base' });
-        if (byFormulario !== 0) return byFormulario;
-        return (a.label || '').localeCompare(b.label || '', 'es', { sensitivity: 'base' });
-      }),
-    [filterQuestions],
-  );
+      .sort((a, b) => a.label.localeCompare(b.label, 'es', { sensitivity: 'base' }));
+  }, [filterQuestions, selectedFormularioId]);
+
+  const selectFormulario = (formId: string) => {
+    setSelectedFormularioId(formId);
+    setSelectedFilterKey('');
+    setFilterResults([]);
+  };
 
   const selectedFilterQuestion = useMemo(
     () =>
@@ -247,20 +307,37 @@ export default function AdminAuditoriaScreen() {
       <Card variant="elevated" padding="md" style={sharedScreenStyles.card}>
         <Text style={sharedScreenStyles.cardTitleLg}>Análisis Porcentual de Respuestas</Text>
 
-        {/* Seleccionar Pregunta de Filtro */}
-        {filterQuestions.length ? (
-          <LookupSelectField
-            label="Formulario y Pregunta de Filtro"
-            value={selectedFilterKey}
-            options={filterQuestionOptions}
-            onChange={selectFilterQuestionByKey}
-            placeholder="Seleccione un formulario y pregunta..."
-            searchPlaceholder="Buscar formulario o pregunta..."
-            allowClear
-            clearLabel="Quitar filtro"
-          />
+        {/* Seleccionar Formulario y Pregunta de Filtro (Cascada) */}
+        {formularioOptions.length ? (
+          <View style={{ gap: 12, marginBottom: 12 }}>
+            <LookupSelectField
+              label="1. Seleccionar Formulario"
+              value={selectedFormularioId}
+              options={formularioOptions}
+              onChange={selectFormulario}
+              placeholder="Seleccione un formulario..."
+              searchPlaceholder="Buscar formulario..."
+              allowClear
+              clearLabel="Limpiar formulario"
+            />
+
+            {selectedFormularioId ? (
+              <LookupSelectField
+                label="2. Seleccionar Pregunta de Filtro"
+                value={selectedFilterKey}
+                options={questionOptionsForSelectedForm}
+                onChange={selectFilterQuestionByKey}
+                placeholder="Seleccione una pregunta para ver la gráfica..."
+                searchPlaceholder="Buscar pregunta..."
+                allowClear
+                clearLabel="Quitar pregunta"
+              />
+            ) : (
+              <Text style={styles.emptyPrompt}>Por favor seleccione un formulario arriba para elegir una pregunta de filtro.</Text>
+            )}
+          </View>
         ) : (
-          <Text style={styles.emptyPrompt}>No hay preguntas de formularios configuradas como filtro.</Text>
+          <Text style={styles.emptyPrompt}>No hay formularios con preguntas configuradas como filtro.</Text>
         )}
 
         {/* Gráfica de Torta o Mensaje de Invitación */}

@@ -307,7 +307,7 @@ let FormulariosService = class FormulariosService {
         if (typeof value === 'boolean') {
             return true;
         }
-        if (typeof value === 'object') {
+        if (value && typeof value === 'object') {
             return Object.keys(value).length > 0;
         }
         return false;

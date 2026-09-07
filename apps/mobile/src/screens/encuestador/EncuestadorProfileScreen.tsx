@@ -26,42 +26,51 @@ export default function EncuestadorProfileScreen({ navigation }: any) {
   const loadStatistics = useCallback(async () => {
     if (!token || !user) return;
 
-    await flushQueuedCampesinoCreates(token);
-    await flushQueuedSubmissions(token);
+    try {
+      await flushQueuedCampesinoCreates(token).catch(() => 0);
+      await flushQueuedSubmissions(token).catch(() => 0);
 
-    const [campesinos, formulariosActivos] = await Promise.all([
-      listCampesinos(token),
-      getFormulariosActivos(token),
-    ]);
+      const [campesinos, formulariosActivos] = await Promise.all([
+        listCampesinos(token).catch(() => []),
+        getFormulariosActivos(token).catch(() => []),
+      ]);
 
-    const ownedCampesinos = campesinos.filter(
-      (campesino) => campesino.asignado_a === user.id || campesino.creado_por === user.id,
-    );
-    const completedForms = ownedCampesinos.reduce((total, campesino) => {
-      const metadata = normalizeMetadata(campesino.metadata ?? undefined);
-      return total + metadata.formularios_respondidos.length;
-    }, 0);
+      const safeCampesinos = Array.isArray(campesinos) ? campesinos : [];
+      const safeFormularios = Array.isArray(formulariosActivos) ? formulariosActivos : [];
+      const userIdStr = String(user.id);
 
-    const pendingForms = ownedCampesinos.reduce((total, campesino) => {
-      const metadata = normalizeMetadata(campesino.metadata ?? undefined);
-      const completedCount = metadata.formularios_respondidos.length;
-      const missing = Math.max(formulariosActivos.length - completedCount, 0);
-      return total + missing;
-    }, 0);
+      const ownedCampesinos = safeCampesinos.filter(
+        (campesino) =>
+          campesino &&
+          (String(campesino.asignado_a ?? '') === userIdStr ||
+            String(campesino.creado_por ?? '') === userIdStr),
+      );
 
-    setStats({
-      formularioCompletados: completedForms,
-      formularioPendientes: pendingForms,
-      campesinesRegistrados: ownedCampesinos.length,
-    });
+      const completedForms = ownedCampesinos.reduce((total, campesino) => {
+        const metadata = normalizeMetadata(campesino?.metadata ?? undefined);
+        return total + (metadata.formularios_respondidos?.length || 0);
+      }, 0);
+
+      const pendingForms = ownedCampesinos.reduce((total, campesino) => {
+        const metadata = normalizeMetadata(campesino?.metadata ?? undefined);
+        const completedCount = metadata.formularios_respondidos?.length || 0;
+        const missing = Math.max(safeFormularios.length - completedCount, 0);
+        return total + missing;
+      }, 0);
+
+      setStats({
+        formularioCompletados: completedForms,
+        formularioPendientes: pendingForms,
+        campesinesRegistrados: ownedCampesinos.length,
+      });
+    } catch {
+      // Ignorar errores no criticos en estadisticas
+    }
   }, [token, user]);
 
   useFocusEffect(
     useCallback(() => {
-      loadStatistics().catch((error: any) => {
-        Alert.alert('Error', error.message || 'No se pudieron cargar las estadísticas');
-      });
-
+      loadStatistics();
       return () => undefined;
     }, [loadStatistics]),
   );

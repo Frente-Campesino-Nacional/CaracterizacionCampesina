@@ -19,9 +19,21 @@ export function filterItemsByEntity<T extends { entidad?: string }>(
 ): T[] {
   if (entityFilter === 'all') return items;
 
-  const target = entityFilter.toLowerCase();
+  const target = (entityFilter || '').toLowerCase().trim();
   return items.filter((item) => {
-    const ent = (item.entidad || '').toLowerCase();
+    const ent = (item.entidad || '').toLowerCase().trim();
+    if (target === 'usuario') {
+      return ent.includes('usuario') || ent.includes('persona');
+    }
+    if (target === 'campesino') {
+      return ent.includes('campesino');
+    }
+    if (target === 'consejo') {
+      return ent.includes('consejo');
+    }
+    if (target === 'formulario') {
+      return ent.includes('formulario');
+    }
     return ent.includes(target);
   });
 }

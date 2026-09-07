@@ -30,14 +30,17 @@ export class ConsejosService {
       id: consejo.consejo_id,
       nombre: consejo.nombre_consejo,
       descripcion: consejo.descripcion,
-      estado: consejo.estado,
-      municipio: consejo.municipio,
-      parroquia: consejo.parroquia,
+      estado_id: consejo.estado_id ?? null,
+      estado: consejo.estado || null,
+      municipio_id: consejo.municipio_id ?? null,
+      municipio: consejo.municipio || null,
+      parroquia_id: consejo.parroquia_id ?? null,
+      parroquia: consejo.parroquia || null,
       encargado_tipo: consejo.encargado_rol || 'usuario',
       encargado_id: consejo.encargado_id ?? null,
       encargado_nombre: consejo.encargado_nombre ?? null,
-      creado_en: consejo.created_at,
-      actualizado_en: consejo.updated_at,
+      creado_en: consejo.creado_en ?? consejo.created_at,
+      actualizado_en: consejo.actualizado_en ?? consejo.updated_at,
     };
   }
 
@@ -47,15 +50,18 @@ export class ConsejosService {
         c.consejo_id,
         c.nombre_consejo,
         c.descripcion,
+        e.id_estados AS estado_id,
         e.nombre_estado AS estado,
+        m.id_municipio AS municipio_id,
         m.nombre_municipio AS municipio,
+        par.id_parroquia AS parroquia_id,
         par.nombre_parroquia AS parroquia,
         c.encargado_id,
         CONCAT(p.nombre, ' ', p.apellido) AS encargado_nombre,
 
         r.tip_rol AS encargado_rol,
-        c.created_at,
-        c.updated_at
+        c.creado_en,
+        c.actualizado_en
       FROM operacional.consejos c
       LEFT JOIN catalogos.parroquias par ON par.id_parroquia = c.parrroquia
       LEFT JOIN catalogos.municipios m ON m.id_municipio = par.municipio
@@ -76,15 +82,18 @@ export class ConsejosService {
         c.consejo_id,
         c.nombre_consejo,
         c.descripcion,
+        e.id_estados AS estado_id,
         e.nombre_estado AS estado,
+        m.id_municipio AS municipio_id,
         m.nombre_municipio AS municipio,
+        par.id_parroquia AS parroquia_id,
         par.nombre_parroquia AS parroquia,
         c.encargado_id,
         CONCAT(p.nombre, ' ', p.apellido) AS encargado_nombre,
 
         r.tip_rol AS encargado_rol,
-        c.created_at,
-        c.updated_at
+        c.creado_en,
+        c.actualizado_en
       FROM operacional.consejos c
       LEFT JOIN catalogos.parroquias par ON par.id_parroquia = c.parrroquia
       LEFT JOIN catalogos.municipios m ON m.id_municipio = par.municipio
@@ -122,7 +131,7 @@ export class ConsejosService {
         ${null},
         CAST(${encargadoUuid ?? null} AS uuid)
       )
-      RETURNING consejo_id, nombre_consejo, descripcion, parrroquia, encargado_id, created_at, updated_at
+      RETURNING consejo_id, nombre_consejo, descripcion, parrroquia, encargado_id, creado_en, actualizado_en
     `);
 
     return this.mapConsejo(created[0]);
@@ -146,9 +155,10 @@ export class ConsejosService {
         descripcion = COALESCE(${updateConsejoDto.descripcion ?? null}, descripcion),
         parrroquia = COALESCE(${updateConsejoDto.parroquia_id ?? null}, parrroquia),
         direccion_csj = COALESCE(${null}, direccion_csj),
-        encargado_id = COALESCE(CAST(${encargadoUuid ?? null} AS uuid), encargado_id)
+        encargado_id = COALESCE(CAST(${encargadoUuid ?? null} AS uuid), encargado_id),
+        actualizado_en = NOW()
       WHERE consejo_id::text = ${String(current[0].consejo_id)}
-      RETURNING consejo_id, nombre_consejo, descripcion, parrroquia, encargado_id, created_at, updated_at
+      RETURNING consejo_id, nombre_consejo, descripcion, parrroquia, encargado_id, creado_en, actualizado_en
     `);
 
     return this.mapConsejo(updated[0]);

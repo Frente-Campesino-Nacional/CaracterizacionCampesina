@@ -234,15 +234,15 @@ export class AuthService {
       LIMIT 1
     `);
 
-    const generoRows = await this.prisma.$queryRaw<Array<{ id_genero: number }>>(Prisma.sql`
-      SELECT id_genero
+    const generoRows = await this.prisma.$queryRaw<Array<{ id_sexo: number }>>(Prisma.sql`
+      SELECT id_sexo
       FROM catalogos.generos
-      ORDER BY id_genero
+      ORDER BY id_sexo
       LIMIT 1
     `);
 
     const parroquiaId = parroquiaRows[0]?.id_parroquia;
-    const generoId = generoRows[0]?.id_genero;
+    const generoId = generoRows[0]?.id_sexo;
 
     if (parroquiaId == null || generoId == null) {
       throw new UnauthorizedException('No hay catálogos base disponibles para crear el usuario');
@@ -261,7 +261,7 @@ export class AuthService {
           direccion_usuario,
           email,
           numero_telefonico,
-          genero,
+          sexo,
           consejo_id
         ) VALUES (
           CAST(${userUuid} AS uuid),
