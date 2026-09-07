@@ -533,4 +533,4 @@ const styles = StyleSheet.create({
     backgroundColor: Theme.colors.lightGray,
     marginVertical: Theme.spacing.md,
   },
-});
+});

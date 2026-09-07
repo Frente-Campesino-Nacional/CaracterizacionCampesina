@@ -625,4 +625,3 @@ const styles = StyleSheet.create({
   photoActionButtonSecondary: { backgroundColor: '#e2e8f0' },
   photoActionButtonText: { color: '#ffffff', fontSize: 12, fontWeight: '700' },
 });
-

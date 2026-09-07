@@ -247,4 +247,3 @@ const styles = StyleSheet.create({
   logDate: { color: '#64748b', fontSize: 12, marginTop: 4 },
   empty: { color: '#64748b', textAlign: 'center', paddingVertical: 16 },
 });
-
