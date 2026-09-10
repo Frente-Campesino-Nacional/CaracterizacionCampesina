@@ -39,7 +39,7 @@ export class CampesinosService {
           valores_anteriores,
           valores_nuevos,
           origen,
-          created_at
+          creado_en
         ) VALUES (
           gen_random_uuid(),
           ${userUuid},

@@ -196,10 +196,20 @@ export default function AdminFormulariosScreen() {
   const load = async () => {
     if (!token) return;
 
-    const [formularios, preguntasFiltro] = await Promise.all([
+    const results = await Promise.allSettled([
       listFormularios(token),
       listFormularioFilterQuestions(token),
     ]);
+
+    const formularios = results[0].status === 'fulfilled' && Array.isArray(results[0].value) ? results[0].value : [];
+    const preguntasFiltro = results[1].status === 'fulfilled' && Array.isArray(results[1].value) ? results[1].value : [];
+
+    const err0 = results[0].status === 'rejected' ? results[0].reason : null;
+    const err1 = results[1].status === 'rejected' ? results[1].reason : null;
+    const err = err0 || err1;
+    if (err?.message) {
+      showErrorAlert('Error al cargar datos', err.message);
+    }
 
     setItems(formularios);
     setFilterQuestions(preguntasFiltro);
@@ -215,7 +225,7 @@ export default function AdminFormulariosScreen() {
   };
 
   useEffect(() => {
-    load().catch((error) => Alert.alert('Error', error.message || 'No se pudo cargar formularios'));
+    load().catch(() => {});
   }, [token]);
 
   useEffect(() => {

@@ -190,11 +190,11 @@ export class SyncService {
             p.email,
             'Sistema'
           )) AS actor_nombre,
-          h.created_at AS creado_en
+          h.creado_en AS creado_en
         FROM auditoria.historial_cambios h
         LEFT JOIN seguridad.usuarios u ON u.id_usuario = h.usuario_id_reg
         LEFT JOIN registros.personas p ON p.id_personas = u.id_usuario
-        ORDER BY h.created_at DESC
+        ORDER BY h.creado_en DESC
         LIMIT 200
       `);
 

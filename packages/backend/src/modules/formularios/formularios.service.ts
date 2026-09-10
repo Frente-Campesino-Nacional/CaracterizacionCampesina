@@ -175,7 +175,7 @@ export class FormulariosService {
       SELECT id_formulario AS id, titulo, estructura
       FROM operacional.formularios
       WHERE activo = TRUE
-      ORDER BY created_at DESC
+      ORDER BY creado_en DESC
     `);
 
     const results: Array<{ formulario_id: string; formulario_titulo: string; pregunta_id: string; pregunta_label: string }> = [];
@@ -235,11 +235,11 @@ export class FormulariosService {
       selectedQuestion.label ?? selectedQuestion.etiqueta ?? selectedQuestion.titulo ?? preguntaId,
     ).trim();
 
-   const responseRows = await this.prisma.$queryRaw<Array<{ respuestas: any; created_at: Date | null }>>(Prisma.sql`
-      SELECT respuestas, created_at
+   const responseRows = await this.prisma.$queryRaw<Array<{ respuestas: any; creado_en: Date | null }>>(Prisma.sql`
+      SELECT respuestas, creado_en
       FROM respuestas.respuesta_form
       WHERE id_formulario = CAST(${String(formulario.id)} AS uuid)
-      ORDER BY created_at DESC;
+      ORDER BY creado_en DESC;
     `);
 
     const byCampesino = new Map<string, { valor: string; capturado_en: string | null }>();
@@ -275,7 +275,7 @@ export class FormulariosService {
 
       byCampesino.set(campesinoId, {
         valor: this.formatAnswerValue(answerValue),
-        capturado_en: row.created_at ? row.created_at.toISOString() : null,
+        capturado_en: row.creado_en ? row.creado_en.toISOString() : null,
       });
     }
 

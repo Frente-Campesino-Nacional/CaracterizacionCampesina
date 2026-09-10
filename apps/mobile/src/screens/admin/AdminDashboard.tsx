@@ -210,12 +210,17 @@ export default function AdminDashboard({ navigation }: any) {
     if (!token) return;
 
     try {
-      const [usuarios, campesinos, formularios, syncRecords] = await Promise.all([
+      const results = await Promise.allSettled([
         listUsuarios(token),
         listCampesinos(token),
         listFormularios(token),
         listSyncRecords(token),
       ]);
+
+      const usuarios = results[0].status === 'fulfilled' && Array.isArray(results[0].value) ? results[0].value : [];
+      const campesinos = results[1].status === 'fulfilled' && Array.isArray(results[1].value) ? results[1].value : [];
+      const formularios = results[2].status === 'fulfilled' && Array.isArray(results[2].value) ? results[2].value : [];
+      const syncRecords = results[3].status === 'fulfilled' && Array.isArray(results[3].value) ? results[3].value : [];
 
       const now = new Date();
       const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
