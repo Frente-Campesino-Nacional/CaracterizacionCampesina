@@ -379,23 +379,9 @@ export default function EncuestadorCampesinosScreen() {
         title="Campesinos"
         subtitle="Tus campesinos asignados"
         actions={
-          <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-            <TouchableOpacity
-              style={[styles.primaryButton, { backgroundColor: Theme.colors.greenDark, flexDirection: 'row', alignItems: 'center' }]}
-              onPress={handleManualSync}
-              disabled={syncing}
-            >
-              {syncing ? (
-                <ActivityIndicator size="small" color="#ffffff" style={{ marginRight: 4 }} />
-              ) : (
-                <MaterialCommunityIcons name="cloud-sync" size={18} color="#ffffff" style={{ marginRight: 4 }} />
-              )}
-              <Text style={styles.primaryButtonText}>{syncing ? 'Cargando...' : 'Sincronizar'}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.primaryButton} onPress={() => setModal(true)}>
-              <Text style={styles.primaryButtonText}>Registrar</Text>
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity style={styles.primaryButton} onPress={() => setModal(true)}>
+            <Text style={styles.primaryButtonText}>Registrar</Text>
+          </TouchableOpacity>
         }
       />
 
