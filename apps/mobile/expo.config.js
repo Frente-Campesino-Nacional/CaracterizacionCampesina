@@ -3,7 +3,7 @@ export default {
   slug: 'censo-campesino',
   version: '1.0.0',
   orientation: 'portrait',
-  icon: './assets/icon.png',
+  icon: './assets/icon.jpeg',
   userInterfaceStyle: 'light',
   splash: {
     image: './assets/splash.png',
@@ -16,7 +16,7 @@ export default {
   },
   android: {
     adaptiveIcon: {
-      foregroundImage: './assets/adaptive-icon.png',
+      foregroundImage: './assets/icon.jpeg',
       backgroundColor: '#ffffff',
     },
     package: 'com.censocampesino',
