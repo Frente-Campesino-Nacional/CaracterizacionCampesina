@@ -634,53 +634,63 @@ export class UsuariosService {
 
     const userUuid = String(usuario.id);
 
-    // Buscar un administrador alternativo para reasignar formularios y campesinos creados por este usuario
-    const fallbackAdmin = await this.prisma.$queryRaw<Array<{ id_usuario: string }>>(Prisma.sql`
+    // Buscar un usuario/administrador alternativo para reasignar registros dependientes
+    const fallbackUser = await this.prisma.$queryRaw<Array<{ id_usuario: string }>>(Prisma.sql`
       SELECT id_usuario FROM seguridad.usuarios
-      WHERE id_usuario::text <> ${userUuid} AND id_rol = 1
+      WHERE id_usuario::text <> ${userUuid}
+      ORDER BY CASE WHEN id_rol = 1 THEN 0 ELSE 1 END, id_usuario
       LIMIT 1
     `);
-    const fallbackAdminId = fallbackAdmin[0]?.id_usuario ?? null;
+    const fallbackUserId = fallbackUser[0]?.id_usuario ?? null;
 
-    // 1. Reasignar formularios creados por este usuario para evitar error 23502 de NOT NULL
-    if (fallbackAdminId) {
-      await this.prisma.$queryRaw(Prisma.sql`
-        UPDATE operacional.formularios SET creado_por = CAST(${fallbackAdminId} AS uuid) WHERE creado_por::text = ${userUuid}
+    await this.prisma.$transaction(async (tx) => {
+      // 1. Reasignar formularios creados por este usuario
+      if (fallbackUserId) {
+        await tx.$queryRaw(Prisma.sql`
+          UPDATE operacional.formularios SET creado_por = CAST(${fallbackUserId} AS uuid) WHERE creado_por::text = ${userUuid}
+        `);
+      }
+
+      // 2. Reasignar respuestas de formularios para evitar error 23502 de NOT NULL en llenado_por
+      if (fallbackUserId) {
+        await tx.$queryRaw(Prisma.sql`
+          UPDATE respuestas.respuesta_form SET llenado_por = CAST(${fallbackUserId} AS uuid) WHERE llenado_por::text = ${userUuid}
+        `);
+      }
+
+      // 3. Reasignar o limpiar relaciones en operacional.campesinos
+      if (fallbackUserId) {
+        await tx.$queryRaw(Prisma.sql`
+          UPDATE operacional.campesinos SET creado_por = CAST(${fallbackUserId} AS uuid) WHERE creado_por::text = ${userUuid}
+        `);
+      }
+      await tx.$queryRaw(Prisma.sql`
+        UPDATE operacional.campesinos SET asignado_a = NULL WHERE asignado_a::text = ${userUuid}
       `);
-    }
 
-    // 2. Reasignar o limpiar relaciones en operacional.campesinos
-    if (fallbackAdminId) {
-      await this.prisma.$queryRaw(Prisma.sql`
-        UPDATE operacional.campesinos SET creado_por = CAST(${fallbackAdminId} AS uuid) WHERE creado_por::text = ${userUuid}
+      // 4. Limpiar encargado en operacional.consejos
+      await tx.$queryRaw(Prisma.sql`
+        UPDATE operacional.consejos SET encargado_id = NULL WHERE encargado_id::text = ${userUuid}
       `);
-    }
-    await this.prisma.$queryRaw(Prisma.sql`
-      UPDATE operacional.campesinos SET asignado_a = NULL WHERE asignado_a::text = ${userUuid}
-    `);
 
-    // 3. Limpiar encargado en operacional.consejos
-    await this.prisma.$queryRaw(Prisma.sql`
-      UPDATE operacional.consejos SET encargado_id = NULL WHERE encargado_id::text = ${userUuid}
-    `);
+      // 5. Eliminar foto de perfil si existe
+      try {
+        await tx.$queryRaw(Prisma.sql`
+          DELETE FROM operacional.fotos_perfil WHERE persona_id::text = ${userUuid}
+        `);
+      } catch {
+        // Ignorar si no existe foto
+      }
 
-    // 4. Eliminar foto de perfil
-    try {
-      await this.prisma.$queryRaw(Prisma.sql`
-        DELETE FROM operacional.fotos_perfil WHERE persona_id::text = ${userUuid}
+      // 6. Eliminar registros principales
+      await tx.$queryRaw(Prisma.sql`
+        DELETE FROM seguridad.usuarios WHERE id_usuario::text = ${userUuid}
       `);
-    } catch {
-      // Ignorar si no existe foto
-    }
 
-    // 5. Eliminar registros principales
-    await this.prisma.$queryRaw(Prisma.sql`
-      DELETE FROM seguridad.usuarios WHERE id_usuario::text = ${userUuid}
-    `);
-
-    await this.prisma.$queryRaw(Prisma.sql`
-      DELETE FROM registros.personas WHERE id_personas::text = ${userUuid}
-    `);
+      await tx.$queryRaw(Prisma.sql`
+        DELETE FROM registros.personas WHERE id_personas::text = ${userUuid}
+      `);
+    });
 
     void this.recordAuditLog({
       tablaNombre: 'usuarios',
