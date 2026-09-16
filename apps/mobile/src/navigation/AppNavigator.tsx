@@ -46,6 +46,7 @@ function AdminNavigator({ logout }: { logout: () => void }) {
     <Tab.Navigator
       screenOptions={({ navigation }) => ({
         headerShown: true,
+        headerTitle: '',
         headerLeft: () => (
           <TouchableOpacity
             onPress={() => navigation.getParent()?.navigate('AdminPerfil' as never)}
@@ -105,50 +106,26 @@ function AdminNavigator({ logout }: { logout: () => void }) {
       <Tab.Screen
         name="AdminDashboard"
         component={AdminDashboard}
-        options={{
-          title: 'Panel de Control',
-          headerTitleAlign: 'center',
-        }}
       />
       <Tab.Screen
         name="AdminUsers"
         component={AdminUsuariosScreen}
-        options={{
-          title: 'Usuarios',
-          headerTitleAlign: 'center',
-        }}
       />
       <Tab.Screen
         name="AdminCampesinos"
         component={AdminCampesinosScreen}
-        options={{
-          title: 'Campesinos',
-          headerTitleAlign: 'center',
-        }}
       />
       <Tab.Screen
         name="AdminConsejos"
         component={AdminConsejosScreen}
-        options={{
-          title: 'Consejos',
-          headerTitleAlign: 'center',
-        }}
       />
       <Tab.Screen
         name="AdminFormularios"
         component={AdminFormulariosScreen}
-        options={{
-          title: 'Formularios',
-          headerTitleAlign: 'center',
-        }}
       />
       <Tab.Screen
         name="AdminAuditoria"
         component={AdminAuditoriaScreen}
-        options={{
-          title: 'Auditoría',
-          headerTitleAlign: 'center',
-        }}
       />
     </Tab.Navigator>
   );
@@ -212,6 +189,7 @@ function EncuestadorNavigator({ logout }: { logout: () => void }) {
     <Tab.Navigator
       screenOptions={{
         headerShown: true,
+        headerTitle: '',
         headerLeft: () => <HeaderSyncButton />,
         headerRight: () => (
           <TouchableOpacity
@@ -240,26 +218,14 @@ function EncuestadorNavigator({ logout }: { logout: () => void }) {
       <Tab.Screen
         name="EncuestadorDashboard"
         component={EncuestadorCampesinosScreen}
-        options={{
-          title: 'Campesinos',
-          headerTitleAlign: 'center',
-        }}
       />
       <Tab.Screen
         name="FormulariosPendientes"
         component={FormulariosPendientesScreen}
-        options={{
-          title: 'Pendientes',
-          headerTitleAlign: 'center',
-        }}
       />
       <Tab.Screen
         name="EncuestadorPerfil"
         component={EncuestadorProfileScreen}
-        options={{
-          title: 'Perfil',
-          headerTitleAlign: 'center',
-        }}
       />
     </Tab.Navigator>
   );
@@ -303,7 +269,7 @@ export default function AppNavigator() {
               <Stack.Screen
                 name="EncuestadorHistorial"
                 component={EncuestadorHistorialScreen}
-                options={{ headerShown: true, title: 'Historial de Cambios' }}
+                options={{ headerShown: true, title: '', headerTitle: '' }}
               />
 
               <Stack.Screen name="CampesinoDetail">
