@@ -17,7 +17,7 @@ export interface TabConfig {
 export const adminTabsConfig: TabConfig[] = [
   {
     name: 'AdminDashboard',
-    label: 'Dashboard',
+    label: 'Panel',
     icon: 'view-dashboard-outline',
     activeIcon: 'view-dashboard',
   },

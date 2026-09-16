@@ -47,54 +47,55 @@ function AdminNavigator({ logout }: { logout: () => void }) {
       screenOptions={({ navigation }) => ({
         headerShown: true,
         headerLeft: () => (
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <TouchableOpacity
-              onPress={() => navigation.getParent()?.navigate('AdminPerfil' as never)}
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                paddingLeft: Theme.spacing.md,
-                paddingRight: Theme.spacing.xs,
-                paddingVertical: Theme.spacing.sm,
-                gap: 4,
-              }}
-            >
-              <MaterialCommunityIcons
-                name="account-circle-outline"
-                size={26}
-                color={Theme.colors.greenDark}
-              />
-              <Text
-                style={{
-                  color: Theme.colors.greenDark,
-                  fontWeight: Theme.fontWeight.semibold,
-                  fontSize: Theme.fontSize.sm,
-                }}
-              >
-                Perfil
-              </Text>
-            </TouchableOpacity>
-            <HeaderSyncButton />
-          </View>
-        ),
-        headerRight: () => (
           <TouchableOpacity
-            onPress={logout}
+            onPress={() => navigation.getParent()?.navigate('AdminPerfil' as never)}
             style={{
-              paddingHorizontal: Theme.spacing.md,
+              flexDirection: 'row',
+              alignItems: 'center',
+              paddingLeft: Theme.spacing.md,
+              paddingRight: Theme.spacing.xs,
               paddingVertical: Theme.spacing.sm,
+              gap: 4,
             }}
           >
+            <MaterialCommunityIcons
+              name="account-circle-outline"
+              size={26}
+              color={Theme.colors.greenDark}
+            />
             <Text
               style={{
-                color: Theme.colors.error,
+                color: Theme.colors.greenDark,
                 fontWeight: Theme.fontWeight.semibold,
-                fontSize: Theme.fontSize.base,
+                fontSize: Theme.fontSize.sm,
               }}
             >
-              Cerrar sesión
+              Perfil
             </Text>
           </TouchableOpacity>
+        ),
+        headerRight: () => (
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <HeaderSyncButton />
+            <TouchableOpacity
+              onPress={logout}
+              style={{
+                paddingRight: Theme.spacing.md,
+                paddingLeft: Theme.spacing.xs,
+                paddingVertical: Theme.spacing.sm,
+              }}
+            >
+              <Text
+                style={{
+                  color: Theme.colors.error,
+                  fontWeight: Theme.fontWeight.semibold,
+                  fontSize: Theme.fontSize.base,
+                }}
+              >
+                Cerrar sesión
+              </Text>
+            </TouchableOpacity>
+          </View>
         ),
       })}
       tabBar={(props) => (
@@ -105,7 +106,7 @@ function AdminNavigator({ logout }: { logout: () => void }) {
         name="AdminDashboard"
         component={AdminDashboard}
         options={{
-          title: 'Dashboard',
+          title: 'Panel de Control',
           headerTitleAlign: 'center',
         }}
       />

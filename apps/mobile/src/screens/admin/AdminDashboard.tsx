@@ -323,7 +323,7 @@ export default function AdminDashboard({ navigation }: any) {
   return (
     <View style={sharedScreenStyles.surfaceWhite}>
       <Header
-        title="Dashboard"
+        title="Panel de Control"
         subtitle={`Bienvenido, ${user?.nombre?.split(' ')[0]}`}
         showBorder
       />
