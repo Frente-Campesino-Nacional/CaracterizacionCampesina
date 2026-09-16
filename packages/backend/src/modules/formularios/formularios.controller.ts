@@ -15,8 +15,9 @@ export class FormulariosController {
 
   @Get()
   @ApiOperation({ summary: 'Listar todos los formularios' })
-  findAll() {
-    return this.formulariosService.findAll();
+  findAll(@Query('include_inactive') includeInactive?: string) {
+    const showAll = includeInactive === 'true' || includeInactive === '1';
+    return this.formulariosService.findAll(showAll);
   }
 
   @Get('filtros/preguntas')

@@ -46,7 +46,8 @@ export class FormulariosService {
     };
   }
 
-  async findAll() {
+  async findAll(includeInactive: boolean = false) {
+    const whereClause = includeInactive ? Prisma.empty : Prisma.sql`WHERE activo = TRUE`;
     const formularios = await this.prisma.$queryRaw<Array<any>>(Prisma.sql`
       SELECT
         id_formulario AS id,
@@ -58,7 +59,7 @@ export class FormulariosService {
         creado_en AS creado_en,
         actualizado_en AS actualizado_en
       FROM operacional.formularios
-      WHERE activo = TRUE
+      ${whereClause}
       ORDER BY creado_en DESC
     `);
 

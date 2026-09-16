@@ -436,8 +436,9 @@ export const deleteCampesino = async (token: string, id: string): Promise<void> 
   await createApiClient(token).delete(`/campesinos/${id}`);
 };
 
-export const listFormularios = async (token: string): Promise<FormularioRecord[]> => {
-  const response = await createApiClient(token).get('/formularios');
+export const listFormularios = async (token: string, includeInactive: boolean = true): Promise<FormularioRecord[]> => {
+  const url = includeInactive ? '/formularios?include_inactive=true' : '/formularios';
+  const response = await createApiClient(token).get(url);
   const rawItems = Array.isArray(response.data) ? response.data : [];
   return rawItems
     .map((item: any) => {

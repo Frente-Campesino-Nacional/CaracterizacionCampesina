@@ -7,6 +7,7 @@ import {
   flushQueuedSubmissions,
   getFormulariosActivos,
 } from './encuestadorFormService';
+import { listCampesinos, listFormularios } from './adminService';
 
 export interface EncuestadorSyncResult {
   success: boolean;
@@ -126,4 +127,87 @@ export async function syncEncuestadorData(
     totalFormularios,
     message: successMsg,
   };
+}
+
+/**
+ * Ejecuta la sincronización de datos para perfil Administrador:
+ * Sube pendientes si los hubiera y recarga la lista completa de campesinos y formularios.
+ */
+export async function syncAdminData(
+  token: string,
+  userId: string,
+  showAlert: boolean = true,
+): Promise<EncuestadorSyncResult> {
+  if (!token || !userId) {
+    const errorRes: EncuestadorSyncResult = {
+      success: false,
+      online: false,
+      syncedCampesinos: 0,
+      syncedFormularios: 0,
+      totalCampesinos: 0,
+      totalFormularios: 0,
+      message: 'Sesión no válida para sincronizar.',
+    };
+    if (showAlert) {
+      Alert.alert('Sincronización', errorRes.message);
+    }
+    return errorRes;
+  }
+
+  let syncedCampesinos = 0;
+  let syncedFormularios = 0;
+  let totalCampesinos = 0;
+  let totalFormularios = 0;
+
+  try {
+    try {
+      syncedCampesinos = await flushQueuedCampesinoCreates(token);
+    } catch {}
+
+    try {
+      syncedFormularios = await flushQueuedSubmissions(token);
+    } catch {}
+
+    const [campesinosList, formulariosList] = await Promise.all([
+      listCampesinos(token),
+      listFormularios(token, true),
+    ]);
+    totalCampesinos = Array.isArray(campesinosList) ? campesinosList.length : 0;
+    totalFormularios = Array.isArray(formulariosList) ? formulariosList.length : 0;
+
+    const parts: string[] = [];
+    if (syncedCampesinos > 0) parts.push(`${syncedCampesinos} campesino(s) subido(s)`);
+    if (syncedFormularios > 0) parts.push(`${syncedFormularios} respuesta(s) subida(s)`);
+
+    const uploadDetail = parts.length ? `[${parts.join(', ')}] ` : '';
+    const successMsg = `${uploadDetail}Sincronización completada. ${totalCampesinos} campesino(s) y ${totalFormularios} formulario(s) cargados exitosamente.`;
+
+    if (showAlert) {
+      Alert.alert('Sincronización Completada', successMsg);
+    }
+
+    return {
+      success: true,
+      online: true,
+      syncedCampesinos,
+      syncedFormularios,
+      totalCampesinos,
+      totalFormularios,
+      message: successMsg,
+    };
+  } catch (error: any) {
+    const errorMsg = 'Error al sincronizar datos con el servidor.';
+    if (showAlert) {
+      Alert.alert('Error de Sincronización', errorMsg);
+    }
+    return {
+      success: false,
+      online: false,
+      syncedCampesinos: 0,
+      syncedFormularios: 0,
+      totalCampesinos: 0,
+      totalFormularios: 0,
+      message: errorMsg,
+    };
+  }
 }

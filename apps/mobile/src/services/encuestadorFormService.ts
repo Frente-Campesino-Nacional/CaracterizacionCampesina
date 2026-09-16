@@ -383,7 +383,7 @@ export async function getFormularioById(token: string, formularioId: string): Pr
 
 export async function getFormulariosActivos(token: string): Promise<FormularioRecord[]> {
   try {
-    const all = await listFormularios(token);
+    const all = await listFormularios(token, false);
     const safeAll = Array.isArray(all) ? all : [];
     const active = safeAll.filter((item) => Boolean(item && item.activo));
     await AsyncStorage.setItem(STORAGE_KEYS.formulariosActivos, JSON.stringify(active));

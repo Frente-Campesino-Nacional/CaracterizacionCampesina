@@ -9,7 +9,7 @@ import { CustomBottomTabNavigator } from '../components/CustomBottomTabNavigator
 import { adminTabsConfig, encuestadorTabsConfig } from './tabConfigs';
 import { Theme } from '../theme/colors';
 import { isAdminRole } from '../utils/roles';
-import { syncEncuestadorData } from '../services/encuestadorSyncService';
+import { syncAdminData, syncEncuestadorData } from '../services/encuestadorSyncService';
 
 // Screens - Auth
 import LoginScreen from '../screens/auth/LoginScreen';
@@ -47,32 +47,35 @@ function AdminNavigator({ logout }: { logout: () => void }) {
       screenOptions={({ navigation }) => ({
         headerShown: true,
         headerLeft: () => (
-          <TouchableOpacity
-            onPress={() => navigation.getParent()?.navigate('AdminPerfil' as never)}
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              paddingLeft: Theme.spacing.md,
-              paddingRight: Theme.spacing.sm,
-              paddingVertical: Theme.spacing.sm,
-              gap: 6,
-            }}
-          >
-            <MaterialCommunityIcons
-              name="account-circle-outline"
-              size={28}
-              color={Theme.colors.greenDark}
-            />
-            <Text
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <TouchableOpacity
+              onPress={() => navigation.getParent()?.navigate('AdminPerfil' as never)}
               style={{
-                color: Theme.colors.greenDark,
-                fontWeight: Theme.fontWeight.semibold,
-                fontSize: Theme.fontSize.base,
+                flexDirection: 'row',
+                alignItems: 'center',
+                paddingLeft: Theme.spacing.md,
+                paddingRight: Theme.spacing.xs,
+                paddingVertical: Theme.spacing.sm,
+                gap: 4,
               }}
             >
-              Perfil
-            </Text>
-          </TouchableOpacity>
+              <MaterialCommunityIcons
+                name="account-circle-outline"
+                size={26}
+                color={Theme.colors.greenDark}
+              />
+              <Text
+                style={{
+                  color: Theme.colors.greenDark,
+                  fontWeight: Theme.fontWeight.semibold,
+                  fontSize: Theme.fontSize.sm,
+                }}
+              >
+                Perfil
+              </Text>
+            </TouchableOpacity>
+            <HeaderSyncButton />
+          </View>
         ),
         headerRight: () => (
           <TouchableOpacity
@@ -158,7 +161,11 @@ function HeaderSyncButton() {
     if (!token || !user?.id || syncing) return;
     setSyncing(true);
     try {
-      await syncEncuestadorData(token, user.id, true);
+      if (isAdminRole(user.rol)) {
+        await syncAdminData(token, user.id, true);
+      } else {
+        await syncEncuestadorData(token, user.id, true);
+      }
     } finally {
       setSyncing(false);
     }
