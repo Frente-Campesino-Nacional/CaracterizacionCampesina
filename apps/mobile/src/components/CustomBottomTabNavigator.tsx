@@ -102,9 +102,9 @@ export const CustomBottomTabNavigator: React.FC<CustomBottomTabProps> = ({
         const isFocused = state.index === index;
         
         // Usar configuración personalizada o labels por defecto
-        const labelValue = options.tabBarLabel || options.title || route.name;
-        const label = typeof labelValue === 'string' ? labelValue : route.name;
         const tabConfig = tabsConfig?.find((t) => t.name === route.name);
+        const labelValue = tabConfig?.label || options.tabBarLabel || options.title || route.name;
+        const label = typeof labelValue === 'string' ? labelValue : route.name;
         const icon = tabConfig?.icon || 'folder';
         const activeIcon = tabConfig?.activeIcon || icon;
         const displayIcon = isFocused ? activeIcon : icon;
