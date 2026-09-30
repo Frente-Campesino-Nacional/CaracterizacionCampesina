@@ -26,7 +26,8 @@ function repairNestedPicomatch(packageName) {
   const dst = path.join(dstParent, 'picomatch');
 
   if (!fs.existsSync(src)) {
-    throw new Error(`Missing source package: ${src}`);
+    console.log(`[fix-anymatch-read] missing source package ${src}, skipping repair`);
+    return;
   }
 
   fs.mkdirSync(dstParent, { recursive: true });
@@ -42,11 +43,24 @@ function ensureReadable(moduleName) {
     require(moduleName);
     console.log(`[fix-anymatch-read] ${moduleName} OK`);
   } catch (error) {
+    if (error && error.code === 'MODULE_NOT_FOUND') {
+      console.log(`[fix-anymatch-read] ${moduleName} not installed, skipping`);
+      return;
+    }
+
     if (error && error.code === 'UNKNOWN' && error.syscall === 'read') {
       console.log(`[fix-anymatch-read] repairing nested picomatch for ${moduleName}...`);
       repairNestedPicomatch(moduleName);
-      require(moduleName);
-      console.log(`[fix-anymatch-read] repair applied for ${moduleName}`);
+      try {
+        require(moduleName);
+        console.log(`[fix-anymatch-read] repair applied for ${moduleName}`);
+      } catch (err2) {
+        if (err2 && err2.code === 'MODULE_NOT_FOUND') {
+          console.log(`[fix-anymatch-read] ${moduleName} not installed, skipping`);
+          return;
+        }
+        throw err2;
+      }
       return;
     }
 
