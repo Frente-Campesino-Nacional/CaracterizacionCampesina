@@ -22,7 +22,7 @@ function buildFromExpoHostUri(port: number): string | undefined {
 }
 
 function getFallbackHost(_port: number): string {
-  return 'https://censo-campesino-api.onrender.com/api';
+  return 'https://caracterizacioncampesina.onrender.com/api';
 }
 
 export function getApiBaseUrl(): string {
@@ -32,7 +32,7 @@ export function getApiBaseUrl(): string {
   }
 
   if (!__DEV__) {
-    return 'https://censo-campesino-api.onrender.com/api';
+    return 'https://caracterizacioncampesina.onrender.com/api';
   }
 
   const port = normalizePort(extra.apiPort, 3008);
