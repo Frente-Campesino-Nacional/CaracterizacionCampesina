@@ -26,7 +26,7 @@ export default {
     favicon: './assets/favicon.png',
   },
   extra: {
-    apiBaseUrl: process.env.EXPO_PUBLIC_API_BASE_URL || 'https://censo-campesino-api.onrender.com/api',
+    apiBaseUrl: process.env.EXPO_PUBLIC_API_BASE_URL || 'https://caracterizacioncampesina.onrender.com/api',
     apiPort: process.env.EXPO_PUBLIC_API_PORT || 3008,
   },
 };
