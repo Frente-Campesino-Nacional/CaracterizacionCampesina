@@ -26,6 +26,9 @@ export declare class CampesinosController {
         creado_por: any;
         asignado_a: any;
         tiene_pendientes: boolean;
+        es_campesino: boolean;
+        es_administrador: boolean;
+        es_encuestador: boolean;
         metadata: any;
         foto_url: any;
         creado_en: any;
@@ -52,6 +55,9 @@ export declare class CampesinosController {
         creado_por: any;
         asignado_a: any;
         tiene_pendientes: boolean;
+        es_campesino: boolean;
+        es_administrador: boolean;
+        es_encuestador: boolean;
         metadata: any;
         foto_url: any;
         creado_en: any;
@@ -78,6 +84,9 @@ export declare class CampesinosController {
         creado_por: any;
         asignado_a: any;
         tiene_pendientes: boolean;
+        es_campesino: boolean;
+        es_administrador: boolean;
+        es_encuestador: boolean;
         metadata: any;
         foto_url: any;
         creado_en: any;
@@ -104,6 +113,9 @@ export declare class CampesinosController {
         creado_por: any;
         asignado_a: any;
         tiene_pendientes: boolean;
+        es_campesino: boolean;
+        es_administrador: boolean;
+        es_encuestador: boolean;
         metadata: any;
         foto_url: any;
         creado_en: any;

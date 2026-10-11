@@ -88,8 +88,8 @@ let PostgresStorageService = PostgresStorageService_1 = class PostgresStorageSer
         id_formulario,
         respuestas,
         llenado_por,
-        created_at,
-        update_at,
+        creado_en,
+        actualizado_en,
         sync_status,
         sync_attempts,
         last_synced_at,
@@ -123,8 +123,8 @@ let PostgresStorageService = PostgresStorageService_1 = class PostgresStorageSer
         id_fotos,
         persona_id,
         url_nube,
-        created_at,
-        updated_at,
+        creado_en,
+        actualizado_en,
         sync_status,
         sync_attempts,
         last_synced_at,
@@ -143,7 +143,7 @@ let PostgresStorageService = PostgresStorageService_1 = class PostgresStorageSer
       ON CONFLICT (persona_id)
       DO UPDATE SET
         url_nube = EXCLUDED.url_nube,
-        updated_at = EXCLUDED.updated_at,
+        actualizado_en = EXCLUDED.actualizado_en,
         sync_status = EXCLUDED.sync_status,
         sync_attempts = 0,
         last_synced_at = EXCLUDED.last_synced_at,
@@ -158,15 +158,15 @@ let PostgresStorageService = PostgresStorageService_1 = class PostgresStorageSer
         id_fotos,
         persona_id,
         url_nube,
-        created_at,
-        updated_at,
+        creado_en,
+        actualizado_en,
         sync_status,
         sync_attempts,
         last_synced_at,
         sync_error
       FROM operacional.fotos_perfil
       WHERE persona_id::text = ${String(usuarioId)}
-      ORDER BY updated_at DESC, created_at DESC
+      ORDER BY actualizado_en DESC, creado_en DESC
       LIMIT 1;
     `);
         const document = rows[0];
@@ -183,8 +183,8 @@ let PostgresStorageService = PostgresStorageService_1 = class PostgresStorageSer
             image_base64: parsed.image_base64,
             image_url: parsed.image_url,
             metadata: null,
-            creado_en: document.created_at,
-            actualizado_en: document.updated_at,
+            creado_en: document.creado_en,
+            actualizado_en: document.actualizado_en,
         };
     }
     async deleteUsuarioPerfilImagen(usuarioId) {
@@ -206,8 +206,8 @@ let PostgresStorageService = PostgresStorageService_1 = class PostgresStorageSer
         id_fotos,
         persona_id,
         url_nube,
-        created_at,
-        updated_at,
+        creado_en,
+        actualizado_en,
         sync_status,
         sync_attempts,
         last_synced_at,
@@ -226,7 +226,7 @@ let PostgresStorageService = PostgresStorageService_1 = class PostgresStorageSer
       ON CONFLICT (persona_id)
       DO UPDATE SET
         url_nube = EXCLUDED.url_nube,
-        updated_at = EXCLUDED.updated_at,
+        actualizado_en = EXCLUDED.actualizado_en,
         sync_status = EXCLUDED.sync_status,
         sync_attempts = 0,
         last_synced_at = EXCLUDED.last_synced_at,
@@ -241,15 +241,15 @@ let PostgresStorageService = PostgresStorageService_1 = class PostgresStorageSer
         id_fotos,
         persona_id,
         url_nube,
-        created_at,
-        updated_at,
+        creado_en,
+        actualizado_en,
         sync_status,
         sync_attempts,
         last_synced_at,
         sync_error
       FROM operacional.fotos_perfil
       WHERE persona_id::text = ${String(campesinoId)}
-      ORDER BY updated_at DESC, created_at DESC
+      ORDER BY actualizado_en DESC, creado_en DESC
       LIMIT 1;
     `);
         const document = rows[0];
@@ -266,8 +266,8 @@ let PostgresStorageService = PostgresStorageService_1 = class PostgresStorageSer
             image_base64: parsed.image_base64,
             image_url: parsed.image_url,
             metadata: null,
-            creado_en: document.created_at,
-            actualizado_en: document.updated_at,
+            creado_en: document.creado_en,
+            actualizado_en: document.actualizado_en,
         };
     }
     async deleteCampesinoPerfilImagen(campesinoId) {

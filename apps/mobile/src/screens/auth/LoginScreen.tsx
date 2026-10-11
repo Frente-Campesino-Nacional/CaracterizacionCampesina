@@ -97,7 +97,7 @@ export default function LoginScreen() {
                 color={Theme.colors.greenDark}
               />
             </View>
-            <Text style={styles.appTitle}>Censo Campesino</Text>
+            <Text style={styles.appTitle}>Producir es vencer FUNCN</Text>
             <Text style={styles.appSubtitle}>
               Sistema de gestión de encuestas
             </Text>

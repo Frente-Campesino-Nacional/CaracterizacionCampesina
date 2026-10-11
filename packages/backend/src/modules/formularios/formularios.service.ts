@@ -295,15 +295,11 @@ export class FormulariosService {
         p.email,
         p.consejo_id,
         co.nombre_consejo AS consejo_nombre,
-        est.nombre_estado AS estado,
-        mun.nombre_municipio AS municipio,
-        par.nombre_parroquia AS parroquia
+        est.nombre_estado AS estado
       FROM operacional.campesinos c
       LEFT JOIN registros.personas p ON p.id_personas = c.id_campesinos
       LEFT JOIN operacional.consejos co ON co.consejo_id::text = p.consejo_id::text
-      LEFT JOIN catalogos.parroquias par ON par.id_parroquia = p.parroquia
-      LEFT JOIN catalogos.municipios mun ON mun.id_municipio = par.municipio
-      LEFT JOIN catalogos.estados est ON est.id_estados = mun.estado
+      LEFT JOIN catalogos.estados est ON est.id_estados = p.estado
       WHERE c.id_campesinos::text = ANY (${campesinoIds})
     `);
 

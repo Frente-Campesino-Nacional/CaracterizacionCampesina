@@ -75,7 +75,7 @@ export async function exportFormFilterToPDF(
         </head>
         <body>
           <div class="header">
-            <h1 class="title">Censo Campesino - Análisis de Respuestas por Formulario</h1>
+            <h1 class="title">Producir es vencer FUNCN - Análisis de Respuestas por Formulario</h1>
             <div class="subtitle"><strong>Formulario:</strong> ${formTitle} | <strong>Pregunta:</strong> ${questionLabel}</div>
           </div>
           
@@ -106,7 +106,7 @@ export async function exportFormFilterToPDF(
           </table>
 
           <div class="footer">
-            Generado automáticamente por el Sistema Censo Campesino Ezequiel Zamora.
+            Generado automáticamente por el Sistema Producir es vencer FUNCN.
           </div>
         </body>
       </html>

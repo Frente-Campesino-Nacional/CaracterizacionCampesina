@@ -58,29 +58,13 @@ export class UsuariosService {
     }
   }
 
-  private async resolveParroquiaId(input: {
-    parroquiaId?: number;
-    municipioId?: number;
+  private async resolveEstadoId(input: {
     estadoId?: number;
+    municipioId?: number;
+    parroquiaId?: number;
   }): Promise<number> {
-    if (input.parroquiaId != null) {
-      return input.parroquiaId;
-    }
-
-    if (input.municipioId != null) {
-      const rows = await this.prisma.$queryRaw<Array<{ id_parroquia: number }>>(Prisma.sql`
-        SELECT id_parroquia FROM catalogos.parroquias WHERE municipio = ${input.municipioId} ORDER BY id_parroquia LIMIT 1
-      `);
-      if (rows[0]) return rows[0].id_parroquia;
-    }
-
     if (input.estadoId != null) {
-      const rows = await this.prisma.$queryRaw<Array<{ id_parroquia: number }>>(Prisma.sql`
-        SELECT par.id_parroquia FROM catalogos.parroquias par
-        JOIN catalogos.municipios m ON m.id_municipio = par.municipio
-        WHERE m.estado = ${input.estadoId} ORDER BY par.id_parroquia LIMIT 1
-      `);
-      if (rows[0]) return rows[0].id_parroquia;
+      return input.estadoId;
     }
 
     return 1;
@@ -168,14 +152,11 @@ export class UsuariosService {
         g.sexo AS sexo,
         e.id_estados AS estado_id,
         e.nombre_estado AS estado,
-        m.id_municipio AS municipio_id,
-        m.nombre_municipio AS municipio,
-        par.id_parroquia AS parroquia_id,
-        par.nombre_parroquia AS parroquia,
         p.direccion_usuario AS direccion,
         p.consejo_id AS consejo_id,
         c.nombre_consejo AS consejo_nombre,
         CASE WHEN COALESCE(u.sync_status, 'synced') = 'disabled' THEN FALSE ELSE TRUE END AS activo,
+        CASE WHEN cmp.id_campesinos IS NOT NULL THEN TRUE ELSE FALSE END AS es_campesino,
         p.creado_en AS creado_en,
         p.actualizado_en AS actualizado_en
       FROM seguridad.usuarios u
@@ -183,10 +164,9 @@ export class UsuariosService {
       LEFT JOIN seguridad.roles r ON r.id_rol = u.id_rol
       LEFT JOIN operacional.consejos c ON c.consejo_id = p.consejo_id
       LEFT JOIN catalogos.generos g ON g.id_sexo = p.sexo
-      LEFT JOIN catalogos.parroquias par ON par.id_parroquia = p.parroquia
-      LEFT JOIN catalogos.municipios m ON m.id_municipio = par.municipio
-      LEFT JOIN catalogos.estados e ON e.id_estados = m.estado
+      LEFT JOIN catalogos.estados e ON e.id_estados = p.estado
       LEFT JOIN operacional.fotos_perfil fp ON fp.persona_id = u.id_usuario
+      LEFT JOIN operacional.campesinos cmp ON cmp.id_campesinos = u.id_usuario
 
       WHERE u.id_usuario::text = ${textValue}
          OR LOWER(p.email) = LOWER(${textValue})
@@ -198,6 +178,7 @@ export class UsuariosService {
   }
 
   private mapUsuario(usuario: any) {
+    const roleNormalized = String(usuario.rol || '').toLowerCase();
     return {
       id: usuario.id,
       cedula: this.formatCedulaForResponse(usuario.tipo_cedula, usuario.cedula),
@@ -223,6 +204,9 @@ export class UsuariosService {
       consejo_id: usuario.consejo_id ?? null,
       consejo_nombre: usuario.consejo_nombre || null,
       activo: Boolean(usuario.activo),
+      es_campesino: Boolean(usuario.es_campesino),
+      es_encuestador: roleNormalized === 'encuestador',
+      es_administrador: roleNormalized === 'administrador' || roleNormalized === 'admin',
       foto_url: usuario.foto_url || null,
       creado_en: usuario.creado_en,
       actualizado_en: usuario.actualizado_en ?? usuario.creado_en,
@@ -308,14 +292,11 @@ export class UsuariosService {
         g.sexo AS sexo,
         e.id_estados AS estado_id,
         e.nombre_estado AS estado,
-        m.id_municipio AS municipio_id,
-        m.nombre_municipio AS municipio,
-        par.id_parroquia AS parroquia_id,
-        par.nombre_parroquia AS parroquia,
         p.direccion_usuario AS direccion,
         p.consejo_id AS consejo_id,
         c.nombre_consejo AS consejo_nombre,
         CASE WHEN COALESCE(u.sync_status, 'synced') = 'disabled' THEN FALSE ELSE TRUE END AS activo,
+        CASE WHEN cmp.id_campesinos IS NOT NULL THEN TRUE ELSE FALSE END AS es_campesino,
         fp.url_nube AS foto_url,
         p.creado_en AS creado_en,
         p.actualizado_en AS actualizado_en
@@ -324,10 +305,9 @@ export class UsuariosService {
       LEFT JOIN seguridad.roles r ON r.id_rol = u.id_rol
       LEFT JOIN operacional.consejos c ON c.consejo_id = p.consejo_id
       LEFT JOIN catalogos.generos g ON g.id_sexo = p.sexo
-      LEFT JOIN catalogos.parroquias par ON par.id_parroquia = p.parroquia
-      LEFT JOIN catalogos.municipios m ON m.id_municipio = par.municipio
-      LEFT JOIN catalogos.estados e ON e.id_estados = m.estado
+      LEFT JOIN catalogos.estados e ON e.id_estados = p.estado
       LEFT JOIN operacional.fotos_perfil fp ON fp.persona_id = u.id_usuario
+      LEFT JOIN operacional.campesinos cmp ON cmp.id_campesinos = u.id_usuario
       ORDER BY p.email
     `);
 
@@ -363,18 +343,22 @@ export class UsuariosService {
       this.validatePhoneInput(createUsuarioDto.numero_telefono);
     }
 
-    const emailValue = createUsuarioDto.email.trim().toLowerCase();
-    if (!this.isValidGmail(emailValue)) {
+    const emailValue = createUsuarioDto.email && createUsuarioDto.email.trim()
+      ? createUsuarioDto.email.trim().toLowerCase()
+      : null;
 
-      throw new BadRequestException('El correo electrónico debe pertenecer al dominio @gmail.com (ej. usuario@gmail.com)');
-    }
+    if (emailValue) {
+      if (!this.isValidGmail(emailValue)) {
+        throw new BadRequestException('El correo electrónico debe pertenecer al dominio @gmail.com (ej. usuario@gmail.com)');
+      }
 
-    const existingUser = await this.prisma.$queryRaw<Array<{ id_personas: string }>>(Prisma.sql`
-      SELECT id_personas FROM registros.personas WHERE LOWER(email) = LOWER(${emailValue}) LIMIT 1
-    `);
+      const existingUser = await this.prisma.$queryRaw<Array<{ id_personas: string }>>(Prisma.sql`
+        SELECT id_personas FROM registros.personas WHERE LOWER(email) = LOWER(${emailValue}) LIMIT 1
+      `);
 
-    if (existingUser[0]) {
-      throw new ConflictException('El correo electrónico ya se encuentra registrado en el sistema. Por favor utiliza un correo diferente.');
+      if (existingUser[0]) {
+        throw new ConflictException('El correo electrónico ya se encuentra registrado en el sistema. Por favor utiliza un correo diferente.');
+      }
     }
 
 
@@ -398,7 +382,7 @@ export class UsuariosService {
       cedula = await this.generateUniqueCedula();
     }
 
-    const parroquiaId = await this.resolveParroquiaId({
+    const estadoId = await this.resolveEstadoId({
       parroquiaId: createUsuarioDto.parroquia_id,
       municipioId: createUsuarioDto.municipio_id,
       estadoId: createUsuarioDto.estado_id,
@@ -422,7 +406,7 @@ export class UsuariosService {
           tipo_cedula,
           cedula,
           fecha_nacimiento,
-          parroquia,
+          estado,
           direccion_usuario,
           email,
           numero_telefonico,
@@ -435,7 +419,7 @@ export class UsuariosService {
           CAST(${tipoCedula} AS registros.tipo_cedula_enum),
           ${cedula},
           ${birthDate ?? new Date('1990-01-01T00:00:00.000Z')},
-          ${parroquiaId},
+          ${estadoId},
           ${createUsuarioDto.direccion || ''},
           ${emailValue},
           ${createUsuarioDto.numero_telefono ?? null},
@@ -460,6 +444,21 @@ export class UsuariosService {
           NULL
         )
       `);
+
+      if (createUsuarioDto.es_campesino) {
+        await tx.$queryRaw(Prisma.sql`
+          INSERT INTO operacional.campesinos (
+            id_campesinos,
+            creado_por,
+            formularios_pendientes
+          ) VALUES (
+            CAST(${sharedEntityId} AS uuid),
+            NULL,
+            FALSE
+          )
+          ON CONFLICT (id_campesinos) DO NOTHING
+        `);
+      }
     });
 
     return this.findUsuarioRow(sharedEntityId);
@@ -473,6 +472,34 @@ export class UsuariosService {
 
     const data: any = { ...updateUsuarioDto };
     const currentUserId = usuario.id;
+
+    if (updateUsuarioDto.rol) {
+      const newRoleId = await this.resolveRoleId(this.normalizeRoleValue(updateUsuarioDto.rol));
+      await this.prisma.$queryRaw(Prisma.sql`
+        UPDATE seguridad.usuarios SET id_rol = ${newRoleId} WHERE id_usuario::text = ${String(currentUserId)}
+      `);
+    }
+
+    if (updateUsuarioDto.es_campesino !== undefined) {
+      if (updateUsuarioDto.es_campesino) {
+        await this.prisma.$queryRaw(Prisma.sql`
+          INSERT INTO operacional.campesinos (
+            id_campesinos,
+            creado_por,
+            formularios_pendientes
+          ) VALUES (
+            CAST(${currentUserId} AS uuid),
+            NULL,
+            FALSE
+          )
+          ON CONFLICT (id_campesinos) DO NOTHING
+        `);
+      } else {
+        await this.prisma.$queryRaw(Prisma.sql`
+          DELETE FROM operacional.campesinos WHERE id_campesinos::text = ${String(currentUserId)}
+        `);
+      }
+    }
 
     if (data.password !== undefined) {
       if (typeof data.password !== 'string' || !data.password.trim()) {
@@ -566,8 +593,8 @@ export class UsuariosService {
         ? await this.resolveConsejoUuid(data.consejo_id)
         : null;
 
-      const parroquiaId = (data.parroquia_id != null || data.municipio_id != null || data.estado_id != null)
-        ? await this.resolveParroquiaId({
+      const estadoId = (data.parroquia_id != null || data.municipio_id != null || data.estado_id != null)
+        ? await this.resolveEstadoId({
             parroquiaId: data.parroquia_id,
             municipioId: data.municipio_id,
             estadoId: data.estado_id,
@@ -586,7 +613,7 @@ export class UsuariosService {
           direccion_usuario = COALESCE(${data.direccion ?? null}, direccion_usuario),
           numero_telefonico = COALESCE(${data.numero_telefono ?? null}, numero_telefonico),
           fecha_nacimiento = COALESCE(CAST(${normalizedBirthDate ?? null} AS date), fecha_nacimiento),
-          parroquia = COALESCE(CAST(${parroquiaId ?? null} AS integer), parroquia),
+          estado = COALESCE(CAST(${estadoId ?? null} AS integer), estado),
           sexo = COALESCE(CAST(${generoId ?? null} AS integer), sexo),
           consejo_id = CASE
             WHEN CAST(${normalizedConsejoId ?? null} AS text) IS NULL THEN consejo_id

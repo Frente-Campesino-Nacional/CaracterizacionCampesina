@@ -61,7 +61,7 @@ let UsuariosService = class UsuariosService {
           valores_anteriores,
           valores_nuevos,
           origen,
-          created_at
+          creado_en
         ) VALUES (
           gen_random_uuid(),
           ${userUuid},
@@ -78,25 +78,9 @@ let UsuariosService = class UsuariosService {
         catch {
         }
     }
-    async resolveParroquiaId(input) {
-        if (input.parroquiaId != null) {
-            return input.parroquiaId;
-        }
-        if (input.municipioId != null) {
-            const rows = await this.prisma.$queryRaw(client_1.Prisma.sql `
-        SELECT id_parroquia FROM catalogos.parroquias WHERE municipio = ${input.municipioId} ORDER BY id_parroquia LIMIT 1
-      `);
-            if (rows[0])
-                return rows[0].id_parroquia;
-        }
+    async resolveEstadoId(input) {
         if (input.estadoId != null) {
-            const rows = await this.prisma.$queryRaw(client_1.Prisma.sql `
-        SELECT par.id_parroquia FROM catalogos.parroquias par
-        JOIN catalogos.municipios m ON m.id_municipio = par.municipio
-        WHERE m.estado = ${input.estadoId} ORDER BY par.id_parroquia LIMIT 1
-      `);
-            if (rows[0])
-                return rows[0].id_parroquia;
+            return input.estadoId;
         }
         return 1;
     }
@@ -170,29 +154,25 @@ let UsuariosService = class UsuariosService {
         r.tip_rol AS rol,
         p.numero_telefonico AS numero_telefono,
         p.fecha_nacimiento,
-        g.genero AS genero,
+        g.sexo AS genero,
+        g.sexo AS sexo,
         e.id_estados AS estado_id,
         e.nombre_estado AS estado,
-        m.id_municipio AS municipio_id,
-        m.nombre_municipio AS municipio,
-        par.id_parroquia AS parroquia_id,
-        par.nombre_parroquia AS parroquia,
         p.direccion_usuario AS direccion,
         p.consejo_id AS consejo_id,
         c.nombre_consejo AS consejo_nombre,
         CASE WHEN COALESCE(u.sync_status, 'synced') = 'disabled' THEN FALSE ELSE TRUE END AS activo,
-        fp.url_nube AS foto_url,
-        p.created_at AS creado_en,
-        p.update_at AS actualizado_en
+        CASE WHEN cmp.id_campesinos IS NOT NULL THEN TRUE ELSE FALSE END AS es_campesino,
+        p.creado_en AS creado_en,
+        p.actualizado_en AS actualizado_en
       FROM seguridad.usuarios u
       LEFT JOIN registros.personas p ON p.id_personas = u.id_usuario
       LEFT JOIN seguridad.roles r ON r.id_rol = u.id_rol
       LEFT JOIN operacional.consejos c ON c.consejo_id = p.consejo_id
-      LEFT JOIN catalogos.generos g ON g.id_genero = p.genero
-      LEFT JOIN catalogos.parroquias par ON par.id_parroquia = p.parroquia
-      LEFT JOIN catalogos.municipios m ON m.id_municipio = par.municipio
-      LEFT JOIN catalogos.estados e ON e.id_estados = m.estado
+      LEFT JOIN catalogos.generos g ON g.id_sexo = p.sexo
+      LEFT JOIN catalogos.estados e ON e.id_estados = p.estado
       LEFT JOIN operacional.fotos_perfil fp ON fp.persona_id = u.id_usuario
+      LEFT JOIN operacional.campesinos cmp ON cmp.id_campesinos = u.id_usuario
 
       WHERE u.id_usuario::text = ${textValue}
          OR LOWER(p.email) = LOWER(${textValue})
@@ -201,6 +181,7 @@ let UsuariosService = class UsuariosService {
         return rows[0] ?? null;
     }
     mapUsuario(usuario) {
+        const roleNormalized = String(usuario.rol || '').toLowerCase();
         return {
             id: usuario.id,
             cedula: this.formatCedulaForResponse(usuario.tipo_cedula, usuario.cedula),
@@ -225,6 +206,9 @@ let UsuariosService = class UsuariosService {
             consejo_id: usuario.consejo_id ?? null,
             consejo_nombre: usuario.consejo_nombre || null,
             activo: Boolean(usuario.activo),
+            es_campesino: Boolean(usuario.es_campesino),
+            es_encuestador: roleNormalized === 'encuestador',
+            es_administrador: roleNormalized === 'administrador' || roleNormalized === 'admin',
             foto_url: usuario.foto_url || null,
             creado_en: usuario.creado_en,
             actualizado_en: usuario.actualizado_en ?? usuario.creado_en,
@@ -291,29 +275,26 @@ let UsuariosService = class UsuariosService {
         r.tip_rol AS rol,
         p.numero_telefonico AS numero_telefono,
         p.fecha_nacimiento,
-        g.genero AS genero,
+        g.sexo AS genero,
+        g.sexo AS sexo,
         e.id_estados AS estado_id,
         e.nombre_estado AS estado,
-        m.id_municipio AS municipio_id,
-        m.nombre_municipio AS municipio,
-        par.id_parroquia AS parroquia_id,
-        par.nombre_parroquia AS parroquia,
         p.direccion_usuario AS direccion,
         p.consejo_id AS consejo_id,
         c.nombre_consejo AS consejo_nombre,
         CASE WHEN COALESCE(u.sync_status, 'synced') = 'disabled' THEN FALSE ELSE TRUE END AS activo,
+        CASE WHEN cmp.id_campesinos IS NOT NULL THEN TRUE ELSE FALSE END AS es_campesino,
         fp.url_nube AS foto_url,
-        p.created_at AS creado_en,
-        p.update_at AS actualizado_en
+        p.creado_en AS creado_en,
+        p.actualizado_en AS actualizado_en
       FROM seguridad.usuarios u
       LEFT JOIN registros.personas p ON p.id_personas = u.id_usuario
       LEFT JOIN seguridad.roles r ON r.id_rol = u.id_rol
       LEFT JOIN operacional.consejos c ON c.consejo_id = p.consejo_id
-      LEFT JOIN catalogos.generos g ON g.id_genero = p.genero
-      LEFT JOIN catalogos.parroquias par ON par.id_parroquia = p.parroquia
-      LEFT JOIN catalogos.municipios m ON m.id_municipio = par.municipio
-      LEFT JOIN catalogos.estados e ON e.id_estados = m.estado
+      LEFT JOIN catalogos.generos g ON g.id_sexo = p.sexo
+      LEFT JOIN catalogos.estados e ON e.id_estados = p.estado
       LEFT JOIN operacional.fotos_perfil fp ON fp.persona_id = u.id_usuario
+      LEFT JOIN operacional.campesinos cmp ON cmp.id_campesinos = u.id_usuario
       ORDER BY p.email
     `);
         return usuarios.map((usuario) => this.mapUsuario(usuario));
@@ -344,15 +325,19 @@ let UsuariosService = class UsuariosService {
         if (createUsuarioDto.numero_telefono) {
             this.validatePhoneInput(createUsuarioDto.numero_telefono);
         }
-        const emailValue = createUsuarioDto.email.trim().toLowerCase();
-        if (!this.isValidGmail(emailValue)) {
-            throw new common_1.BadRequestException('El correo electrónico debe pertenecer al dominio @gmail.com (ej. usuario@gmail.com)');
-        }
-        const existingUser = await this.prisma.$queryRaw(client_1.Prisma.sql `
-      SELECT id_personas FROM registros.personas WHERE LOWER(email) = LOWER(${emailValue}) LIMIT 1
-    `);
-        if (existingUser[0]) {
-            throw new common_1.ConflictException('El correo electrónico ya se encuentra registrado en el sistema. Por favor utiliza un correo diferente.');
+        const emailValue = createUsuarioDto.email && createUsuarioDto.email.trim()
+            ? createUsuarioDto.email.trim().toLowerCase()
+            : null;
+        if (emailValue) {
+            if (!this.isValidGmail(emailValue)) {
+                throw new common_1.BadRequestException('El correo electrónico debe pertenecer al dominio @gmail.com (ej. usuario@gmail.com)');
+            }
+            const existingUser = await this.prisma.$queryRaw(client_1.Prisma.sql `
+        SELECT id_personas FROM registros.personas WHERE LOWER(email) = LOWER(${emailValue}) LIMIT 1
+      `);
+            if (existingUser[0]) {
+                throw new common_1.ConflictException('El correo electrónico ya se encuentra registrado en el sistema. Por favor utiliza un correo diferente.');
+            }
         }
         const hashedPassword = await bcrypt.hash(createUsuarioDto.password, 10);
         const roleId = await this.resolveRoleId(this.normalizeRoleValue(createUsuarioDto.rol || 'encuestador'));
@@ -371,12 +356,12 @@ let UsuariosService = class UsuariosService {
             tipoCedula = 'NP';
             cedula = await this.generateUniqueCedula();
         }
-        const parroquiaId = await this.resolveParroquiaId({
+        const estadoId = await this.resolveEstadoId({
             parroquiaId: createUsuarioDto.parroquia_id,
             municipioId: createUsuarioDto.municipio_id,
             estadoId: createUsuarioDto.estado_id,
         });
-        const generoId = await this.resolveGeneroId(createUsuarioDto.genero);
+        const generoId = await this.resolveGeneroId(createUsuarioDto.sexo ?? createUsuarioDto.genero);
         const consejoUuid = createUsuarioDto.consejo_id
             ? await this.resolveConsejoUuid(createUsuarioDto.consejo_id)
             : null;
@@ -391,11 +376,11 @@ let UsuariosService = class UsuariosService {
           tipo_cedula,
           cedula,
           fecha_nacimiento,
-          parroquia,
+          estado,
           direccion_usuario,
           email,
           numero_telefonico,
-          genero,
+          sexo,
           consejo_id
         ) VALUES (
           CAST(${sharedEntityId} AS uuid),
@@ -404,7 +389,7 @@ let UsuariosService = class UsuariosService {
           CAST(${tipoCedula} AS registros.tipo_cedula_enum),
           ${cedula},
           ${birthDate ?? new Date('1990-01-01T00:00:00.000Z')},
-          ${parroquiaId},
+          ${estadoId},
           ${createUsuarioDto.direccion || ''},
           ${emailValue},
           ${createUsuarioDto.numero_telefono ?? null},
@@ -428,6 +413,20 @@ let UsuariosService = class UsuariosService {
           NULL
         )
       `);
+            if (createUsuarioDto.es_campesino) {
+                await tx.$queryRaw(client_1.Prisma.sql `
+          INSERT INTO operacional.campesinos (
+            id_campesinos,
+            creado_por,
+            formularios_pendientes
+          ) VALUES (
+            CAST(${sharedEntityId} AS uuid),
+            NULL,
+            FALSE
+          )
+          ON CONFLICT (id_campesinos) DO NOTHING
+        `);
+            }
         });
         return this.findUsuarioRow(sharedEntityId);
     }
@@ -438,6 +437,33 @@ let UsuariosService = class UsuariosService {
         }
         const data = { ...updateUsuarioDto };
         const currentUserId = usuario.id;
+        if (updateUsuarioDto.rol) {
+            const newRoleId = await this.resolveRoleId(this.normalizeRoleValue(updateUsuarioDto.rol));
+            await this.prisma.$queryRaw(client_1.Prisma.sql `
+        UPDATE seguridad.usuarios SET id_rol = ${newRoleId} WHERE id_usuario::text = ${String(currentUserId)}
+      `);
+        }
+        if (updateUsuarioDto.es_campesino !== undefined) {
+            if (updateUsuarioDto.es_campesino) {
+                await this.prisma.$queryRaw(client_1.Prisma.sql `
+          INSERT INTO operacional.campesinos (
+            id_campesinos,
+            creado_por,
+            formularios_pendientes
+          ) VALUES (
+            CAST(${currentUserId} AS uuid),
+            NULL,
+            FALSE
+          )
+          ON CONFLICT (id_campesinos) DO NOTHING
+        `);
+            }
+            else {
+                await this.prisma.$queryRaw(client_1.Prisma.sql `
+          DELETE FROM operacional.campesinos WHERE id_campesinos::text = ${String(currentUserId)}
+        `);
+            }
+        }
         if (data.password !== undefined) {
             if (typeof data.password !== 'string' || !data.password.trim()) {
                 throw new common_1.BadRequestException('La contraseña no puede estar vacía');
@@ -497,6 +523,7 @@ let UsuariosService = class UsuariosService {
             data.numero_telefono != null ||
             data.fecha_nacimiento != null ||
             data.consejo_id != null ||
+            data.sexo != null ||
             data.genero != null ||
             data.parroquia_id != null ||
             data.municipio_id != null ||
@@ -508,15 +535,15 @@ let UsuariosService = class UsuariosService {
             const normalizedConsejoId = data.consejo_id != null
                 ? await this.resolveConsejoUuid(data.consejo_id)
                 : null;
-            const parroquiaId = (data.parroquia_id != null || data.municipio_id != null || data.estado_id != null)
-                ? await this.resolveParroquiaId({
+            const estadoId = (data.parroquia_id != null || data.municipio_id != null || data.estado_id != null)
+                ? await this.resolveEstadoId({
                     parroquiaId: data.parroquia_id,
                     municipioId: data.municipio_id,
                     estadoId: data.estado_id,
                 })
                 : null;
-            const generoId = data.genero != null
-                ? await this.resolveGeneroId(data.genero)
+            const generoId = (data.sexo != null || data.genero != null)
+                ? await this.resolveGeneroId(data.sexo ?? data.genero)
                 : null;
             await this.prisma.$queryRaw(client_1.Prisma.sql `
         UPDATE registros.personas
@@ -526,13 +553,13 @@ let UsuariosService = class UsuariosService {
           direccion_usuario = COALESCE(${data.direccion ?? null}, direccion_usuario),
           numero_telefonico = COALESCE(${data.numero_telefono ?? null}, numero_telefonico),
           fecha_nacimiento = COALESCE(CAST(${normalizedBirthDate ?? null} AS date), fecha_nacimiento),
-          parroquia = COALESCE(CAST(${parroquiaId ?? null} AS integer), parroquia),
-          genero = COALESCE(CAST(${generoId ?? null} AS integer), genero),
+          estado = COALESCE(CAST(${estadoId ?? null} AS integer), estado),
+          sexo = COALESCE(CAST(${generoId ?? null} AS integer), sexo),
           consejo_id = CASE
             WHEN CAST(${normalizedConsejoId ?? null} AS text) IS NULL THEN consejo_id
             ELSE CAST(${normalizedConsejoId ?? null} AS uuid)
           END,
-          update_at = NOW()
+          actualizado_en = NOW()
         WHERE id_personas::text = ${String(currentUserId)}
       `);
         }
@@ -566,41 +593,49 @@ let UsuariosService = class UsuariosService {
             throw new common_1.NotFoundException('Usuario no encontrado');
         }
         const userUuid = String(usuario.id);
-        const fallbackAdmin = await this.prisma.$queryRaw(client_1.Prisma.sql `
+        const fallbackUser = await this.prisma.$queryRaw(client_1.Prisma.sql `
       SELECT id_usuario FROM seguridad.usuarios
-      WHERE id_usuario::text <> ${userUuid} AND id_rol = 1
+      WHERE id_usuario::text <> ${userUuid}
+      ORDER BY CASE WHEN id_rol = 1 THEN 0 ELSE 1 END, id_usuario
       LIMIT 1
     `);
-        const fallbackAdminId = fallbackAdmin[0]?.id_usuario ?? null;
-        if (fallbackAdminId) {
-            await this.prisma.$queryRaw(client_1.Prisma.sql `
-        UPDATE operacional.formularios SET creado_por = CAST(${fallbackAdminId} AS uuid) WHERE creado_por::text = ${userUuid}
+        const fallbackUserId = fallbackUser[0]?.id_usuario ?? null;
+        await this.prisma.$transaction(async (tx) => {
+            if (fallbackUserId) {
+                await tx.$queryRaw(client_1.Prisma.sql `
+          UPDATE operacional.formularios SET creado_por = CAST(${fallbackUserId} AS uuid) WHERE creado_por::text = ${userUuid}
+        `);
+            }
+            if (fallbackUserId) {
+                await tx.$queryRaw(client_1.Prisma.sql `
+          UPDATE respuestas.respuesta_form SET llenado_por = CAST(${fallbackUserId} AS uuid) WHERE llenado_por::text = ${userUuid}
+        `);
+            }
+            if (fallbackUserId) {
+                await tx.$queryRaw(client_1.Prisma.sql `
+          UPDATE operacional.campesinos SET creado_por = CAST(${fallbackUserId} AS uuid) WHERE creado_por::text = ${userUuid}
+        `);
+            }
+            await tx.$queryRaw(client_1.Prisma.sql `
+        UPDATE operacional.campesinos SET asignado_a = NULL WHERE asignado_a::text = ${userUuid}
       `);
-        }
-        if (fallbackAdminId) {
-            await this.prisma.$queryRaw(client_1.Prisma.sql `
-        UPDATE operacional.campesinos SET creado_por = CAST(${fallbackAdminId} AS uuid) WHERE creado_por::text = ${userUuid}
+            await tx.$queryRaw(client_1.Prisma.sql `
+        UPDATE operacional.consejos SET encargado_id = NULL WHERE encargado_id::text = ${userUuid}
       `);
-        }
-        await this.prisma.$queryRaw(client_1.Prisma.sql `
-      UPDATE operacional.campesinos SET asignado_a = NULL WHERE asignado_a::text = ${userUuid}
-    `);
-        await this.prisma.$queryRaw(client_1.Prisma.sql `
-      UPDATE operacional.consejos SET encargado_id = NULL WHERE encargado_id::text = ${userUuid}
-    `);
-        try {
-            await this.prisma.$queryRaw(client_1.Prisma.sql `
-        DELETE FROM operacional.fotos_perfil WHERE persona_id::text = ${userUuid}
+            try {
+                await tx.$queryRaw(client_1.Prisma.sql `
+          DELETE FROM operacional.fotos_perfil WHERE persona_id::text = ${userUuid}
+        `);
+            }
+            catch {
+            }
+            await tx.$queryRaw(client_1.Prisma.sql `
+        DELETE FROM seguridad.usuarios WHERE id_usuario::text = ${userUuid}
       `);
-        }
-        catch {
-        }
-        await this.prisma.$queryRaw(client_1.Prisma.sql `
-      DELETE FROM seguridad.usuarios WHERE id_usuario::text = ${userUuid}
-    `);
-        await this.prisma.$queryRaw(client_1.Prisma.sql `
-      DELETE FROM registros.personas WHERE id_personas::text = ${userUuid}
-    `);
+            await tx.$queryRaw(client_1.Prisma.sql `
+        DELETE FROM registros.personas WHERE id_personas::text = ${userUuid}
+      `);
+        });
         void this.recordAuditLog({
             tablaNombre: 'usuarios',
             registroId: userUuid,

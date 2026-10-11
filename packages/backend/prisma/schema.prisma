@@ -33,6 +33,8 @@ model Estado {
   id_estados    Int         @id(map: "id_edo_pkey") @default(autoincrement())
   nombre_estado String
   municipios    Municipio[]
+  personas      personas[]
+  consejos      Consejo[]
 
   @@map("estados")
   @@schema("catalogos")
@@ -44,23 +46,9 @@ model Municipio {
   nombre_municipio   String
   id_estados_estados Int?
   estadoRel          Estado      @relation(fields: [estado], references: [id_estados], onDelete: NoAction, map: "id_estado_fkey")
-  parroquias         Parroquia[]
 
   @@index([estado], map: "idx_municipios_estado")
   @@map("municipios")
-  @@schema("catalogos")
-}
-
-model Parroquia {
-  id_parroquia     Int        @id(map: "id_parroquia_pkey") @default(autoincrement())
-  nombre_parroquia String
-  municipio        Int?
-  municipioRel     Municipio? @relation(fields: [municipio], references: [id_municipio], onDelete: NoAction, map: "id_municipios_pkey")
-  consejos         Consejo[]
-  personas         personas[]
-
-  @@index([municipio], map: "idx_parroquias_municipio")
-  @@map("parroquias")
   @@schema("catalogos")
 }
 
@@ -68,16 +56,16 @@ model Consejo {
   consejo_id     String     @id(map: "consejo_id_pkey") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   nombre_consejo String
   descripcion    String?
-  parrroquia     Int
+  estado         Int
   direccion_csj  String?
   encargado_id   String?    @db.Uuid
   creado_en      DateTime   @default(now()) @map("creado_en") @db.Timestamp(6)
   actualizado_en DateTime   @default(now()) @map("actualizado_en") @db.Timestamp(6)
   usuarios       Usuario?   @relation(fields: [encargado_id], references: [id_usuario], map: "encargado_fkey")
-  parroquias     Parroquia  @relation(fields: [parrroquia], references: [id_parroquia], onDelete: NoAction, map: "parroquia_fkey")
+  estados        Estado     @relation(fields: [estado], references: [id_estados], onDelete: NoAction, map: "estado_fkey")
   personas       personas[]
 
-  @@index([parrroquia], map: "idx_consejos_parrroquia")
+  @@index([estado], map: "idx_consejos_estado")
   @@map("consejos")
   @@schema("operacional")
 }
@@ -240,7 +228,7 @@ model personas {
   tipo_cedula       tipo_cedula_enum
   cedula            String           @unique(map: "cedula_unique") @db.VarChar(15)
   fecha_nacimiento  DateTime         @db.Date
-  parroquia         Int
+  estado            Int
   direccion_usuario String
   email             String?          @unique(map: "email_unique") @db.VarChar(254)
   numero_telefonico String?          @db.VarChar(12)
@@ -256,14 +244,14 @@ model personas {
   fotos_perfil      FotoPerfil?
   consejos          Consejo?         @relation(fields: [consejo_id], references: [consejo_id], map: "consejo_id_fkey")
   generos           Genero           @relation(fields: [sexo], references: [id_sexo], onDelete: NoAction, onUpdate: NoAction, map: "genero_fkey")
-  parroquias        Parroquia        @relation(fields: [parroquia], references: [id_parroquia], map: "parroquia_fkey")
+  estados           Estado           @relation(fields: [estado], references: [id_estados], map: "estado_fkey")
   usuarios          Usuario?
 
   @@index([cedula], map: "idx_personas_cedula")
   @@index([consejo_id], map: "idx_personas_consejo_id")
   @@index([email], map: "idx_personas_email")
   @@index([sexo], map: "idx_personas_sexo")
-  @@index([parroquia], map: "idx_personas_parroquia")
+  @@index([estado], map: "idx_personas_estado")
   @@index([sync_status], map: "idx_personas_sync_status")
   @@schema("registros")
 }

@@ -370,7 +370,7 @@ export default function AdminFormulariosScreen() {
     try {
       const fileUri = await exportTableToPdf({
         title: 'Reporte de Formularios',
-        subtitle: 'CensoCampesino - Administración',
+        subtitle: 'Producir es vencer FUNCN - Administración',
         filePrefix: 'formularios',
         filters: [{ label: 'Búsqueda', value: search || 'Sin filtro' }],
         columns: [

@@ -9,7 +9,7 @@ export declare class FormulariosService {
     constructor(prisma: PrismaService, storageService: PostgresStorageService);
     private findFormularioRow;
     private mapFormulario;
-    findAll(): Promise<{
+    findAll(includeInactive?: boolean): Promise<{
         id: any;
         titulo: any;
         version: any;

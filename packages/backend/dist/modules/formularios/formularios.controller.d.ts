@@ -5,7 +5,7 @@ import { UpdateFormularioDto } from './dto/update-formulario.dto';
 export declare class FormulariosController {
     private readonly formulariosService;
     constructor(formulariosService: FormulariosService);
-    findAll(): Promise<{
+    findAll(includeInactive?: string): Promise<{
         id: any;
         titulo: any;
         version: any;

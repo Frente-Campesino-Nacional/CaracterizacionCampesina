@@ -25,6 +25,9 @@ export declare class UsuariosController {
         consejo_id: any;
         consejo_nombre: any;
         activo: boolean;
+        es_campesino: boolean;
+        es_encuestador: boolean;
+        es_administrador: boolean;
         foto_url: any;
         creado_en: any;
         actualizado_en: any;
@@ -49,6 +52,9 @@ export declare class UsuariosController {
         consejo_id: any;
         consejo_nombre: any;
         activo: boolean;
+        es_campesino: boolean;
+        es_encuestador: boolean;
+        es_administrador: boolean;
         foto_url: any;
         creado_en: any;
         actualizado_en: any;

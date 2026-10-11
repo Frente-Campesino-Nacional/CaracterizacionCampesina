@@ -24,8 +24,9 @@ let FormulariosController = class FormulariosController {
     constructor(formulariosService) {
         this.formulariosService = formulariosService;
     }
-    findAll() {
-        return this.formulariosService.findAll();
+    findAll(includeInactive) {
+        const showAll = includeInactive === 'true' || includeInactive === '1';
+        return this.formulariosService.findAll(showAll);
     }
     listFilterQuestions() {
         return this.formulariosService.listFilterQuestions();
@@ -53,8 +54,9 @@ exports.FormulariosController = FormulariosController;
 __decorate([
     (0, common_1.Get)(),
     (0, swagger_1.ApiOperation)({ summary: 'Listar todos los formularios' }),
+    __param(0, (0, common_1.Query)('include_inactive')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
+    __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], FormulariosController.prototype, "findAll", null);
 __decorate([

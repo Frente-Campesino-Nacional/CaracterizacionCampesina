@@ -54,6 +54,9 @@ export interface UsuarioRecord {
   direccion?: string | null;
   consejo_id?: string | null;
   activo: boolean;
+  es_campesino?: boolean;
+  es_encuestador?: boolean;
+  es_administrador?: boolean;
   foto_url?: string | null;
   creado_en?: string | null;
   actualizado_en?: string | null;
@@ -94,6 +97,9 @@ export interface UsuarioPayload {
   direccion?: string | undefined;
   consejo_id?: string | undefined;
   activo?: boolean | undefined;
+  es_campesino?: boolean | undefined;
+  es_encuestador?: boolean | undefined;
+  es_administrador?: boolean | undefined;
   creado_en?: string | undefined;
   actualizado_en?: string | undefined;
 }
@@ -183,6 +189,9 @@ export interface CampesinoRecord {
   creado_por?: string | null;
   asignado_a?: string | null;
   tiene_pendientes: boolean;
+  es_campesino?: boolean;
+  es_encuestador?: boolean;
+  es_administrador?: boolean;
   metadata?: Record<string, unknown> | null;
   foto_url?: string | null;
   creado_en?: string | null;
@@ -223,6 +232,10 @@ export interface CampesinoPayload {
   creado_por?: string | undefined;
   asignado_a?: string | undefined;
   tiene_pendientes?: boolean | undefined;
+  es_campesino?: boolean | undefined;
+  es_encuestador?: boolean | undefined;
+  es_administrador?: boolean | undefined;
+  password?: string | undefined;
   metadata?: Record<string, unknown> | undefined;
   creado_en?: string | undefined;
   actualizado_en?: string | undefined;

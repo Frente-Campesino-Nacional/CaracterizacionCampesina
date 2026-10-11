@@ -7,6 +7,6 @@ export class AppController {
   @Get()
   @ApiOperation({ summary: 'Welcome message' })
   getHello() {
-    return { message: 'Welcome to CensoCampesino API' };
+    return { message: 'Welcome to Producir es vencer FUNCN API' };
   }
 }

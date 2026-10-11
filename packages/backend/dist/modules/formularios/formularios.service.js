@@ -29,8 +29,8 @@ let FormulariosService = class FormulariosService {
         estructura,
         activo,
         creado_por,
-        created_at AS creado_en,
-        update_at AS actualizado_en
+        creado_en AS creado_en,
+        actualizado_en AS actualizado_en
       FROM operacional.formularios
       WHERE id_formulario::text = ${textValue}
       LIMIT 1
@@ -49,7 +49,8 @@ let FormulariosService = class FormulariosService {
             actualizado_en: formulario.actualizado_en,
         };
     }
-    async findAll() {
+    async findAll(includeInactive = false) {
+        const whereClause = includeInactive ? client_1.Prisma.empty : client_1.Prisma.sql `WHERE activo = TRUE`;
         const formularios = await this.prisma.$queryRaw(client_1.Prisma.sql `
       SELECT
         id_formulario AS id,
@@ -58,11 +59,11 @@ let FormulariosService = class FormulariosService {
         estructura,
         activo,
         creado_por,
-        created_at AS creado_en,
-        update_at AS actualizado_en
+        creado_en AS creado_en,
+        actualizado_en AS actualizado_en
       FROM operacional.formularios
-      WHERE activo = TRUE
-      ORDER BY created_at DESC
+      ${whereClause}
+      ORDER BY creado_en DESC
     `);
         return formularios.map((formulario) => this.mapFormulario(formulario));
     }
@@ -83,7 +84,7 @@ let FormulariosService = class FormulariosService {
         ${createFormularioDto.activo ?? true},
         CAST(${createFormularioDto.creado_por ?? null} AS uuid)
       )
-      RETURNING id_formulario AS id, titulo, version, estructura, activo, creado_por, created_at AS creado_en, update_at AS actualizado_en
+      RETURNING id_formulario AS id, titulo, version, estructura, activo, creado_por, creado_en AS creado_en, actualizado_en AS actualizado_en
     `);
         return this.mapFormulario(created[0]);
     }
@@ -100,7 +101,7 @@ let FormulariosService = class FormulariosService {
         estructura = COALESCE(${updateFormularioDto.estructura ? JSON.stringify(updateFormularioDto.estructura) : null}::jsonb, estructura),
         activo = COALESCE(${updateFormularioDto.activo ?? null}, activo)
       WHERE id_formulario::text = ${String(formulario.id)}
-      RETURNING id_formulario AS id, titulo, version, estructura, activo, creado_por, created_at AS creado_en, update_at AS actualizado_en
+      RETURNING id_formulario AS id, titulo, version, estructura, activo, creado_por, creado_en AS creado_en, actualizado_en AS actualizado_en
     `);
         return this.mapFormulario(updated[0] ?? formulario);
     }
@@ -160,7 +161,7 @@ let FormulariosService = class FormulariosService {
       SELECT id_formulario AS id, titulo, estructura
       FROM operacional.formularios
       WHERE activo = TRUE
-      ORDER BY created_at DESC
+      ORDER BY creado_en DESC
     `);
         const results = [];
         for (const formulario of formularios) {
@@ -205,10 +206,10 @@ let FormulariosService = class FormulariosService {
         }
         const selectedLabel = String(selectedQuestion.label ?? selectedQuestion.etiqueta ?? selectedQuestion.titulo ?? preguntaId).trim();
         const responseRows = await this.prisma.$queryRaw(client_1.Prisma.sql `
-      SELECT respuestas, created_at
+      SELECT respuestas, creado_en
       FROM respuestas.respuesta_form
       WHERE id_formulario = CAST(${String(formulario.id)} AS uuid)
-      ORDER BY created_at DESC;
+      ORDER BY creado_en DESC;
     `);
         const byCampesino = new Map();
         for (const row of responseRows) {
@@ -237,7 +238,7 @@ let FormulariosService = class FormulariosService {
             }
             byCampesino.set(campesinoId, {
                 valor: this.formatAnswerValue(answerValue),
-                capturado_en: row.created_at ? row.created_at.toISOString() : null,
+                capturado_en: row.creado_en ? row.creado_en.toISOString() : null,
             });
         }
         const campesinoIds = Array.from(byCampesino.keys());
@@ -254,15 +255,11 @@ let FormulariosService = class FormulariosService {
         p.email,
         p.consejo_id,
         co.nombre_consejo AS consejo_nombre,
-        est.nombre_estado AS estado,
-        mun.nombre_municipio AS municipio,
-        par.nombre_parroquia AS parroquia
+        est.nombre_estado AS estado
       FROM operacional.campesinos c
       LEFT JOIN registros.personas p ON p.id_personas = c.id_campesinos
       LEFT JOIN operacional.consejos co ON co.consejo_id::text = p.consejo_id::text
-      LEFT JOIN catalogos.parroquias par ON par.id_parroquia = p.parroquia
-      LEFT JOIN catalogos.municipios mun ON mun.id_municipio = par.municipio
-      LEFT JOIN catalogos.estados est ON est.id_estados = mun.estado
+      LEFT JOIN catalogos.estados est ON est.id_estados = p.estado
       WHERE c.id_campesinos::text = ANY (${campesinoIds})
     `);
         return campesinos

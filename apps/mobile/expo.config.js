@@ -1,6 +1,6 @@
 export default {
-  name: 'CensoCampesino',
-  slug: 'censo-campesino',
+  name: 'Producir es vencer FUNCN',
+  slug: 'producir-es-vencer-funcn',
   version: '1.0.0',
   orientation: 'portrait',
   icon: './assets/icon.jpeg',

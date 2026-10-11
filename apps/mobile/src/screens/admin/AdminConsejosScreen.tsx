@@ -121,7 +121,7 @@ export default function AdminConsejosScreen() {
     try {
       const fileUri = await exportTableToPdf({
         title: 'Reporte de Consejos',
-        subtitle: 'CensoCampesino - Administración',
+        subtitle: 'Producir es vencer FUNCN - Administración',
         filePrefix: 'consejos',
         filters: [{ label: 'Búsqueda', value: search || 'Sin filtro' }],
         columns: [

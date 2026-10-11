@@ -17,6 +17,7 @@ import { showErrorAlert, showSuccessAlert } from '../../utils/humanizerUtils';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { sharedFormStyles } from '../../styles/sharedFormStyles';
+import { isAdminRole } from '../../utils/roles';
 
 type CampesinoFormState = {
   cedulaMode: 'foreign' | 'venezolano' | 'none';
@@ -38,6 +39,9 @@ type CampesinoFormState = {
   creado_por: string;
   asignado_a: string;
   tiene_pendientes: boolean;
+  es_administrador: boolean;
+  es_encuestador: boolean;
+  password: string;
 };
 
 function defaultCampesinoForm(currentUserId?: string): CampesinoFormState {
@@ -61,6 +65,9 @@ function defaultCampesinoForm(currentUserId?: string): CampesinoFormState {
     creado_por: currentUserId != null ? String(currentUserId) : '',
     asignado_a: '',
     tiene_pendientes: false,
+    es_administrador: false,
+    es_encuestador: false,
+    password: '',
   };
 }
 
@@ -263,6 +270,9 @@ export default function AdminCampesinosScreen() {
       creado_por: item.creado_por != null ? String(item.creado_por) : String(user?.id ?? ''),
       asignado_a: item.asignado_a || '',
       tiene_pendientes: Boolean(item.tiene_pendientes),
+      es_administrador: Boolean(item.es_administrador),
+      es_encuestador: Boolean(item.es_encuestador),
+      password: '',
     });
     void loadPhoto(item.id);
     setModal(true);
@@ -294,6 +304,7 @@ export default function AdminCampesinosScreen() {
 
 
     const cedulaValue = buildCedulaValue(form.cedulaMode, form.cedula);
+    const isAdmin = isAdminRole(user?.rol);
 
     const payload: CampesinoPayload = {
       nombre: form.nombre.trim(),
@@ -311,6 +322,9 @@ export default function AdminCampesinosScreen() {
       creado_por: editing ? toOptionalString(form.creado_por) : (user?.id ?? toOptionalString(form.creado_por)),
       asignado_a: toOptionalString(form.asignado_a),
       tiene_pendientes: form.tiene_pendientes,
+      es_administrador: isAdmin ? form.es_administrador : undefined,
+      es_encuestador: isAdmin ? form.es_encuestador : undefined,
+      password: (isAdmin && (form.es_administrador || form.es_encuestador) && form.password) ? form.password.trim() : undefined,
     };
 
     if (cedulaValue) {
@@ -445,7 +459,7 @@ export default function AdminCampesinosScreen() {
     try {
       const fileUri = await exportTableToPdf({
         title: 'Reporte de Campesinos',
-        subtitle: 'CensoCampesino - Administración',
+        subtitle: 'Producir es vencer FUNCN - Administración',
         filePrefix: 'campesinos',
         filters: [
           { label: 'Búsqueda', value: search || 'Sin filtro' },
@@ -697,6 +711,42 @@ export default function AdminCampesinosScreen() {
 
                 </View>
               </View>
+              {isAdminRole(user?.rol) ? (
+                <View style={styles.photoCard}>
+                  <Text style={styles.photoCardTitle}>Roles de Acceso al Sistema</Text>
+                  <Text style={{ fontSize: Theme.fontSize.xs, color: Theme.colors.mediumGray, marginBottom: 8 }}>
+                    Como Administrador, puedes otorgar credenciales de acceso al sistema a este campesino:
+                  </Text>
+                  <View style={[sharedFormStyles.switchRow, { marginBottom: 6 }]}>
+                    <Text style={{ fontSize: Theme.fontSize.sm, color: Theme.colors.darkGray, fontWeight: '600' }}>
+                      Administrador (Acceso al sistema)
+                    </Text>
+                    <Switch
+                      value={form.es_administrador}
+                      onValueChange={(val) => setForm((s) => ({ ...s, es_administrador: val, es_encuestador: val ? false : s.es_encuestador }))}
+                    />
+                  </View>
+                  <View style={[sharedFormStyles.switchRow, { marginBottom: 6 }]}>
+                    <Text style={{ fontSize: Theme.fontSize.sm, color: Theme.colors.darkGray, fontWeight: '600' }}>
+                      Encuestador (Acceso al sistema)
+                    </Text>
+                    <Switch
+                      value={form.es_encuestador}
+                      onValueChange={(val) => setForm((s) => ({ ...s, es_encuestador: val, es_administrador: val ? false : s.es_administrador }))}
+                    />
+                  </View>
+                  {(form.es_administrador || form.es_encuestador) ? (
+                    <TextInput
+                      value={form.password}
+                      onChangeText={(val) => setForm((s) => ({ ...s, password: val }))}
+                      style={[sharedFormStyles.input, { marginTop: 8 }]}
+                      placeholder={editing ? "Contraseña de acceso (opcional)" : "Contraseña de acceso *"}
+                      secureTextEntry
+                    />
+                  ) : null}
+                </View>
+              ) : null}
+
               <View style={styles.readOnlyInfoBox}>
                 <Text style={styles.readOnlyLabel}>Creado por</Text>
                 <Text style={styles.readOnlyValue}>
