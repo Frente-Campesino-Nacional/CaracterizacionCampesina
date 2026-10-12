@@ -46,8 +46,6 @@ type CampesinoFormState = {
   estado_nombre: string;
   municipio_id: string;
   municipio_nombre: string;
-  parroquia_id: string;
-  parroquia_nombre: string;
   direccion: string;
   consejo_id: string;
   tiene_pendientes: boolean;
@@ -67,8 +65,6 @@ function defaultForm(consejoId?: string | null): CampesinoFormState {
     estado_nombre: '',
     municipio_id: '',
     municipio_nombre: '',
-    parroquia_id: '',
-    parroquia_nombre: '',
     direccion: '',
     consejo_id: consejoId != null ? String(consejoId) : '',
     tiene_pendientes: true,
@@ -329,7 +325,6 @@ export default function EncuestadorCampesinosScreen() {
       estado_id: toOptionalNumber(form.estado_id),
       genero: toOptionalString(form.genero),
       municipio_id: toOptionalNumber(form.municipio_id),
-      parroquia_id: toOptionalNumber(form.parroquia_id),
       direccion: toOptionalString(form.direccion),
       consejo_id: toOptionalString(form.consejo_id),
       creado_por: currentUserId,
@@ -513,22 +508,18 @@ export default function EncuestadorCampesinosScreen() {
               <StateMunicipioPicker
                 estado={form.estado_nombre}
                 municipio={form.municipio_nombre}
-                parroquia={form.parroquia_nombre}
                 onEstadoChange={(value) => setForm((s) => ({ ...s, estado_nombre: value, estado_id: '' }))}
                 onMunicipioChange={(value) => setForm((s) => ({ ...s, municipio_nombre: value, municipio_id: '' }))}
-                onParroquiaChange={(value) => setForm((s) => ({ ...s, parroquia_nombre: value, parroquia_id: '' }))}
-                onSelectionChange={({ estadoId, estadoNombre, municipioId, municipioNombre, parroquiaId, parroquiaNombre }) => setForm((s) => ({
+                onSelectionChange={({ estadoId, estadoNombre, municipioId, municipioNombre }) => setForm((s) => ({
                   ...s,
                   estado_id: estadoId != null ? String(estadoId) : '',
                   estado_nombre: estadoNombre,
                   municipio_id: municipioId != null ? String(municipioId) : '',
                   municipio_nombre: municipioNombre,
-                  parroquia_id: parroquiaId != null ? String(parroquiaId) : '',
-                  parroquia_nombre: parroquiaNombre,
                 }))}
               />
               <TextInput value={form.direccion} onChangeText={(value) => setForm((s) => ({ ...s, direccion: value }))} style={[styles.input, styles.textArea]} placeholder="Dirección" multiline numberOfLines={3} />
-              
+
               <View style={styles.photoCard}>
                 <Text style={styles.photoCardTitle}>Foto de perfil</Text>
                 <View style={styles.photoPreviewRow}>

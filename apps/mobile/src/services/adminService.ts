@@ -135,7 +135,7 @@ export interface UbicacionParroquiaRecord {
 export interface UbicacionMunicipioRecord {
   id: number;
   nombre: string;
-  parroquias: UbicacionParroquiaRecord[];
+  parroquias?: UbicacionParroquiaRecord[];
 }
 
 export interface UbicacionEstadoRecord {

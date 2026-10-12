@@ -7,17 +7,17 @@ import { LOCATION_CATALOG_FALLBACK } from '../constants/locationCatalogFallback'
 interface StateMunicipioPickerProps {
   estado: string;
   municipio: string;
-  parroquia: string;
+  parroquia?: string;
   onEstadoChange: (estado: string) => void;
   onMunicipioChange: (municipio: string) => void;
-  onParroquiaChange: (parroquia: string) => void;
+  onParroquiaChange?: (parroquia: string) => void;
   onSelectionChange?: (selection: {
     estadoId: number | null;
     estadoNombre: string;
     municipioId: number | null;
     municipioNombre: string;
-    parroquiaId: number | null;
-    parroquiaNombre: string;
+    parroquiaId?: number | null;
+    parroquiaNombre?: string;
   }) => void;
   labelEstado?: string;
   labelMunicipio?: string;
@@ -27,14 +27,12 @@ interface StateMunicipioPickerProps {
 export default function StateMunicipioPicker({
   estado,
   municipio,
-  parroquia,
   onEstadoChange,
   onMunicipioChange,
   onParroquiaChange,
   onSelectionChange,
   labelEstado = 'Estado',
   labelMunicipio = 'Municipio',
-  labelParroquia = 'Parroquia',
 }: StateMunicipioPickerProps) {
   const [visible, setVisible] = useState(false);
   const [estados, setEstados] = useState<UbicacionEstadoRecord[]>(LOCATION_CATALOG_FALLBACK);
@@ -75,8 +73,6 @@ export default function StateMunicipioPicker({
     };
   }, []);
 
-
-
   const selectedState = useMemo(
     () => estados.find((item) => item.nombre.toLowerCase() === (estado || '').toLowerCase() || String(item.id) === String(estado)) || estados[0],
     [estado, estados],
@@ -92,17 +88,6 @@ export default function StateMunicipioPicker({
     [municipio, municipioOptions],
   );
 
-  const parroquiaOptions = useMemo(() => {
-    if (selectedMunicipio && selectedMunicipio.parroquias && selectedMunicipio.parroquias.length > 0) {
-      return selectedMunicipio.parroquias;
-    }
-    return municipioOptions.flatMap((m) => m.parroquias || []);
-  }, [selectedMunicipio, municipioOptions]);
-
-  const selectedParroquia = useMemo(
-    () => parroquiaOptions.find((item) => item.nombre.toLowerCase() === (parroquia || '').toLowerCase() || String(item.id) === String(parroquia)),
-    [parroquia, parroquiaOptions],
-  );
   const lastEmittedSelection = useRef('');
 
   useEffect(() => {
@@ -111,8 +96,6 @@ export default function StateMunicipioPicker({
       estado,
       selectedMunicipio?.id ?? '',
       municipio,
-      selectedParroquia?.id ?? '',
-      parroquia,
     ].join('|');
 
     if (lastEmittedSelection.current === selectionKey) {
@@ -126,10 +109,10 @@ export default function StateMunicipioPicker({
       estadoNombre: estado,
       municipioId: selectedMunicipio?.id ?? null,
       municipioNombre: municipio,
-      parroquiaId: selectedParroquia?.id ?? null,
-      parroquiaNombre: parroquia,
+      parroquiaId: null,
+      parroquiaNombre: '',
     });
-  }, [estado, municipio, parroquia, selectedParroquia?.id, selectedMunicipio?.id, selectedState?.id]);
+  }, [estado, municipio, selectedMunicipio?.id, selectedState?.id]);
 
   const open = () => {
     setVisible(true);
@@ -144,7 +127,7 @@ export default function StateMunicipioPicker({
     onEstadoChange(value);
     const state = estados.find((item) => item.nombre === value);
     onMunicipioChange('');
-    onParroquiaChange('');
+    onParroquiaChange?.('');
     onSelectionChange?.({
       estadoId: state?.id ?? null,
       estadoNombre: value,
@@ -157,7 +140,7 @@ export default function StateMunicipioPicker({
 
   const handleMunicipioSelect = (value: string) => {
     onMunicipioChange(value);
-    onParroquiaChange('');
+    onParroquiaChange?.('');
     const municipioItem = municipioOptions.find((item) => item.nombre === value);
     onSelectionChange?.({
       estadoId: selectedState?.id ?? null,
@@ -166,19 +149,6 @@ export default function StateMunicipioPicker({
       municipioNombre: value,
       parroquiaId: null,
       parroquiaNombre: '',
-    });
-  };
-
-  const handleParroquiaSelect = (value: string) => {
-    onParroquiaChange(value);
-    const parroquiaItem = parroquiaOptions.find((item) => item.nombre === value);
-    onSelectionChange?.({
-      estadoId: selectedState?.id ?? null,
-      estadoNombre: estado,
-      municipioId: selectedMunicipio?.id ?? null,
-      municipioNombre: municipio,
-      parroquiaId: parroquiaItem?.id ?? null,
-      parroquiaNombre: value,
     });
     close();
   };
@@ -193,15 +163,6 @@ export default function StateMunicipioPicker({
       <Text style={styles.label}>{labelMunicipio}</Text>
       <TouchableOpacity style={[styles.pickerButton, !estado && styles.disabledPicker]} onPress={open} disabled={!estado}>
         <Text style={styles.pickerText}>{municipio || (estado ? `Seleccionar ${labelMunicipio.toLowerCase()}` : 'Selecciona un estado primero')}</Text>
-      </TouchableOpacity>
-
-      <Text style={styles.label}>{labelParroquia}</Text>
-      <TouchableOpacity
-        style={[styles.pickerButton, !municipio && styles.disabledPicker]}
-        onPress={open}
-        disabled={!municipio}
-      >
-        <Text style={styles.pickerText}>{parroquia || (municipio ? `Seleccionar ${labelParroquia.toLowerCase()}` : 'Selecciona un municipio primero')}</Text>
       </TouchableOpacity>
 
       <Modal visible={visible} transparent animationType="fade" onRequestClose={close}>
@@ -248,25 +209,6 @@ export default function StateMunicipioPicker({
                 })
               ) : (
                 <Text style={styles.emptyText}>Selecciona primero un estado</Text>
-              )}
-            </ScrollView>
-            <Text style={styles.sectionTitle}>Parroquias</Text>
-            <ScrollView style={styles.optionsList} contentContainerStyle={styles.optionsContent}>
-              {parroquiaOptions.length > 0 ? (
-                parroquiaOptions.map((item) => {
-                  const selected = item.nombre === parroquia;
-                  return (
-                    <TouchableOpacity
-                      key={item.id}
-                      style={[styles.option, selected && styles.optionSelected]}
-                      onPress={() => handleParroquiaSelect(item.nombre)}
-                    >
-                      <Text style={[styles.optionText, selected && styles.optionTextSelected]}>{item.nombre}</Text>
-                    </TouchableOpacity>
-                  );
-                })
-              ) : (
-                <Text style={styles.emptyText}>Selecciona primero un municipio</Text>
               )}
             </ScrollView>
             <TouchableOpacity style={styles.closeButton} onPress={close}>
