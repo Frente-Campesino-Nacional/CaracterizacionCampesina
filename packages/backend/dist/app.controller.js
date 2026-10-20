@@ -14,7 +14,7 @@ const common_1 = require("@nestjs/common");
 const swagger_1 = require("@nestjs/swagger");
 let AppController = class AppController {
     getHello() {
-        return { message: 'Welcome to CensoCampesino API' };
+        return { message: 'Welcome to Producir es vencer FUNCN API' };
     }
 };
 exports.AppController = AppController;

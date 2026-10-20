@@ -19,9 +19,9 @@ let GenerosService = class GenerosService {
     }
     async findAll() {
         return this.prisma.$queryRaw(client_1.Prisma.sql `
-      SELECT id_genero, genero AS tipo_gen
+      SELECT id_sexo, id_sexo AS id_genero, sexo AS tipo_gen
       FROM catalogos.generos
-      ORDER BY genero ASC
+      ORDER BY id_sexo ASC
     `);
     }
 };

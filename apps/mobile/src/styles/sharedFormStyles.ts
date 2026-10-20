@@ -80,6 +80,7 @@ export const sharedFormStyles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 14,
     padding: 16,
+    maxHeight: '90%',
   },
   modalTitle: {
     fontSize: 18,

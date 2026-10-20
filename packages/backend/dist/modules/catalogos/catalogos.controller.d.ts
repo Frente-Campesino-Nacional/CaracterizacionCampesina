@@ -9,10 +9,7 @@ export declare class CatalogosController {
             municipios: {
                 id: number;
                 nombre: string;
-                parroquias: {
-                    id: number;
-                    nombre: string;
-                }[];
+                parroquias: any[];
             }[];
         }[];
     }>;

@@ -9,16 +9,20 @@ import {
   CampesinoFiltroResultadoRecord,
   CampesinoRecord,
   FormularioFilterQuestionRecord,
+  FormularioRecord,
   SyncRecord,
+  getFormularioRespuestasCompletas,
   listCampesinos,
   listCampesinosByFormularioFilter,
   listFormularioFilterQuestions,
+  listFormularios,
   listSyncRecords,
 } from '../../services/adminService';
 import { useAuthStore } from '../../store/authStore';
 import { DateFilterPeriod, filterItemsByDatePeriod } from '../../utils/dateFilterUtils';
 import { EntityFilterType, filterItemsByEntity } from '../../utils/entityFilterUtils';
 import { exportFormFilterToExcel, exportFormFilterToPDF } from '../../utils/formFilterExport';
+import { exportAllFormResponsesToExcel, exportAllFormResponsesToPDF } from '../../utils/formAllResponsesExport';
 import { Theme } from '../../theme/colors';
 
 const PIE_COLORS = [
@@ -49,10 +53,13 @@ export default function AdminAuditoriaScreen() {
 
   // Form question filter state
   const [filterQuestions, setFilterQuestions] = useState<FormularioFilterQuestionRecord[]>([]);
+  const [allFormularios, setAllFormularios] = useState<FormularioRecord[]>([]);
   const [selectedFormularioId, setSelectedFormularioId] = useState<string>('');
   const [selectedFilterKey, setSelectedFilterKey] = useState<string>('');
   const [filterResults, setFilterResults] = useState<CampesinoFiltroResultadoRecord[]>([]);
   const [loadingFilterResults, setLoadingFilterResults] = useState(false);
+  const [exportingAllPDF, setExportingAllPDF] = useState(false);
+  const [exportingAllExcel, setExportingAllExcel] = useState(false);
 
   const buildFilterKey = (formularioId: string, preguntaId: string) => `${formularioId}::${preguntaId}`;
 
@@ -62,16 +69,19 @@ export default function AdminAuditoriaScreen() {
       listSyncRecords(token),
       listCampesinos(token),
       listFormularioFilterQuestions(token),
+      listFormularios(token),
     ])
-      .then(([syncData, campesinosData, preguntasFiltro]) => {
+      .then(([syncData, campesinosData, preguntasFiltro, formulariosData]) => {
         setSyncItems(Array.isArray(syncData) ? syncData : []);
         setCampesinos(Array.isArray(campesinosData) ? campesinosData : []);
         setFilterQuestions(Array.isArray(preguntasFiltro) ? preguntasFiltro : []);
+        setAllFormularios(Array.isArray(formulariosData) ? formulariosData : []);
       })
       .catch(() => {
         setSyncItems([]);
         setCampesinos([]);
         setFilterQuestions([]);
+        setAllFormularios([]);
       });
   }, [token]);
 
@@ -149,6 +159,11 @@ export default function AdminAuditoriaScreen() {
 
   const formularioOptions = useMemo(() => {
     const map = new Map<string, string>();
+    allFormularios.forEach((item) => {
+      if (item.id && !map.has(item.id)) {
+        map.set(item.id, item.titulo);
+      }
+    });
     filterQuestions.forEach((item) => {
       if (item.formulario_id && !map.has(item.formulario_id)) {
         map.set(item.formulario_id, item.formulario_titulo);
@@ -160,7 +175,7 @@ export default function AdminAuditoriaScreen() {
         value: id,
       }))
       .sort((a, b) => a.label.localeCompare(b.label, 'es', { sensitivity: 'base' }));
-  }, [filterQuestions]);
+  }, [allFormularios, filterQuestions]);
 
   const questionOptionsForSelectedForm = useMemo(() => {
     if (!selectedFormularioId) return [];
@@ -280,6 +295,40 @@ export default function AdminAuditoriaScreen() {
     );
   };
 
+  const handleExportAllResponsesPDF = async () => {
+    if (!selectedFormularioId || !token) return;
+    setExportingAllPDF(true);
+    try {
+      const data = await getFormularioRespuestasCompletas(token, selectedFormularioId);
+      if (!data.respuestas || data.respuestas.length === 0) {
+        Alert.alert('Sin Respuestas', 'El formulario seleccionado aún no tiene respuestas registradas.');
+        return;
+      }
+      await exportAllFormResponsesToPDF(data);
+    } catch (error: any) {
+      Alert.alert('Error', error?.message || 'No se pudieron obtener las respuestas del formulario');
+    } finally {
+      setExportingAllPDF(false);
+    }
+  };
+
+  const handleExportAllResponsesExcel = async () => {
+    if (!selectedFormularioId || !token) return;
+    setExportingAllExcel(true);
+    try {
+      const data = await getFormularioRespuestasCompletas(token, selectedFormularioId);
+      if (!data.respuestas || data.respuestas.length === 0) {
+        Alert.alert('Sin Respuestas', 'El formulario seleccionado aún no tiene respuestas registradas.');
+        return;
+      }
+      await exportAllFormResponsesToExcel(data);
+    } catch (error: any) {
+      Alert.alert('Error', error?.message || 'No se pudieron obtener las respuestas del formulario');
+    } finally {
+      setExportingAllExcel(false);
+    }
+  };
+
   const formatLogDate = (value: string) => {
     const date = new Date(value);
     if (isNaN(date.getTime())) return value;
@@ -321,23 +370,65 @@ export default function AdminAuditoriaScreen() {
               clearLabel="Limpiar formulario"
             />
 
+            {/* Descargar Todas las Respuestas del Formulario */}
             {selectedFormularioId ? (
-              <LookupSelectField
-                label="2. Seleccionar Pregunta de Filtro"
-                value={selectedFilterKey}
-                options={questionOptionsForSelectedForm}
-                onChange={selectFilterQuestionByKey}
-                placeholder="Seleccione una pregunta para ver la gráfica..."
-                searchPlaceholder="Buscar pregunta..."
-                allowClear
-                clearLabel="Quitar pregunta"
-              />
+              <View style={styles.allResponsesCard}>
+                <View style={styles.allResponsesHeader}>
+                  <MaterialCommunityIcons name="file-download-outline" size={20} color={Theme.colors.greenDark} />
+                  <Text style={styles.allResponsesTitle}>Descargar todas las respuestas del formulario</Text>
+                </View>
+                <Text style={styles.allResponsesDesc}>
+                  Descarga un reporte integral con todas las preguntas y respuestas registradas para este formulario.
+                </Text>
+                <View style={styles.exportFilterButtonsRow}>
+                  <TouchableOpacity
+                    style={[styles.filterExportBtn, styles.pdfBtn, exportingAllPDF && { opacity: 0.7 }]}
+                    onPress={handleExportAllResponsesPDF}
+                    disabled={exportingAllPDF || exportingAllExcel}
+                  >
+                    <MaterialCommunityIcons name="file-pdf-box" size={18} color="#ffffff" style={{ marginRight: 4 }} />
+                    <Text style={styles.filterExportBtnText}>
+                      {exportingAllPDF ? 'Generando PDF...' : 'Descargar Todo (PDF)'}
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.filterExportBtn, styles.excelBtn, exportingAllExcel && { opacity: 0.7 }]}
+                    onPress={handleExportAllResponsesExcel}
+                    disabled={exportingAllPDF || exportingAllExcel}
+                  >
+                    <MaterialCommunityIcons name="file-excel-box" size={18} color="#ffffff" style={{ marginRight: 4 }} />
+                    <Text style={styles.filterExportBtnText}>
+                      {exportingAllExcel ? 'Generando Excel...' : 'Descargar Todo (Excel)'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : null}
+
+            {selectedFormularioId ? (
+              questionOptionsForSelectedForm.length > 0 ? (
+                <LookupSelectField
+                  label="2. Seleccionar Pregunta de Filtro (Gráfica de Torta)"
+                  value={selectedFilterKey}
+                  options={questionOptionsForSelectedForm}
+                  onChange={selectFilterQuestionByKey}
+                  placeholder="Seleccione una pregunta para ver la gráfica..."
+                  searchPlaceholder="Buscar pregunta..."
+                  allowClear
+                  clearLabel="Quitar pregunta"
+                />
+              ) : (
+                <Text style={[styles.emptyPrompt, { paddingVertical: 8 }]}>
+                  Este formulario no tiene preguntas configuradas como filtro para la gráfica.
+                </Text>
+              )
             ) : (
-              <Text style={styles.emptyPrompt}>Por favor seleccione un formulario arriba para elegir una pregunta de filtro.</Text>
+              <Text style={styles.emptyPrompt}>Por favor seleccione un formulario arriba para elegir una pregunta de filtro o descargar sus respuestas.</Text>
             )}
           </View>
         ) : (
-          <Text style={styles.emptyPrompt}>No hay formularios con preguntas configuradas como filtro.</Text>
+          <Text style={styles.emptyPrompt}>No hay formularios registrados en el sistema.</Text>
         )}
 
         {/* Gráfica de Torta o Mensaje de Invitación */}
@@ -486,6 +577,32 @@ const styles = StyleSheet.create({
     gap: 10,
     marginTop: 14,
     width: '100%',
+  },
+  allResponsesCard: {
+    backgroundColor: '#f0fdf4',
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 2,
+    marginBottom: 4,
+  },
+  allResponsesHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  allResponsesTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#14532d',
+  },
+  allResponsesDesc: {
+    fontSize: 11,
+    color: '#475569',
+    marginBottom: 10,
+    lineHeight: 15,
   },
   filterExportBtn: {
     flex: 1,

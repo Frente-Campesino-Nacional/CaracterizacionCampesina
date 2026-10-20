@@ -48,12 +48,17 @@ export interface UsuarioRecord {
   numero_telefono?: string | null;
   fecha_nacimiento?: string | null;
   genero?: string | null;
+  estado_id?: number | null;
   estado?: string | null;
+  municipio_id?: number | null;
   municipio?: string | null;
   parroquia?: string | null;
   direccion?: string | null;
   consejo_id?: string | null;
   activo: boolean;
+  es_campesino?: boolean;
+  es_encuestador?: boolean;
+  es_administrador?: boolean;
   foto_url?: string | null;
   creado_en?: string | null;
   actualizado_en?: string | null;
@@ -94,6 +99,9 @@ export interface UsuarioPayload {
   direccion?: string | undefined;
   consejo_id?: string | undefined;
   activo?: boolean | undefined;
+  es_campesino?: boolean | undefined;
+  es_encuestador?: boolean | undefined;
+  es_administrador?: boolean | undefined;
   creado_en?: string | undefined;
   actualizado_en?: string | undefined;
 }
@@ -102,7 +110,9 @@ export interface ConsejoRecord {
   id: string;
   nombre: string;
   descripcion?: string | null;
+  estado_id?: number | null;
   estado: string;
+  municipio_id?: number | null;
   municipio: string;
   parroquia?: string | null;
   encargado_tipo: string;
@@ -129,7 +139,7 @@ export interface UbicacionParroquiaRecord {
 export interface UbicacionMunicipioRecord {
   id: number;
   nombre: string;
-  parroquias: UbicacionParroquiaRecord[];
+  parroquias?: UbicacionParroquiaRecord[];
 }
 
 export interface UbicacionEstadoRecord {
@@ -174,7 +184,9 @@ export interface CampesinoRecord {
   correo?: string | null;
   fecha_nacimiento?: string | null;
   genero?: string | null;
+  estado_id?: number | null;
   estado?: string | null;
+  municipio_id?: number | null;
   municipio?: string | null;
   parroquia?: string | null;
   direccion?: string | null;
@@ -183,6 +195,9 @@ export interface CampesinoRecord {
   creado_por?: string | null;
   asignado_a?: string | null;
   tiene_pendientes: boolean;
+  es_campesino?: boolean;
+  es_encuestador?: boolean;
+  es_administrador?: boolean;
   metadata?: Record<string, unknown> | null;
   foto_url?: string | null;
   creado_en?: string | null;
@@ -223,6 +238,10 @@ export interface CampesinoPayload {
   creado_por?: string | undefined;
   asignado_a?: string | undefined;
   tiene_pendientes?: boolean | undefined;
+  es_campesino?: boolean | undefined;
+  es_encuestador?: boolean | undefined;
+  es_administrador?: boolean | undefined;
+  password?: string | undefined;
   metadata?: Record<string, unknown> | undefined;
   creado_en?: string | undefined;
   actualizado_en?: string | undefined;
@@ -273,6 +292,53 @@ export interface CampesinoFiltroResultadoRecord {
   valor: string;
   capturado_en?: string | null;
 }
+
+export interface FormularioPreguntaDetalle {
+  id: string;
+  label: string;
+  tipo?: string;
+  opciones?: string[];
+  seccion?: string;
+}
+
+export interface FormularioRespuestaDetalle {
+  id_respuesta: string;
+  capturado_en: string | null;
+  campesino: {
+    id: string | null;
+    cedula: string;
+    nombre: string;
+    apellido: string;
+    nombre_completo: string;
+    telefono: string | null;
+    email: string | null;
+    consejo: string | null;
+    estado: string | null;
+    municipio: string | null;
+  } | null;
+  encuestador: {
+    id: string | null;
+    cedula: string | null;
+    nombre: string;
+    apellido: string;
+    nombre_completo: string;
+  } | null;
+  valores: Record<string, any>;
+  valores_formateados: Record<string, string>;
+}
+
+export interface FormularioRespuestasCompletasResponse {
+  formulario: {
+    id: string;
+    titulo: string;
+    version: number;
+    activo: boolean;
+    preguntas: FormularioPreguntaDetalle[];
+  };
+  total_respuestas: number;
+  respuestas: FormularioRespuestaDetalle[];
+}
+
 
 
 export interface SubmitFormularioRespuestaPayload {
@@ -456,17 +522,27 @@ export const listFormularios = async (token: string, includeInactive: boolean = 
         try {
           estructura = JSON.parse(estructura);
         } catch {
-          estructura = {};
+          // ignore
         }
       }
+      if (typeof estructura === 'string') {
+        try {
+          estructura = JSON.parse(estructura);
+        } catch {
+          // ignore
+        }
+      }
+
+      const safeEstructura =
+        estructura && typeof estructura === 'object'
+          ? (Array.isArray(estructura) ? { preguntas: estructura } : estructura)
+          : {};
 
       return {
         ...item,
         id: String(id),
         activo: item.activo !== false && item.activo !== 0 && item.activo !== 'false' && item.activo !== '0',
-        estructura: estructura && typeof estructura === 'object' && !Array.isArray(estructura)
-          ? estructura
-          : {},
+        estructura: safeEstructura,
       } as FormularioRecord;
     })
     .filter((item): item is FormularioRecord => Boolean(item));
@@ -511,6 +587,14 @@ export const listCampesinosByFormularioFilter = async (
       pregunta_id: preguntaId,
     },
   });
+  return response.data;
+};
+
+export const getFormularioRespuestasCompletas = async (
+  token: string,
+  formularioId: string,
+): Promise<FormularioRespuestasCompletasResponse> => {
+  const response = await createApiClient(token).get(`/formularios/${formularioId}/respuestas`);
   return response.data;
 };
 

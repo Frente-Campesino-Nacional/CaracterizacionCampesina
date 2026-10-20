@@ -58,6 +58,10 @@ __decorate([
 __decorate([
     (0, class_validator_1.IsOptional)(),
     __metadata("design:type", String)
+], UpdateUsuarioDto.prototype, "sexo", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
 ], UpdateUsuarioDto.prototype, "genero", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
@@ -87,4 +91,19 @@ __decorate([
     (0, class_validator_1.IsOptional)(),
     __metadata("design:type", Object)
 ], UpdateUsuarioDto.prototype, "consejo_id", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], UpdateUsuarioDto.prototype, "es_campesino", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], UpdateUsuarioDto.prototype, "es_encuestador", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], UpdateUsuarioDto.prototype, "es_administrador", void 0);
 //# sourceMappingURL=update-usuario.dto.js.map

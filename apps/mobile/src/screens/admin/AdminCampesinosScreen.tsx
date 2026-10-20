@@ -17,6 +17,7 @@ import { showErrorAlert, showSuccessAlert } from '../../utils/humanizerUtils';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { sharedFormStyles } from '../../styles/sharedFormStyles';
+import { isAdminRole } from '../../utils/roles';
 
 type CampesinoFormState = {
   cedulaMode: 'foreign' | 'venezolano' | 'none';
@@ -31,13 +32,14 @@ type CampesinoFormState = {
   estado_nombre: string;
   municipio_id: string;
   municipio_nombre: string;
-  parroquia_id: string;
-  parroquia_nombre: string;
   direccion: string;
   consejo_id: string;
   creado_por: string;
   asignado_a: string;
   tiene_pendientes: boolean;
+  es_administrador: boolean;
+  es_encuestador: boolean;
+  password: string;
 };
 
 function defaultCampesinoForm(currentUserId?: string): CampesinoFormState {
@@ -54,13 +56,14 @@ function defaultCampesinoForm(currentUserId?: string): CampesinoFormState {
     estado_nombre: '',
     municipio_id: '',
     municipio_nombre: '',
-    parroquia_id: '',
-    parroquia_nombre: '',
     direccion: '',
     consejo_id: '',
     creado_por: currentUserId != null ? String(currentUserId) : '',
     asignado_a: '',
     tiene_pendientes: false,
+    es_administrador: false,
+    es_encuestador: false,
+    password: '',
   };
 }
 
@@ -256,13 +259,14 @@ export default function AdminCampesinosScreen() {
       estado_nombre: item.estado || '',
       municipio_id: (item as any).municipio_id != null ? String((item as any).municipio_id) : '',
       municipio_nombre: item.municipio || '',
-      parroquia_id: (item as any).parroquia_id != null ? String((item as any).parroquia_id) : '',
-      parroquia_nombre: item.parroquia || '',
       direccion: item.direccion || '',
       consejo_id: item.consejo_id || '',
       creado_por: item.creado_por != null ? String(item.creado_por) : String(user?.id ?? ''),
       asignado_a: item.asignado_a || '',
       tiene_pendientes: Boolean(item.tiene_pendientes),
+      es_administrador: Boolean(item.es_administrador),
+      es_encuestador: Boolean(item.es_encuestador),
+      password: '',
     });
     void loadPhoto(item.id);
     setModal(true);
@@ -294,6 +298,7 @@ export default function AdminCampesinosScreen() {
 
 
     const cedulaValue = buildCedulaValue(form.cedulaMode, form.cedula);
+    const isAdmin = isAdminRole(user?.rol);
 
     const payload: CampesinoPayload = {
       nombre: form.nombre.trim(),
@@ -305,12 +310,14 @@ export default function AdminCampesinosScreen() {
       estado_id: toOptionalNumber(form.estado_id),
       genero: toOptionalString(form.genero),
       municipio_id: toOptionalNumber(form.municipio_id),
-      parroquia_id: toOptionalNumber(form.parroquia_id),
       direccion: toOptionalString(form.direccion),
       consejo_id: toOptionalString(form.consejo_id),
       creado_por: editing ? toOptionalString(form.creado_por) : (user?.id ?? toOptionalString(form.creado_por)),
       asignado_a: toOptionalString(form.asignado_a),
       tiene_pendientes: form.tiene_pendientes,
+      es_administrador: isAdmin ? form.es_administrador : undefined,
+      es_encuestador: isAdmin ? form.es_encuestador : undefined,
+      password: (isAdmin && (form.es_administrador || form.es_encuestador) && form.password) ? form.password.trim() : undefined,
     };
 
     if (cedulaValue) {
@@ -445,7 +452,7 @@ export default function AdminCampesinosScreen() {
     try {
       const fileUri = await exportTableToPdf({
         title: 'Reporte de Campesinos',
-        subtitle: 'CensoCampesino - Administración',
+        subtitle: 'Producir es vencer FUNCN - Administración',
         filePrefix: 'campesinos',
         filters: [
           { label: 'Búsqueda', value: search || 'Sin filtro' },
@@ -645,18 +652,14 @@ export default function AdminCampesinosScreen() {
               <StateMunicipioPicker
                 estado={form.estado_nombre}
                 municipio={form.municipio_nombre}
-                parroquia={form.parroquia_nombre}
                 onEstadoChange={(value) => setForm((s) => ({ ...s, estado_nombre: value, estado_id: '' }))}
                 onMunicipioChange={(value) => setForm((s) => ({ ...s, municipio_nombre: value, municipio_id: '' }))}
-                onParroquiaChange={(value) => setForm((s) => ({ ...s, parroquia_nombre: value, parroquia_id: '' }))}
-                onSelectionChange={({ estadoId, estadoNombre, municipioId, municipioNombre, parroquiaId, parroquiaNombre }) => setForm((s) => ({
+                onSelectionChange={({ estadoId, estadoNombre, municipioId, municipioNombre }) => setForm((s) => ({
                   ...s,
                   estado_id: estadoId != null ? String(estadoId) : '',
                   estado_nombre: estadoNombre,
                   municipio_id: municipioId != null ? String(municipioId) : '',
                   municipio_nombre: municipioNombre,
-                  parroquia_id: parroquiaId != null ? String(parroquiaId) : '',
-                  parroquia_nombre: parroquiaNombre,
                 }))}
               />
               <TextInput value={form.direccion} onChangeText={(value) => setForm((s) => ({ ...s, direccion: value }))} style={[sharedFormStyles.input, sharedFormStyles.textArea]} placeholder="Dirección" multiline numberOfLines={3} />
@@ -697,6 +700,42 @@ export default function AdminCampesinosScreen() {
 
                 </View>
               </View>
+              {isAdminRole(user?.rol) ? (
+                <View style={styles.photoCard}>
+                  <Text style={styles.photoCardTitle}>Roles de Acceso al Sistema</Text>
+                  <Text style={{ fontSize: Theme.fontSize.xs, color: Theme.colors.mediumGray, marginBottom: 8 }}>
+                    Como Administrador, puedes otorgar credenciales de acceso al sistema a este campesino:
+                  </Text>
+                  <View style={[sharedFormStyles.switchRow, { marginBottom: 6 }]}>
+                    <Text style={{ fontSize: Theme.fontSize.sm, color: Theme.colors.darkGray, fontWeight: '600' }}>
+                      Administrador (Acceso al sistema)
+                    </Text>
+                    <Switch
+                      value={form.es_administrador}
+                      onValueChange={(val) => setForm((s) => ({ ...s, es_administrador: val, es_encuestador: val ? false : s.es_encuestador }))}
+                    />
+                  </View>
+                  <View style={[sharedFormStyles.switchRow, { marginBottom: 6 }]}>
+                    <Text style={{ fontSize: Theme.fontSize.sm, color: Theme.colors.darkGray, fontWeight: '600' }}>
+                      Encuestador (Acceso al sistema)
+                    </Text>
+                    <Switch
+                      value={form.es_encuestador}
+                      onValueChange={(val) => setForm((s) => ({ ...s, es_encuestador: val, es_administrador: val ? false : s.es_administrador }))}
+                    />
+                  </View>
+                  {(form.es_administrador || form.es_encuestador) ? (
+                    <TextInput
+                      value={form.password}
+                      onChangeText={(val) => setForm((s) => ({ ...s, password: val }))}
+                      style={[sharedFormStyles.input, { marginTop: 8 }]}
+                      placeholder={editing ? "Contraseña de acceso (opcional)" : "Contraseña de acceso *"}
+                      secureTextEntry
+                    />
+                  ) : null}
+                </View>
+              ) : null}
+
               <View style={styles.readOnlyInfoBox}>
                 <Text style={styles.readOnlyLabel}>Creado por</Text>
                 <Text style={styles.readOnlyValue}>

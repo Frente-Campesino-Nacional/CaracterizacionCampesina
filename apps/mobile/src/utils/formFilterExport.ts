@@ -32,7 +32,6 @@ export async function exportFormFilterToPDF(
         const consejo = item.consejo_nombre || 'N/A';
         const estado = item.estado || 'N/A';
         const municipio = item.municipio || 'N/A';
-        const parroquia = item.parroquia || 'N/A';
         const bgClass = index % 2 === 0 ? 'bg-even' : 'bg-odd';
 
         return `
@@ -47,7 +46,6 @@ export async function exportFormFilterToPDF(
             <td style="padding: 6px 8px; border-bottom: 1px solid #cbd5e1; font-size: 10px;">${consejo}</td>
             <td style="padding: 6px 8px; border-bottom: 1px solid #cbd5e1; font-size: 10px;">${estado}</td>
             <td style="padding: 6px 8px; border-bottom: 1px solid #cbd5e1; font-size: 10px;">${municipio}</td>
-            <td style="padding: 6px 8px; border-bottom: 1px solid #cbd5e1; font-size: 10px;">${parroquia}</td>
           </tr>
         `;
       })
@@ -75,7 +73,7 @@ export async function exportFormFilterToPDF(
         </head>
         <body>
           <div class="header">
-            <h1 class="title">Censo Campesino - Análisis de Respuestas por Formulario</h1>
+            <h1 class="title">Producir es vencer FUNCN - Análisis de Respuestas por Formulario</h1>
             <div class="subtitle"><strong>Formulario:</strong> ${formTitle} | <strong>Pregunta:</strong> ${questionLabel}</div>
           </div>
           
@@ -97,7 +95,6 @@ export async function exportFormFilterToPDF(
                 <th>Consejo</th>
                 <th>Estado</th>
                 <th>Municipio</th>
-                <th>Parroquia</th>
               </tr>
             </thead>
             <tbody>
@@ -106,7 +103,7 @@ export async function exportFormFilterToPDF(
           </table>
 
           <div class="footer">
-            Generado automáticamente por el Sistema Censo Campesino Ezequiel Zamora.
+            Generado automáticamente por el Sistema Producir es vencer FUNCN.
           </div>
         </body>
       </html>
@@ -155,7 +152,7 @@ export async function exportFormFilterToExcel(
     csv += `"Total Registros:";"${results.length}"\n`;
     csv += `"Fecha de Generación:";"${generatedAt}"\n\n`;
 
-    csv += 'Formulario;Pregunta Filtro;Respuesta;Cédula;Nombre del Campesino;Teléfono;Correo Electrónico;Consejo Comunal;Estado;Municipio;Parroquia\n';
+    csv += 'Formulario;Pregunta Filtro;Respuesta;Cédula;Nombre del Campesino;Teléfono;Correo Electrónico;Consejo Comunal;Estado;Municipio\n';
 
     results.forEach((item) => {
       const fTitle = String(formTitle || '').replace(/;/g, ',');
@@ -168,9 +165,8 @@ export async function exportFormFilterToExcel(
       const consejo = String(item.consejo_nombre || 'N/A').replace(/;/g, ',');
       const estado = String(item.estado || 'N/A').replace(/;/g, ',');
       const municipio = String(item.municipio || 'N/A').replace(/;/g, ',');
-      const parroquia = String(item.parroquia || 'N/A').replace(/;/g, ',');
 
-      csv += `"${fTitle}";"${qLabel}";"${answer}";"${cedula}";"${campesinoNombre}";"${telefono}";"${email}";"${consejo}";"${estado}";"${municipio}";"${parroquia}"\n`;
+      csv += `"${fTitle}";"${qLabel}";"${answer}";"${cedula}";"${campesinoNombre}";"${telefono}";"${email}";"${consejo}";"${estado}";"${municipio}"\n`;
     });
 
     const safeTitle = formTitle.toLowerCase().replace(/[^a-z0-9]/g, '_');

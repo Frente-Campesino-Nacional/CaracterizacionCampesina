@@ -9,7 +9,7 @@ export declare class FormulariosService {
     constructor(prisma: PrismaService, storageService: PostgresStorageService);
     private findFormularioRow;
     private mapFormulario;
-    findAll(): Promise<{
+    findAll(includeInactive?: boolean): Promise<{
         id: any;
         titulo: any;
         version: any;
@@ -80,6 +80,47 @@ export declare class FormulariosService {
         valor: string;
         capturado_en: string;
     }[]>;
+    listAllRespuestas(formularioId: string | number): Promise<{
+        formulario: {
+            id: string;
+            titulo: any;
+            version: any;
+            activo: any;
+            preguntas: {
+                id: string;
+                label: string;
+                tipo: string;
+            }[];
+        };
+        total_respuestas: number;
+        respuestas: {
+            id_respuesta: string;
+            capturado_en: string;
+            campesino: {
+                id: string;
+                cedula: any;
+                nombre: any;
+                apellido: any;
+                nombre_completo: string;
+                telefono: any;
+                email: any;
+                consejo: any;
+                estado: any;
+                municipio: any;
+            };
+            encuestador: {
+                id: string;
+                cedula: any;
+                nombre: any;
+                apellido: any;
+                nombre_completo: string;
+            };
+            valores: Record<string, unknown>;
+            valores_formateados: Record<string, string>;
+        }[];
+    }>;
+    private extractQuestionsFromStructure;
+    private formatKeyToLabel;
     private hasCompletedValue;
     private formatAnswerValue;
 }

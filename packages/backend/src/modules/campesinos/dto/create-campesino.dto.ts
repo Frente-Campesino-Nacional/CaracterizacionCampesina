@@ -73,4 +73,15 @@ export class CreateCampesinDto {
   @IsObject()
   metadata?: Record<string, unknown>;
 
+  @IsOptional()
+  @IsBoolean()
+  es_administrador?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  es_encuestador?: boolean;
+
+  @IsOptional()
+  @IsString()
+  password?: string;
 }

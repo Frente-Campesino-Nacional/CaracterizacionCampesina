@@ -24,7 +24,7 @@ export default function AdminConsejosScreen() {
   const [search, setSearch] = useState('');
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState<ConsejoRecord | null>(null);
-  const [form, setForm] = useState({ nombre: '', descripcion: '', estado_id: '', estado_nombre: '', municipio_id: '', municipio_nombre: '', parroquia_id: '', parroquia_nombre: '', encargado_tipo: 'admin', encargado_id: '' });
+  const [form, setForm] = useState({ nombre: '', descripcion: '', estado_id: '', estado_nombre: '', municipio_id: '', municipio_nombre: '', encargado_tipo: 'admin', encargado_id: '' });
 
   const load = async () => {
     if (!token) return;
@@ -50,19 +50,28 @@ export default function AdminConsejosScreen() {
 
   const openCreate = () => {
     setEditing(null);
-    setForm({ nombre: '', descripcion: '', estado_id: '', estado_nombre: '', municipio_id: '', municipio_nombre: '', parroquia_id: '', parroquia_nombre: '', encargado_tipo: 'admin', encargado_id: '' });
+    setForm({ nombre: '', descripcion: '', estado_id: '', estado_nombre: '', municipio_id: '', municipio_nombre: '', encargado_tipo: 'admin', encargado_id: '' });
     setModal(true);
   };
 
   const openEdit = (item: ConsejoRecord) => {
     setEditing(item);
-    setForm({ nombre: item.nombre, descripcion: item.descripcion || '', estado_id: '', estado_nombre: item.estado, municipio_id: '', municipio_nombre: item.municipio, parroquia_id: '', parroquia_nombre: item.parroquia || '', encargado_tipo: item.encargado_tipo, encargado_id: item.encargado_id ? String(item.encargado_id) : '' });
+    setForm({
+      nombre: item.nombre,
+      descripcion: item.descripcion || '',
+      estado_id: item.estado_id != null ? String(item.estado_id) : '',
+      estado_nombre: item.estado || '',
+      municipio_id: item.municipio_id != null ? String(item.municipio_id) : '',
+      municipio_nombre: item.municipio || '',
+      encargado_tipo: item.encargado_tipo,
+      encargado_id: item.encargado_id ? String(item.encargado_id) : '',
+    });
     setModal(true);
   };
 
   const save = async () => {
     if (!token) return;
-    if (!form.nombre || !form.estado_nombre || !form.municipio_nombre || !form.parroquia_nombre) {
+    if (!form.nombre || !form.estado_nombre || !form.municipio_nombre) {
       showErrorAlert('Por favor completa los campos básicos requeridos del consejo comunal (*).', 'Campos obligatorios');
       return;
     }
@@ -72,7 +81,6 @@ export default function AdminConsejosScreen() {
       descripcion: form.descripcion || undefined,
       estado_id: toOptionalNumber(form.estado_id),
       municipio_id: toOptionalNumber(form.municipio_id),
-      parroquia_id: toOptionalNumber(form.parroquia_id),
       encargado_tipo: form.encargado_tipo,
       encargado_id: form.encargado_id || undefined,
     };
@@ -121,7 +129,7 @@ export default function AdminConsejosScreen() {
     try {
       const fileUri = await exportTableToPdf({
         title: 'Reporte de Consejos',
-        subtitle: 'CensoCampesino - Administración',
+        subtitle: 'Producir es vencer FUNCN - Administración',
         filePrefix: 'consejos',
         filters: [{ label: 'Búsqueda', value: search || 'Sin filtro' }],
         columns: [
@@ -204,18 +212,14 @@ export default function AdminConsejosScreen() {
             <StateMunicipioPicker
               estado={form.estado_nombre}
               municipio={form.municipio_nombre}
-              parroquia={form.parroquia_nombre}
               onEstadoChange={(value) => setForm((s) => ({ ...s, estado_nombre: value, estado_id: '' }))}
               onMunicipioChange={(value) => setForm((s) => ({ ...s, municipio_nombre: value, municipio_id: '' }))}
-              onParroquiaChange={(value) => setForm((s) => ({ ...s, parroquia_nombre: value, parroquia_id: '' }))}
-              onSelectionChange={({ estadoId, estadoNombre, municipioId, municipioNombre, parroquiaId, parroquiaNombre }) => setForm((s) => ({
+              onSelectionChange={({ estadoId, estadoNombre, municipioId, municipioNombre }) => setForm((s) => ({
                 ...s,
-                estado_id: estadoId != null ? String(estadoId) : '',
-                estado_nombre: estadoNombre,
-                municipio_id: municipioId != null ? String(municipioId) : '',
-                municipio_nombre: municipioNombre,
-                parroquia_id: parroquiaId != null ? String(parroquiaId) : '',
-                parroquia_nombre: parroquiaNombre,
+                estado_id: estadoId != null ? String(estadoId) : s.estado_id,
+                estado_nombre: estadoNombre || s.estado_nombre,
+                municipio_id: municipioId != null ? String(municipioId) : s.municipio_id,
+                municipio_nombre: municipioNombre || s.municipio_nombre,
               }))}
             />
             <LookupSelectField

@@ -73,8 +73,8 @@ async function bootstrap() {
     });
     app.setGlobalPrefix('api', { exclude: [''] });
     const config = new swagger_1.DocumentBuilder()
-        .setTitle('CensoCampesino API')
-        .setDescription('API para el sistema de censo campesino')
+        .setTitle('Producir es vencer FUNCN API')
+        .setDescription('API para el sistema Producir es vencer FUNCN')
         .setVersion('1.0')
         .addBearerAuth()
         .build();

@@ -7,11 +7,12 @@ export declare class CampesinosService {
     private prisma;
     private storageService;
     constructor(prisma: PrismaService, storageService: PostgresStorageService);
+    private resolveRoleId;
     private recordAuditLog;
     private resolveConsejoUuid;
     private resolveUserUuid;
     private normalizeDateInput;
-    private resolveParroquiaId;
+    private resolveEstadoId;
     private resolveGeneroId;
     private isValidCampesinoCedula;
     private randomNoCedulaCode;
@@ -44,6 +45,9 @@ export declare class CampesinosService {
         creado_por: any;
         asignado_a: any;
         tiene_pendientes: boolean;
+        es_campesino: boolean;
+        es_administrador: boolean;
+        es_encuestador: boolean;
         metadata: any;
         foto_url: any;
         creado_en: any;
@@ -73,6 +77,9 @@ export declare class CampesinosService {
         creado_por: any;
         asignado_a: any;
         tiene_pendientes: boolean;
+        es_campesino: boolean;
+        es_administrador: boolean;
+        es_encuestador: boolean;
         metadata: any;
         foto_url: any;
         creado_en: any;
@@ -100,6 +107,9 @@ export declare class CampesinosService {
         creado_por: any;
         asignado_a: any;
         tiene_pendientes: boolean;
+        es_campesino: boolean;
+        es_administrador: boolean;
+        es_encuestador: boolean;
         metadata: any;
         foto_url: any;
         creado_en: any;
@@ -126,6 +136,9 @@ export declare class CampesinosService {
         creado_por: any;
         asignado_a: any;
         tiene_pendientes: boolean;
+        es_campesino: boolean;
+        es_administrador: boolean;
+        es_encuestador: boolean;
         metadata: any;
         foto_url: any;
         creado_en: any;

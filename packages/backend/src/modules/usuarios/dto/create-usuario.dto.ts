@@ -2,10 +2,10 @@ import { IsEmail, IsNotEmpty, MinLength, IsOptional, IsBoolean, IsString, Matche
 import { Type } from 'class-transformer';
 
 export class CreateUsuarioDto {
-  @IsEmail()
+  @IsOptional()
+  @IsEmail({}, { message: 'El correo electrónico debe ser una dirección de correo válida' })
   @Matches(/^[a-zA-Z0-9._%+-]+@gmail\.com$/i, { message: 'El correo electrónico debe pertenecer al dominio @gmail.com' })
-  @IsNotEmpty()
-  email: string;
+  email?: string;
 
 
   @IsOptional()
@@ -65,5 +65,16 @@ export class CreateUsuarioDto {
   @IsBoolean()
   activo?: boolean;
 
+  @IsOptional()
+  @IsBoolean()
+  es_campesino?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  es_encuestador?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  es_administrador?: boolean;
 }
 

@@ -59,6 +59,12 @@ export class FormulariosController {
     return this.formulariosService.remove(id);
   }
 
+  @Get(':id/respuestas')
+  @ApiOperation({ summary: 'Obtener todas las respuestas de un formulario' })
+  findAllRespuestas(@Param('id') id: string) {
+    return this.formulariosService.listAllRespuestas(id);
+  }
+
   @Post(':id/respuestas')
   @ApiOperation({ summary: 'Guardar respuesta de formulario en PostgreSQL' })
   submitRespuesta(

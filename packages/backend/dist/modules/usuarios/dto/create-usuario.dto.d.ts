@@ -1,5 +1,5 @@
 export declare class CreateUsuarioDto {
-    email: string;
+    email?: string;
     cedula?: string;
     password: string;
     nombre: string;
@@ -7,6 +7,7 @@ export declare class CreateUsuarioDto {
     rol?: string;
     numero_telefono?: string;
     fecha_nacimiento?: string;
+    sexo?: string;
     genero?: string;
     estado_id?: number;
     municipio_id?: number;
@@ -14,4 +15,7 @@ export declare class CreateUsuarioDto {
     direccion?: string;
     consejo_id?: string | number;
     activo?: boolean;
+    es_campesino?: boolean;
+    es_encuestador?: boolean;
+    es_administrador?: boolean;
 }

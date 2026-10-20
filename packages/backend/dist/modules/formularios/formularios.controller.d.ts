@@ -5,7 +5,7 @@ import { UpdateFormularioDto } from './dto/update-formulario.dto';
 export declare class FormulariosController {
     private readonly formulariosService;
     constructor(formulariosService: FormulariosService);
-    findAll(): Promise<{
+    findAll(includeInactive?: string): Promise<{
         id: any;
         titulo: any;
         version: any;
@@ -70,6 +70,45 @@ export declare class FormulariosController {
     }>;
     remove(id: string): Promise<{
         deleted: boolean;
+    }>;
+    findAllRespuestas(id: string): Promise<{
+        formulario: {
+            id: string;
+            titulo: any;
+            version: any;
+            activo: any;
+            preguntas: {
+                id: string;
+                label: string;
+                tipo: string;
+            }[];
+        };
+        total_respuestas: number;
+        respuestas: {
+            id_respuesta: string;
+            capturado_en: string;
+            campesino: {
+                id: string;
+                cedula: any;
+                nombre: any;
+                apellido: any;
+                nombre_completo: string;
+                telefono: any;
+                email: any;
+                consejo: any;
+                estado: any;
+                municipio: any;
+            };
+            encuestador: {
+                id: string;
+                cedula: any;
+                nombre: any;
+                apellido: any;
+                nombre_completo: string;
+            };
+            valores: Record<string, unknown>;
+            valores_formateados: Record<string, string>;
+        }[];
     }>;
     submitRespuesta(req: any, id: string, submitFormularioRespuestaDto: SubmitFormularioRespuestaDto): Promise<{
         formulario_id: any;

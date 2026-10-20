@@ -18,27 +18,22 @@ let CatalogosService = class CatalogosService {
         this.prisma = prisma;
     }
     async loadUbicacionFromOperacional() {
-        const [estados, municipios, parroquias] = await Promise.all([
+        const [estados, municipios] = await Promise.all([
             this.prisma.$queryRaw(client_1.Prisma.sql `
         SELECT id_estados, nombre_estado
-        FROM operacional.estados
+        FROM catalogos.estados
         ORDER BY nombre_estado ASC
       `),
             this.prisma.$queryRaw(client_1.Prisma.sql `
         SELECT id_municipio, estado, nombre_municipio
-        FROM operacional.municipios
+        FROM catalogos.municipios
         ORDER BY nombre_municipio ASC
       `),
-            this.prisma.$queryRaw(client_1.Prisma.sql `
-        SELECT id_parroquia, municipio, nombre_parroquia
-        FROM operacional.parroquias
-        ORDER BY nombre_parroquia ASC
-      `),
         ]);
-        return { estados, municipios, parroquias };
+        return { estados, municipios, parroquias: [] };
     }
     async loadUbicacionFromCatalogos() {
-        const [estados, municipios, parroquias] = await Promise.all([
+        const [estados, municipios] = await Promise.all([
             this.prisma.estado.findMany({
                 select: {
                     id_estados: true,
@@ -54,26 +49,17 @@ let CatalogosService = class CatalogosService {
                 },
                 orderBy: { nombre_municipio: 'asc' },
             }),
-            this.prisma.parroquia.findMany({
-                select: {
-                    id_parroquia: true,
-                    nombre_parroquia: true,
-                    municipio: true,
-                },
-                orderBy: { nombre_parroquia: 'asc' },
-            }),
         ]);
-        return { estados, municipios, parroquias };
+        return { estados, municipios, parroquias: [] };
     }
     async getUbicacionCatalogos() {
         let estados = [];
         let municipios = [];
-        let parroquias = [];
         try {
-            ({ estados, municipios, parroquias } = await this.loadUbicacionFromOperacional());
+            ({ estados, municipios } = await this.loadUbicacionFromOperacional());
         }
         catch {
-            ({ estados, municipios, parroquias } = await this.loadUbicacionFromCatalogos());
+            ({ estados, municipios } = await this.loadUbicacionFromCatalogos());
         }
         return {
             estados: estados.map((estado) => ({
@@ -84,12 +70,7 @@ let CatalogosService = class CatalogosService {
                     .map((municipio) => ({
                     id: municipio.id_municipio,
                     nombre: municipio.nombre_municipio,
-                    parroquias: parroquias
-                        .filter((parroquia) => parroquia.municipio === municipio.id_municipio)
-                        .map((parroquia) => ({
-                        id: parroquia.id_parroquia,
-                        nombre: parroquia.nombre_parroquia,
-                    })),
+                    parroquias: [],
                 })),
             })),
         };

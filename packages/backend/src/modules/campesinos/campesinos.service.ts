@@ -7,6 +7,7 @@ import { CreateCampesinDto } from './dto/create-campesino.dto';
 import { UpdateCampesinDto } from './dto/update-campesino.dto';
 import { SaveCampesinoProfileImageDto } from './dto/save-profile-image.dto';
 import { normalizeCedulaInput } from '../../common/utils/cedula-code.util';
+import * as bcrypt from 'bcryptjs';
 
 @Injectable()
 export class CampesinosService {
@@ -14,6 +15,28 @@ export class CampesinosService {
     private prisma: PrismaService,
     private storageService: PostgresStorageService,
   ) {}
+
+  private async resolveRoleId(role: string) {
+    const rows = await this.prisma.$queryRaw<Array<{ id_rol: number }>>(Prisma.sql`
+      SELECT id_rol
+      FROM seguridad.roles
+      WHERE LOWER(tip_rol) = LOWER(${role})
+      ORDER BY id_rol
+      LIMIT 1
+    `);
+
+    if (rows[0]?.id_rol != null) {
+      return rows[0].id_rol;
+    }
+
+    const inserted = await this.prisma.$queryRaw<Array<{ id_rol: number }>>(Prisma.sql`
+      INSERT INTO seguridad.roles (tip_rol, des_rol)
+      VALUES (${role}, ${role})
+      RETURNING id_rol
+    `);
+
+    return inserted[0]?.id_rol ?? 1;
+  }
 
   private async recordAuditLog(params: {
     usuarioId?: string | null;
@@ -107,50 +130,16 @@ export class CampesinosService {
     return Number.isNaN(parsed.getTime()) ? undefined : parsed;
   }
 
-  private async resolveParroquiaId(input: {
-    parroquiaId?: number;
-    municipioId?: number;
+  private async resolveEstadoId(input: {
     estadoId?: number;
+    municipioId?: number;
+    parroquiaId?: number;
   }): Promise<number> {
-    if (input.parroquiaId != null) {
-      return input.parroquiaId;
-    }
-
-    if (input.municipioId != null) {
-      const rows = await this.prisma.$queryRaw<Array<{ id_parroquia: number }>>(Prisma.sql`
-        SELECT id_parroquia
-        FROM catalogos.parroquias
-        WHERE municipio = ${input.municipioId}
-        ORDER BY id_parroquia
-        LIMIT 1
-      `);
-      if (rows[0]?.id_parroquia != null) {
-        return rows[0].id_parroquia;
-      }
-    }
-
     if (input.estadoId != null) {
-      const rows = await this.prisma.$queryRaw<Array<{ id_parroquia: number }>>(Prisma.sql`
-        SELECT p.id_parroquia
-        FROM catalogos.parroquias p
-        INNER JOIN catalogos.municipios m ON m.id_municipio = p.municipio
-        WHERE m.estado = ${input.estadoId}
-        ORDER BY p.id_parroquia
-        LIMIT 1
-      `);
-      if (rows[0]?.id_parroquia != null) {
-        return rows[0].id_parroquia;
-      }
+      return input.estadoId;
     }
 
-    const fallback = await this.prisma.$queryRaw<Array<{ id_parroquia: number }>>(Prisma.sql`
-      SELECT id_parroquia
-      FROM catalogos.parroquias
-      ORDER BY id_parroquia
-      LIMIT 1
-    `);
-
-    return fallback[0]?.id_parroquia ?? 1;
+    return 1;
   }
 
   private async resolveGeneroId(genero?: string | number | null): Promise<number> {
@@ -260,14 +249,14 @@ export class CampesinosService {
         e.nombre_estado AS estado,
         m.id_municipio AS municipio_id,
         m.nombre_municipio AS municipio,
-        par.id_parroquia AS parroquia_id,
-        par.nombre_parroquia AS parroquia,
         p.direccion_usuario AS direccion,
         p.consejo_id AS consejo_id,
         csj.nombre_consejo AS consejo_nombre,
         c.creado_por,
         c.asignado_a,
         c.formularios_pendientes AS tiene_pendientes,
+        CASE WHEN u.id_usuario IS NOT NULL AND LOWER(r.tip_rol) IN ('administrador', 'admin') THEN TRUE ELSE FALSE END AS es_administrador,
+        CASE WHEN u.id_usuario IS NOT NULL AND LOWER(r.tip_rol) = 'encuestador' THEN TRUE ELSE FALSE END AS es_encuestador,
         (
           SELECT jsonb_build_object(
             'formularios_respondidos',
@@ -282,11 +271,12 @@ export class CampesinosService {
       FROM operacional.campesinos c
       LEFT JOIN registros.personas p ON p.id_personas = c.id_campesinos
       LEFT JOIN catalogos.generos g ON g.id_sexo = p.sexo
-      LEFT JOIN catalogos.parroquias par ON par.id_parroquia = p.parroquia
-      LEFT JOIN catalogos.municipios m ON m.id_municipio = par.municipio
-      LEFT JOIN catalogos.estados e ON e.id_estados = m.estado
+      LEFT JOIN catalogos.estados e ON e.id_estados = p.estado
+      LEFT JOIN catalogos.municipios m ON m.id_municipio = p.municipio
       LEFT JOIN operacional.consejos csj ON csj.consejo_id::text = p.consejo_id::text
       LEFT JOIN operacional.fotos_perfil fp ON fp.persona_id = c.id_campesinos
+      LEFT JOIN seguridad.usuarios u ON u.id_usuario = c.id_campesinos
+      LEFT JOIN seguridad.roles r ON r.id_rol = u.id_rol
       WHERE c.id_campesinos::text = ${textValue}
       LIMIT 1
     `);
@@ -325,6 +315,9 @@ export class CampesinosService {
       creado_por: campesino.creado_por ?? null,
       asignado_a: campesino.asignado_a ?? null,
       tiene_pendientes: Boolean(campesino.tiene_pendientes),
+      es_campesino: true,
+      es_administrador: Boolean(campesino.es_administrador),
+      es_encuestador: Boolean(campesino.es_encuestador),
       metadata: campesino.metadata && typeof campesino.metadata === 'object' && !Array.isArray(campesino.metadata) ? campesino.metadata : { formularios_respondidos: [] },
       foto_url: campesino.foto_url || null,
       creado_en: campesino.creado_en,
@@ -362,14 +355,14 @@ export class CampesinosService {
         e.nombre_estado AS estado,
         m.id_municipio AS municipio_id,
         m.nombre_municipio AS municipio,
-        par.id_parroquia AS parroquia_id,
-        par.nombre_parroquia AS parroquia,
         p.direccion_usuario AS direccion,
         p.consejo_id AS consejo_id,
         csj.nombre_consejo AS consejo_nombre,
         c.creado_por,
         c.asignado_a,
         c.formularios_pendientes AS tiene_pendientes,
+        CASE WHEN u.id_usuario IS NOT NULL AND LOWER(r.tip_rol) IN ('administrador', 'admin') THEN TRUE ELSE FALSE END AS es_administrador,
+        CASE WHEN u.id_usuario IS NOT NULL AND LOWER(r.tip_rol) = 'encuestador' THEN TRUE ELSE FALSE END AS es_encuestador,
         (
           SELECT jsonb_build_object(
             'formularios_respondidos',
@@ -384,11 +377,12 @@ export class CampesinosService {
       FROM operacional.campesinos c
       LEFT JOIN registros.personas p ON p.id_personas = c.id_campesinos
       LEFT JOIN catalogos.generos g ON g.id_sexo = p.sexo
-      LEFT JOIN catalogos.parroquias par ON par.id_parroquia = p.parroquia
-      LEFT JOIN catalogos.municipios m ON m.id_municipio = par.municipio
-      LEFT JOIN catalogos.estados e ON e.id_estados = m.estado
+      LEFT JOIN catalogos.estados e ON e.id_estados = p.estado
+      LEFT JOIN catalogos.municipios m ON m.id_municipio = p.municipio
       LEFT JOIN operacional.consejos csj ON csj.consejo_id::text = p.consejo_id::text
       LEFT JOIN operacional.fotos_perfil fp ON fp.persona_id = c.id_campesinos
+      LEFT JOIN seguridad.usuarios u ON u.id_usuario = c.id_campesinos
+      LEFT JOIN seguridad.roles r ON r.id_rol = u.id_rol
       ${whereClause}
       ORDER BY p.nombre
     `);
@@ -481,7 +475,7 @@ export class CampesinosService {
       tipoCedula = 'NP';
       cedula = await this.generateUniqueCedula();
     }
-    const parroquiaId = await this.resolveParroquiaId({
+    const estadoId = await this.resolveEstadoId({
       parroquiaId: createCampesinDto.parroquia_id,
       municipioId: createCampesinDto.municipio_id,
       estadoId: createCampesinDto.estado_id,
@@ -503,7 +497,8 @@ export class CampesinosService {
             tipo_cedula,
             cedula,
             fecha_nacimiento,
-            parroquia,
+            estado,
+            municipio,
             direccion_usuario,
             email,
             numero_telefonico,
@@ -516,7 +511,8 @@ export class CampesinosService {
             CAST(${tipoCedula} AS registros.tipo_cedula_enum),
             ${cedula},
             ${fechaNacimiento},
-            ${parroquiaId},
+            ${estadoId},
+            ${createCampesinDto.municipio_id ?? null},
             ${createCampesinDto.direccion?.trim() || ''},
             ${createCampesinDto.correo?.trim() || null},
             ${createCampesinDto.telefono?.trim() || null},
@@ -538,6 +534,28 @@ export class CampesinosService {
             ${createCampesinDto.tiene_pendientes ?? false}
           )
         `);
+
+        if (createCampesinDto.es_administrador || createCampesinDto.es_encuestador) {
+          const targetRole = createCampesinDto.es_administrador ? 'administrador' : 'encuestador';
+          const roleId = await this.resolveRoleId(targetRole);
+          const rawPass = createCampesinDto.password && createCampesinDto.password.trim() ? createCampesinDto.password.trim() : '12345678';
+          const hashedPassword = await bcrypt.hash(rawPass, 10);
+
+          await tx.$queryRaw(Prisma.sql`
+            INSERT INTO seguridad.usuarios (
+              id_usuario,
+              password_hash,
+              id_rol,
+              creado_por
+            ) VALUES (
+              CAST(${personId} AS uuid),
+              ${hashedPassword},
+              ${roleId},
+              CAST(${creadoPor} AS uuid)
+            )
+            ON CONFLICT (id_usuario) DO UPDATE SET id_rol = ${roleId}
+          `);
+        }
       });
     } catch (error: any) {
       if (error instanceof ConflictException || error instanceof BadRequestException) {
@@ -613,8 +631,8 @@ export class CampesinosService {
       tipoCedula = parsedCedula.tipoCedula;
     }
 
-    const parroquiaId = (updateCampesinDto.parroquia_id != null || updateCampesinDto.municipio_id != null || updateCampesinDto.estado_id != null)
-      ? await this.resolveParroquiaId({
+    const estadoId = (updateCampesinDto.parroquia_id != null || updateCampesinDto.municipio_id != null || updateCampesinDto.estado_id != null)
+      ? await this.resolveEstadoId({
           parroquiaId: updateCampesinDto.parroquia_id,
           municipioId: updateCampesinDto.municipio_id,
           estadoId: updateCampesinDto.estado_id,
@@ -653,7 +671,11 @@ export class CampesinosService {
           END,
           cedula = COALESCE(CAST(${cedula ?? null} AS text), cedula),
           fecha_nacimiento = COALESCE(CAST(${fechaNacimiento ?? null} AS date), fecha_nacimiento),
-          parroquia = COALESCE(CAST(${parroquiaId ?? null} AS integer), parroquia),
+          estado = COALESCE(CAST(${estadoId ?? null} AS integer), estado),
+          municipio = CASE
+            WHEN ${updateCampesinDto.municipio_id !== undefined} THEN ${updateCampesinDto.municipio_id ?? null}
+            ELSE municipio
+          END,
           direccion_usuario = COALESCE(${updateCampesinDto.direccion?.trim() ?? null}, direccion_usuario),
           email = COALESCE(${updateCampesinDto.correo?.trim() ?? null}, email),
           numero_telefonico = COALESCE(${updateCampesinDto.telefono?.trim() ?? null}, numero_telefonico),
@@ -680,6 +702,38 @@ export class CampesinosService {
           formularios_pendientes = COALESCE(CAST(${updateCampesinDto.tiene_pendientes ?? null} AS boolean), formularios_pendientes)
         WHERE id_campesinos::text = ${String(campesino.id)}
       `);
+
+      if (updateCampesinDto.es_administrador !== undefined || updateCampesinDto.es_encuestador !== undefined) {
+        if (updateCampesinDto.es_administrador || updateCampesinDto.es_encuestador) {
+          const targetRole = updateCampesinDto.es_administrador ? 'administrador' : 'encuestador';
+          const roleId = await this.resolveRoleId(targetRole);
+          const existingUser = await this.prisma.$queryRaw<Array<{ password_hash: string }>>(Prisma.sql`
+            SELECT password_hash FROM seguridad.usuarios WHERE id_usuario::text = ${String(campesino.id)} LIMIT 1
+          `);
+          const passHash = updateCampesinDto.password && updateCampesinDto.password.trim()
+            ? await bcrypt.hash(updateCampesinDto.password.trim(), 10)
+            : (existingUser[0]?.password_hash ?? await bcrypt.hash('12345678', 10));
+
+          await tx.$queryRaw(Prisma.sql`
+            INSERT INTO seguridad.usuarios (
+              id_usuario,
+              password_hash,
+              id_rol,
+              creado_por
+            ) VALUES (
+              CAST(${campesino.id} AS uuid),
+              ${passHash},
+              ${roleId},
+              NULL
+            )
+            ON CONFLICT (id_usuario) DO UPDATE SET id_rol = ${roleId}, password_hash = ${passHash}
+          `);
+        } else {
+          await tx.$queryRaw(Prisma.sql`
+            DELETE FROM seguridad.usuarios WHERE id_usuario::text = ${String(campesino.id)}
+          `);
+        }
+      }
     });
 
     const updated = await this.findCampesinoRow(campesino.id);

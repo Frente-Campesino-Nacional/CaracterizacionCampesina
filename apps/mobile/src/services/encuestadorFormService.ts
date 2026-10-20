@@ -11,8 +11,10 @@ import {
   CampesinoMetadataNormalized,
   FormQuestion,
   FormQuestionOption,
+  FormQuestionType,
   FormStructure,
   QueuedFormularioSubmission,
+  QuestionDependency,
   SubmissionHistoryItem,
   SubmitFormularioRespuestaPayload,
 } from '../types/formularios';
@@ -178,33 +180,80 @@ export async function submitAndMarkFormulario(
   });
 }
 
-function normalizeStructureValue(estructura: Record<string, unknown> | null | undefined): Record<string, unknown> {
-  if (!estructura || typeof estructura !== 'object' || Array.isArray(estructura)) {
-    if (typeof estructura === 'string') {
-      try {
-        const parsed = JSON.parse(estructura) as unknown;
-        return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-          ? (parsed as Record<string, unknown>)
-          : {};
-      } catch {
-        return {};
-      }
-    }
+function extractRawQuestions(estructura: unknown): unknown[] {
+  if (!estructura) return [];
 
-    return {};
+  let current = estructura;
+  if (typeof current === 'string') {
+    try {
+      current = JSON.parse(current);
+    } catch {
+      return [];
+    }
   }
 
-  return estructura as Record<string, unknown>;
+  // Handle double JSON-encoded strings
+  if (typeof current === 'string') {
+    try {
+      current = JSON.parse(current);
+    } catch {
+      return [];
+    }
+  }
+
+  if (Array.isArray(current)) {
+    return current;
+  }
+
+  if (current && typeof current === 'object') {
+    const obj = current as Record<string, unknown>;
+    if (Array.isArray(obj.preguntas)) {
+      return obj.preguntas;
+    }
+    if (Array.isArray(obj.fields)) {
+      return obj.fields;
+    }
+    if (Array.isArray(obj.questions)) {
+      return obj.questions;
+    }
+    if (Array.isArray(obj.secciones)) {
+      const flattened: unknown[] = [];
+      for (const sec of obj.secciones) {
+        if (sec && typeof sec === 'object') {
+          const secObj = sec as Record<string, unknown>;
+          const qList = secObj.preguntas || secObj.fields || secObj.questions;
+          if (Array.isArray(qList)) {
+            flattened.push(...qList);
+          }
+        }
+      }
+      return flattened;
+    }
+    if (Array.isArray(obj.sections)) {
+      const flattened: unknown[] = [];
+      for (const sec of obj.sections) {
+        if (sec && typeof sec === 'object') {
+          const secObj = sec as Record<string, unknown>;
+          const qList = secObj.fields || secObj.preguntas || secObj.questions;
+          if (Array.isArray(qList)) {
+            flattened.push(...qList);
+          }
+        }
+      }
+      return flattened;
+    }
+  }
+
+  return [];
 }
 
 export function getPreguntasFromStructure(estructura: Record<string, unknown> | null | undefined): FormQuestion[] {
-  const normalized = normalizeStructureValue(estructura);
-  const raw = normalized.preguntas;
-  if (!Array.isArray(raw)) {
+  const rawList = extractRawQuestions(estructura);
+  if (!Array.isArray(rawList)) {
     return [];
   }
 
-  return raw
+  return rawList
     .map((question, index) => {
       if (!question || typeof question !== 'object' || Array.isArray(question)) {
         return null;
@@ -212,20 +261,52 @@ export function getPreguntasFromStructure(estructura: Record<string, unknown> | 
 
       const item = question as Record<string, unknown>;
       const rawId = item.id ?? item.key ?? item.name ?? `pregunta_${index + 1}`;
-      const rawLabel = item.label ?? item.etiqueta ?? item.titulo ?? `Pregunta ${index + 1}`;
+      const rawLabel = item.label ?? item.etiqueta ?? item.titulo ?? item.nombre ?? `Pregunta ${index + 1}`;
       const rawType = item.type ?? item.tipo ?? 'text';
       const rawRequired = item.required ?? item.requerida ?? item.obligatoria ?? item.es_obligatoria ?? item.is_required ?? false;
       const rawUseAsFilter = item.use_as_filter ?? item.usar_como_filtro ?? item.useAsFilter ?? item.es_filtro ?? item.filtro ?? item.pregunta_filtro ?? false;
       const rawSelectionMode = item.selectionMode ?? item.modoSeleccion ?? item.tipoSeleccion ?? item.multiple;
 
-      const normalizedType = String(rawType).toLowerCase();
-      const allowedTypes = new Set(['text', 'textarea', 'number', 'boolean', 'select', 'date']);
-      const type = allowedTypes.has(normalizedType) ? normalizedType : 'text';
+      const lowerType = String(rawType).toLowerCase().trim();
+      let type: FormQuestionType = 'text';
+      if (lowerType === 'number' || lowerType === 'numero' || lowerType === 'num' || lowerType === 'integer') {
+        type = 'number';
+      } else if (lowerType === 'date' || lowerType === 'fecha') {
+        type = 'date';
+      } else if (lowerType === 'boolean' || lowerType === 'booleano' || lowerType === 'si_no') {
+        type = 'boolean';
+      } else if (lowerType === 'select' || lowerType === 'seleccion' || lowerType === 'select_single' || lowerType === 'select_multiple') {
+        type = 'select';
+      } else if (lowerType === 'textarea' || lowerType === 'area_texto') {
+        type = 'textarea';
+      } else if (lowerType === 'rubros_agricolas' || lowerType === 'rubros' || lowerType === 'agricola' || lowerType === 'rubro') {
+        type = 'rubros_agricolas';
+      } else if (lowerType === 'produccion_animal' || lowerType === 'animal' || lowerType === 'pecuario' || lowerType === 'animales') {
+        type = 'produccion_animal';
+      } else {
+        type = 'text';
+      }
+
       const selectionMode = type === 'select'
-        ? normalizeSelectionMode(rawSelectionMode)
+        ? (lowerType === 'select_multiple' ? 'multiple' : normalizeSelectionMode(rawSelectionMode))
         : undefined;
 
       const options = parseQuestionOptions(item.options ?? item.opciones);
+
+      const isBaseSurface = Boolean(
+        item.is_base_surface ?? item.isBaseSurface ?? item.superficie_base ?? false,
+      );
+
+      let depends_on: QuestionDependency | undefined = undefined;
+      const rawDep = item.depends_on ?? item.depende_de ?? item.dependsOn;
+      if (rawDep && typeof rawDep === 'object' && !Array.isArray(rawDep)) {
+        const depObj = rawDep as Record<string, unknown>;
+        const qId = String(depObj.question_id ?? depObj.pregunta_id ?? '').trim();
+        const val = String(depObj.value ?? depObj.valor ?? '').trim();
+        if (qId) {
+          depends_on = { question_id: qId, value: val };
+        }
+      }
 
       return {
         id: String(rawId),
@@ -236,6 +317,8 @@ export function getPreguntasFromStructure(estructura: Record<string, unknown> | 
         placeholder: item.placeholder ? String(item.placeholder) : undefined,
         options,
         selectionMode,
+        isBaseSurface,
+        depends_on,
       } as FormQuestion;
     })
     .filter((question): question is FormQuestion => Boolean(question));
@@ -284,6 +367,48 @@ function normalizeSelectionMode(value: unknown): 'single' | 'multiple' {
   return 'single';
 }
 
+export function calcularTotalM2Rubros(value: unknown): number {
+  if (!Array.isArray(value)) return 0;
+  return value.reduce((sum, item) => {
+    if (!item || typeof item !== 'object') return sum;
+    const m2 = Number((item as any).superficie_m2 ?? (item as any).m2 ?? (item as any).superficie ?? 0);
+    return sum + (Number.isFinite(m2) && m2 > 0 ? m2 : 0);
+  }, 0);
+}
+
+export function calcularTotalM2Animales(value: unknown): number {
+  if (!Array.isArray(value)) return 0;
+  return value.reduce((sum, item) => {
+    if (!item || typeof item !== 'object') return sum;
+    const m2 = Number((item as any).espacio_productivo_m2 ?? (item as any).espacio_m2 ?? (item as any).m2 ?? 0);
+    return sum + (Number.isFinite(m2) && m2 > 0 ? m2 : 0);
+  }, 0);
+}
+
+export function isQuestionVisible(
+  question: FormQuestion,
+  answers: Record<string, unknown>,
+): boolean {
+  if (!question.depends_on || !question.depends_on.question_id) {
+    return true;
+  }
+  const parentValue = answers[question.depends_on.question_id];
+  const expectedValue = String(question.depends_on.value ?? '').trim().toLowerCase();
+
+  if (typeof parentValue === 'boolean') {
+    if (parentValue === true && (expectedValue === 'si' || expectedValue === 'sí' || expectedValue === 'true')) {
+      return true;
+    }
+    if (parentValue === false && (expectedValue === 'no' || expectedValue === 'false')) {
+      return true;
+    }
+    return false;
+  }
+
+  const normalizedParent = String(parentValue ?? '').trim().toLowerCase();
+  return normalizedParent === expectedValue;
+}
+
 export function buildDefaultAnswers(questions: FormQuestion[]): Record<string, unknown> {
   if (!Array.isArray(questions)) return {};
   return questions.reduce<Record<string, unknown>>((acc, question) => {
@@ -293,7 +418,11 @@ export function buildDefaultAnswers(questions: FormQuestion[]): Record<string, u
       return acc;
     }
 
-    if (question.type === 'select' && question.selectionMode === 'multiple') {
+    if (
+      (question.type === 'select' && question.selectionMode === 'multiple') ||
+      question.type === 'rubros_agricolas' ||
+      question.type === 'produccion_animal'
+    ) {
       acc[question.id] = [];
       return acc;
     }
@@ -308,15 +437,49 @@ export function validateAnswers(
   answers: Record<string, unknown>,
 ): string | null {
   if (!Array.isArray(questions) || !answers || typeof answers !== 'object') return null;
+
+  // Encontrar la pregunta que actúa como superficie base del predio
+  const baseSurfaceQuestion = questions.find(
+    (q) => q.isBaseSurface || (q.type === 'number' && /superficie.*(predio|total)/i.test(q.label)),
+  );
+  const superficieBase = baseSurfaceQuestion ? Number(answers[baseSurfaceQuestion.id]) || 0 : 0;
+
+  let totalRubrosM2 = 0;
+  let totalAnimalesM2 = 0;
+
   for (const question of questions) {
-    if (!question || !question.required) {
+    // Si la pregunta depende de otra y está oculta, no se valida
+    if (!isQuestionVisible(question, answers)) {
       continue;
     }
 
     const value = answers[question.id];
+
+    if (question.type === 'rubros_agricolas') {
+      const rubrosM2 = calcularTotalM2Rubros(value);
+      totalRubrosM2 += rubrosM2;
+      if (question.required && (!Array.isArray(value) || value.length === 0)) {
+        return `Debes seleccionar al menos un rubro en: ${question.label}`;
+      }
+      continue;
+    }
+
+    if (question.type === 'produccion_animal') {
+      const animalM2 = calcularTotalM2Animales(value);
+      totalAnimalesM2 += animalM2;
+      if (question.required && (!Array.isArray(value) || value.length === 0)) {
+        return `Debes registrar al menos una especie animal en: ${question.label}`;
+      }
+      continue;
+    }
+
+    if (!question.required) {
+      continue;
+    }
+
     if (question.type === 'boolean') {
-      if (value !== true) {
-        return `Debes completar: ${question.label}`;
+      if (value !== true && value !== false) {
+        return `Debes responder: ${question.label}`;
       }
       continue;
     }
@@ -331,6 +494,15 @@ export function validateAnswers(
     const normalized = String(value ?? '').trim();
     if (!normalized) {
       return `Debes completar: ${question.label}`;
+    }
+  }
+
+  // Validación cruzada de balance de superficie
+  if (superficieBase > 0) {
+    const totalOcupado = totalRubrosM2 + totalAnimalesM2;
+    if (totalOcupado > superficieBase) {
+      const excedente = totalOcupado - superficieBase;
+      return `La superficie ocupada (${totalOcupado} m²) supera la superficie total del predio (${superficieBase} m²) por ${excedente} m². Por favor ajusta las cantidades.`;
     }
   }
 

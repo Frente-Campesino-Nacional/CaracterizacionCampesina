@@ -40,6 +40,8 @@ const QUESTION_TYPE_OPTIONS = [
   { key: 'date', label: 'Fecha' },
   { key: 'select_single', label: 'Selección única' },
   { key: 'select_multiple', label: 'Selección múltiple' },
+  { key: 'rubros_agricolas', label: 'Rubros agrícolas (m²)' },
+  { key: 'produccion_animal', label: 'Producción animal' },
 ] as const;
 
 type QuestionKind = (typeof QUESTION_TYPE_OPTIONS)[number]['key'];
@@ -52,6 +54,10 @@ type QuestionDraft = {
   useAsFilter: boolean;
   placeholder: string;
   options: FormQuestionOption[];
+  isBaseSurface?: boolean;
+  hasDependency?: boolean;
+  dependsOnQuestionId?: string;
+  dependsOnValue?: string;
 };
 
 type FormEditorState = {
@@ -60,6 +66,29 @@ type FormEditorState = {
   activo: boolean;
   preguntas: QuestionDraft[];
 };
+
+function getDefaultOptionsForKind(kind: QuestionKind): FormQuestionOption[] {
+  if (kind === 'rubros_agricolas') {
+    return [
+      { label: 'Café', value: 'Café' },
+      { label: 'Musáceas (Plátano/Cambur)', value: 'Musáceas' },
+      { label: 'Maíz', value: 'Maíz' },
+      { label: 'Yuca', value: 'Yuca' },
+      { label: 'Cacao', value: 'Cacao' },
+      { label: 'Hortalizas', value: 'Hortalizas' },
+    ];
+  }
+  if (kind === 'produccion_animal') {
+    return [
+      { label: 'Bovino', value: 'Bovino' },
+      { label: 'Porcino', value: 'Porcino' },
+      { label: 'Caprino', value: 'Caprino' },
+      { label: 'Ovino', value: 'Ovino' },
+      { label: 'Aves (Gallinas/Pollos)', value: 'Aves' },
+    ];
+  }
+  return [];
+}
 
 function createQuestionDraft(index: number, existingId?: string): QuestionDraft {
   return {
@@ -70,6 +99,10 @@ function createQuestionDraft(index: number, existingId?: string): QuestionDraft 
     useAsFilter: false,
     placeholder: '',
     options: [],
+    isBaseSurface: false,
+    hasDependency: false,
+    dependsOnQuestionId: '',
+    dependsOnValue: '',
   };
 }
 
@@ -82,18 +115,31 @@ function mapQuestionKind(question: FormQuestion): QuestionKind {
     return 'text';
   }
 
+  if (question.type === 'rubros_agricolas') {
+    return 'rubros_agricolas';
+  }
+
+  if (question.type === 'produccion_animal') {
+    return 'produccion_animal';
+  }
+
   return (question.type as QuestionKind) || 'text';
 }
 
 function mapQuestionToDraft(question: FormQuestion, index: number): QuestionDraft {
+  const kind = mapQuestionKind(question);
   return {
     id: String(question.id || `pregunta_${index + 1}`),
     label: question.label || '',
-    kind: mapQuestionKind(question),
+    kind,
     required: question.required,
     useAsFilter: Boolean(question.useAsFilter),
     placeholder: question.placeholder || '',
-    options: question.options && question.options.length ? question.options : [],
+    options: question.options && question.options.length ? question.options : getDefaultOptionsForKind(kind),
+    isBaseSurface: Boolean(question.isBaseSurface),
+    hasDependency: Boolean(question.depends_on && question.depends_on.question_id),
+    dependsOnQuestionId: question.depends_on?.question_id || '',
+    dependsOnValue: question.depends_on?.value || '',
   };
 }
 
@@ -149,12 +195,28 @@ function mapDraftsToStructure(preguntas: QuestionDraft[]): Record<string, unknow
         base.type = 'text';
       } else if (question.kind === 'number') {
         base.type = 'number';
+        if (question.isBaseSurface) {
+          base.is_base_surface = true;
+        }
       } else if (question.kind === 'date') {
         base.type = 'date';
+      } else if (question.kind === 'rubros_agricolas') {
+        base.type = 'rubros_agricolas';
+        base.options = normalizedOptions;
+      } else if (question.kind === 'produccion_animal') {
+        base.type = 'produccion_animal';
+        base.options = normalizedOptions;
       } else if (isSelect) {
         base.type = 'select';
         base.selectionMode = question.kind === 'select_multiple' ? 'multiple' : 'single';
         base.options = normalizedOptions;
+      }
+
+      if (question.hasDependency && question.dependsOnQuestionId && question.dependsOnValue) {
+        base.depends_on = {
+          question_id: question.dependsOnQuestionId.trim(),
+          value: question.dependsOnValue.trim(),
+        };
       }
 
       if (normalizedPlaceholder) {
@@ -175,7 +237,12 @@ function updateQuestion(
 }
 
 function isSelectKind(kind: QuestionKind): boolean {
-  return kind === 'select_single' || kind === 'select_multiple';
+  return (
+    kind === 'select_single' ||
+    kind === 'select_multiple' ||
+    kind === 'rubros_agricolas' ||
+    kind === 'produccion_animal'
+  );
 }
 
 export default function AdminFormulariosScreen() {
@@ -190,6 +257,11 @@ export default function AdminFormulariosScreen() {
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState<FormularioRecord | null>(null);
   const [form, setForm] = useState<FormEditorState>(createEmptyEditorState());
+  const [expandedFormIds, setExpandedFormIds] = useState<Record<string, boolean>>({});
+
+  const toggleExpand = (id: string) => {
+    setExpandedFormIds((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
 
   const buildFilterKey = (formularioId: string, preguntaId: string) => `${formularioId}::${preguntaId}`;
 
@@ -370,7 +442,7 @@ export default function AdminFormulariosScreen() {
     try {
       const fileUri = await exportTableToPdf({
         title: 'Reporte de Formularios',
-        subtitle: 'CensoCampesino - Administración',
+        subtitle: 'Producir es vencer FUNCN - Administración',
         filePrefix: 'formularios',
         filters: [{ label: 'Búsqueda', value: search || 'Sin filtro' }],
         columns: [
@@ -553,11 +625,17 @@ export default function AdminFormulariosScreen() {
   const updateQuestionKind = (index: number, kind: QuestionKind) => {
     setForm((current) => ({
       ...current,
-      preguntas: updateQuestion(current.preguntas, index, (question) => ({
-        ...question,
-        kind,
-        options: isSelectKind(kind) ? question.options : [],
-      })),
+      preguntas: updateQuestion(current.preguntas, index, (question) => {
+        let options = isSelectKind(kind) ? question.options : [];
+        if ((kind === 'rubros_agricolas' || kind === 'produccion_animal') && (!options || options.length === 0)) {
+          options = getDefaultOptionsForKind(kind);
+        }
+        return {
+          ...question,
+          kind,
+          options,
+        };
+      }),
     }));
   };
 
@@ -626,7 +704,10 @@ export default function AdminFormulariosScreen() {
         contentContainerStyle={sharedFormStyles.listContent}
         ListEmptyComponent={<Text style={sharedFormStyles.emptyText}>No hay formularios</Text>}
         renderItem={({ item }) => {
-          const questionCount = parseFormStructure(item.estructura).preguntas.length;
+          const parsed = parseFormStructure(item.estructura);
+          const questionList = parsed.preguntas;
+          const questionCount = questionList.length;
+          const isExpanded = Boolean(expandedFormIds[item.id]);
 
           return (
             <View style={styles.itemCard}>
@@ -645,7 +726,59 @@ export default function AdminFormulariosScreen() {
                 <Text style={styles.metaLabel}>Creado por</Text>
                 <Text style={styles.metaValue}>{item.creado_por ? (userNameById.get(item.creado_por) || item.creado_por) : 'N/A'}</Text>
               </View>
+
+              {isExpanded ? (
+                <View style={styles.questionsPreviewWrapper}>
+                  <Text style={styles.questionsPreviewHeader}>Preguntas configuradas ({questionCount}):</Text>
+                  {questionList.length ? (
+                    questionList.map((q, idx) => (
+                      <View key={q.id || `preview_q_${idx}`} style={styles.questionPreviewCard}>
+                        <View style={styles.questionPreviewHeaderRow}>
+                          <Text style={styles.questionPreviewNumber}>{idx + 1}.</Text>
+                          <Text style={styles.questionPreviewLabel}>{q.label}</Text>
+                        </View>
+                        <View style={styles.questionPreviewBadgesRow}>
+                          <View style={styles.previewTypeBadge}>
+                            <Text style={styles.previewTypeBadgeText}>
+                              {q.type === 'select' ? (q.selectionMode === 'multiple' ? 'Selección múltiple' : 'Selección única') : q.type === 'number' ? 'Número' : q.type === 'date' ? 'Fecha' : q.type === 'boolean' ? 'Booleano' : 'Texto'}
+                            </Text>
+                          </View>
+                          {q.required ? (
+                            <View style={[styles.previewTypeBadge, styles.previewRequiredBadge]}>
+                              <Text style={styles.previewRequiredBadgeText}>Obligatoria</Text>
+                            </View>
+                          ) : null}
+                          {q.useAsFilter ? (
+                            <View style={[styles.previewTypeBadge, styles.previewFilterBadge]}>
+                              <Text style={styles.previewFilterBadgeText}>Filtro</Text>
+                            </View>
+                          ) : null}
+                        </View>
+                        {q.placeholder ? (
+                          <Text style={styles.previewPlaceholderText}>Ayuda: {q.placeholder}</Text>
+                        ) : null}
+                        {q.options && q.options.length ? (
+                          <View style={styles.previewOptionsSection}>
+                            <Text style={styles.previewOptionsTitle}>Opciones:</Text>
+                            {q.options.map((opt, oIdx) => (
+                              <Text key={opt.value || `opt_${oIdx}`} style={styles.previewOptionText}>
+                                • {opt.label || opt.value}
+                              </Text>
+                            ))}
+                          </View>
+                        ) : null}
+                      </View>
+                    ))
+                  ) : (
+                    <Text style={styles.previewEmptyText}>No hay preguntas configuradas en este formulario.</Text>
+                  )}
+                </View>
+              ) : null}
+
               <View style={styles.itemActions}>
+                <TouchableOpacity onPress={() => toggleExpand(item.id)}>
+                  <Text style={styles.link}>{isExpanded ? 'Ocultar preguntas' : `Ver preguntas (${questionCount})`}</Text>
+                </TouchableOpacity>
                 <TouchableOpacity onPress={() => openEdit(item)}>
                   <Text style={styles.link}>Editar</Text>
                 </TouchableOpacity>
@@ -760,6 +893,90 @@ export default function AdminFormulariosScreen() {
                     />
                   </View>
 
+                  {question.kind === 'number' ? (
+                    <View style={sharedFormStyles.switchRow}>
+                      <Text style={styles.switchLabel}>Es superficie base del predio (para balance)</Text>
+                      <Switch
+                        value={Boolean(question.isBaseSurface)}
+                        onValueChange={(value) =>
+                          setForm((current) => ({
+                            ...current,
+                            preguntas: updateQuestion(current.preguntas, index, (item) => ({ ...item, isBaseSurface: value })),
+                          }))
+                        }
+                      />
+                    </View>
+                  ) : null}
+
+                  {index > 0 ? (
+                    <View style={styles.dependencyCard}>
+                      <View style={sharedFormStyles.switchRow}>
+                        <Text style={styles.switchLabel}>Pregunta condicional (depende de otra)</Text>
+                        <Switch
+                          value={Boolean(question.hasDependency)}
+                          onValueChange={(value) =>
+                            setForm((current) => ({
+                              ...current,
+                              preguntas: updateQuestion(current.preguntas, index, (item) => ({
+                                ...item,
+                                hasDependency: value,
+                                dependsOnQuestionId: value ? (item.dependsOnQuestionId || form.preguntas[index - 1]?.id || '') : '',
+                                dependsOnValue: value ? (item.dependsOnValue || 'no') : '',
+                              })),
+                            }))
+                          }
+                        />
+                      </View>
+
+                      {question.hasDependency ? (
+                        <View style={styles.dependencyBody}>
+                          <Text style={styles.dependencyTitle}>Mostrar esta pregunta solo cuando:</Text>
+                          <Text style={styles.fieldSubLabel}>Pregunta anterior:</Text>
+                          <View style={styles.parentPillsWrapper}>
+                            {form.preguntas.slice(0, index).map((parentQ, pIdx) => {
+                              const isSelected = (question.dependsOnQuestionId || form.preguntas[index - 1]?.id) === parentQ.id;
+                              return (
+                                <TouchableOpacity
+                                  key={parentQ.id}
+                                  style={[styles.parentPill, isSelected && styles.parentPillActive]}
+                                  onPress={() =>
+                                    setForm((current) => ({
+                                      ...current,
+                                      preguntas: updateQuestion(current.preguntas, index, (item) => ({
+                                        ...item,
+                                        dependsOnQuestionId: parentQ.id,
+                                      })),
+                                    }))
+                                  }
+                                >
+                                  <Text style={[styles.parentPillText, isSelected && styles.parentPillTextActive]}>
+                                    P{pIdx + 1}: {parentQ.label ? parentQ.label.slice(0, 24) : `Pregunta ${pIdx + 1}`}
+                                  </Text>
+                                </TouchableOpacity>
+                              );
+                            })}
+                          </View>
+
+                          <Text style={[styles.fieldSubLabel, { marginTop: 6 }]}>Valor de respuesta requerido:</Text>
+                          <TextInput
+                            value={question.dependsOnValue}
+                            onChangeText={(value) =>
+                              setForm((current) => ({
+                                ...current,
+                                preguntas: updateQuestion(current.preguntas, index, (item) => ({
+                                  ...item,
+                                  dependsOnValue: value,
+                                })),
+                              }))
+                            }
+                            style={[sharedFormStyles.input, { paddingVertical: 6 }]}
+                            placeholder="Ej: no, si, Sí"
+                          />
+                        </View>
+                      ) : null}
+                    </View>
+                  ) : null}
+
                   {question.kind === 'text' || question.kind === 'number' || question.kind === 'date' ? (
                     <TextInput
                       value={question.placeholder}
@@ -777,10 +994,33 @@ export default function AdminFormulariosScreen() {
                   {isSelectKind(question.kind) ? (
                     <View style={styles.optionsSection}>
                       <View style={styles.optionsHeader}>
-                        <Text style={styles.fieldLabel}>Opciones</Text>
-                        <TouchableOpacity onPress={() => addOption(index)}>
-                          <Text style={styles.addOptionText}>Agregar opción</Text>
-                        </TouchableOpacity>
+                        <Text style={styles.fieldLabel}>
+                          {question.kind === 'rubros_agricolas'
+                            ? 'Rubros agrícolas disponibles'
+                            : question.kind === 'produccion_animal'
+                            ? 'Especies animales disponibles'
+                            : 'Opciones'}
+                        </Text>
+                        <View style={{ flexDirection: 'row', gap: 8 }}>
+                          {(question.kind === 'rubros_agricolas' || question.kind === 'produccion_animal') ? (
+                            <TouchableOpacity
+                              onPress={() =>
+                                setForm((current) => ({
+                                  ...current,
+                                  preguntas: updateQuestion(current.preguntas, index, (item) => ({
+                                    ...item,
+                                    options: getDefaultOptionsForKind(question.kind),
+                                  })),
+                                }))
+                              }
+                            >
+                              <Text style={styles.resetOptionsText}>Predeterminados</Text>
+                            </TouchableOpacity>
+                          ) : null}
+                          <TouchableOpacity onPress={() => addOption(index)}>
+                            <Text style={styles.addOptionText}>+ Agregar</Text>
+                          </TouchableOpacity>
+                        </View>
                       </View>
 
                       {question.options.length ? (
@@ -869,4 +1109,158 @@ const styles = StyleSheet.create({
   removeOptionButton: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#fee2e2', justifyContent: 'center', alignItems: 'center' },
   removeOptionText: { color: '#b91c1c', fontWeight: '800' },
   helperText: { color: '#64748b' },
+  dependencyCard: {
+    backgroundColor: '#eff6ff',
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+    borderRadius: 10,
+    padding: 10,
+    gap: 8,
+  },
+  dependencyBody: {
+    gap: 6,
+    marginTop: 4,
+    borderTopWidth: 1,
+    borderTopColor: '#dbeafe',
+    paddingTop: 8,
+  },
+  dependencyTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#1e40af',
+  },
+  fieldSubLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  parentPillsWrapper: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 4,
+  },
+  parentPill: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+  },
+  parentPillActive: {
+    backgroundColor: '#2563eb',
+    borderColor: '#1d4ed8',
+  },
+  parentPillText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  parentPillTextActive: {
+    color: '#ffffff',
+    fontWeight: '700',
+  },
+  resetOptionsText: {
+    color: '#0f766e',
+    fontWeight: '700',
+    fontSize: 13,
+  },
+  questionsPreviewWrapper: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    padding: 12,
+    marginBottom: 12,
+    gap: 8,
+  },
+  questionsPreviewHeader: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0f172a',
+    marginBottom: 4,
+  },
+  questionPreviewCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    padding: 10,
+    gap: 6,
+  },
+  questionPreviewHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+  },
+  questionPreviewNumber: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0f766e',
+  },
+  questionPreviewLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1e293b',
+    flex: 1,
+  },
+  questionPreviewBadgesRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  previewTypeBadge: {
+    backgroundColor: '#e0f2fe',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  previewTypeBadgeText: {
+    color: '#0369a1',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  previewRequiredBadge: {
+    backgroundColor: '#fee2e2',
+  },
+  previewRequiredBadgeText: {
+    color: '#b91c1c',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  previewFilterBadge: {
+    backgroundColor: '#fef3c7',
+  },
+  previewFilterBadgeText: {
+    color: '#b45309',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  previewPlaceholderText: {
+    fontSize: 12,
+    color: '#64748b',
+    fontStyle: 'italic',
+  },
+  previewOptionsSection: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 6,
+    padding: 6,
+    gap: 2,
+  },
+  previewOptionsTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  previewOptionText: {
+    fontSize: 12,
+    color: '#334155',
+    marginLeft: 4,
+  },
+  previewEmptyText: {
+    color: '#64748b',
+    fontStyle: 'italic',
+    paddingVertical: 4,
+  },
 });

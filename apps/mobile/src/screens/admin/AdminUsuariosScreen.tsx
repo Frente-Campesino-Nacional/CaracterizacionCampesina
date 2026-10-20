@@ -17,6 +17,7 @@ import { exportTableToPdf } from '../../utils/pdfExport';
 import { exportTableToExcelCsv } from '../../utils/excelExport';
 import { showErrorAlert, showSuccessAlert } from '../../utils/humanizerUtils';
 import { sharedFormStyles } from '../../styles/sharedFormStyles';
+import { isAdminRole } from '../../utils/roles';
 
 const roleFallbacks: Array<'admin' | 'encuestador'> = ['admin', 'encuestador'];
 
@@ -36,11 +37,12 @@ type UserFormState = {
   estado_nombre: string;
   municipio_id: string;
   municipio_nombre: string;
-  parroquia_id: string;
-  parroquia_nombre: string;
   direccion: string;
   consejo_id: string;
   activo: boolean;
+  es_campesino: boolean;
+  es_encuestador: boolean;
+  es_administrador: boolean;
 };
 
 function defaultUserForm(): UserFormState {
@@ -59,11 +61,12 @@ function defaultUserForm(): UserFormState {
     estado_nombre: '',
     municipio_id: '',
     municipio_nombre: '',
-    parroquia_id: '',
-    parroquia_nombre: '',
     direccion: '',
     consejo_id: '',
     activo: true,
+    es_campesino: false,
+    es_encuestador: false,
+    es_administrador: false,
   };
 }
 
@@ -99,7 +102,8 @@ function toOptionalIsoDate(value: string): string | undefined {
 }
 
 export default function AdminUsuariosScreen() {
-  const { token } = useAuthStore();
+  const { token, user } = useAuthStore();
+  const isAdmin = isAdminRole(user?.rol);
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
   const [items, setItems] = useState<UsuarioRecord[]>([]);
   const [consejos, setConsejos] = useState<ConsejoRecord[]>([]);
@@ -194,11 +198,12 @@ export default function AdminUsuariosScreen() {
       estado_nombre: item.estado || '',
       municipio_id: (item as any).municipio_id != null ? String((item as any).municipio_id) : '',
       municipio_nombre: item.municipio || '',
-      parroquia_id: (item as any).parroquia_id != null ? String((item as any).parroquia_id) : '',
-      parroquia_nombre: item.parroquia || '',
       direccion: item.direccion || '',
       consejo_id: item.consejo_id || '',
       activo: item.activo,
+      es_campesino: Boolean(item.es_campesino),
+      es_encuestador: String(item.rol).toLowerCase() === 'encuestador' || Boolean(item.es_encuestador),
+      es_administrador: String(item.rol).toLowerCase() === 'administrador' || Boolean(item.es_administrador),
     });
     void loadPhoto(item.id);
     setModal(true);
@@ -239,10 +244,12 @@ export default function AdminUsuariosScreen() {
       estado_id: toOptionalNumber(form.estado_id),
       genero: toOptionalString(form.genero),
       municipio_id: toOptionalNumber(form.municipio_id),
-      parroquia_id: toOptionalNumber(form.parroquia_id),
       direccion: toOptionalString(form.direccion),
       consejo_id: toOptionalString(form.consejo_id),
       activo: form.activo,
+      es_campesino: isAdmin ? form.es_campesino : undefined,
+      es_encuestador: isAdmin ? (form.rol === 'encuestador' || form.es_encuestador) : undefined,
+      es_administrador: isAdmin ? (form.rol === 'administrador' || form.es_administrador) : undefined,
     };
 
 
@@ -307,7 +314,7 @@ export default function AdminUsuariosScreen() {
     try {
       const fileUri = await exportTableToPdf({
         title: 'Reporte de Usuarios',
-        subtitle: 'CensoCampesino - Administración',
+        subtitle: 'Producir es vencer FUNCN - Administración',
         filePrefix: 'usuarios',
         filters: [
           { label: 'Búsqueda', value: search || 'Sin filtro' },
@@ -568,18 +575,14 @@ export default function AdminUsuariosScreen() {
               <StateMunicipioPicker
                 estado={form.estado_nombre}
                 municipio={form.municipio_nombre}
-                parroquia={form.parroquia_nombre}
                 onEstadoChange={(value) => setForm((s) => ({ ...s, estado_nombre: value, estado_id: '' }))}
                 onMunicipioChange={(value) => setForm((s) => ({ ...s, municipio_nombre: value, municipio_id: '' }))}
-                onParroquiaChange={(value) => setForm((s) => ({ ...s, parroquia_nombre: value, parroquia_id: '' }))}
-                onSelectionChange={({ estadoId, estadoNombre, municipioId, municipioNombre, parroquiaId, parroquiaNombre }) => setForm((s) => ({
+                onSelectionChange={({ estadoId, estadoNombre, municipioId, municipioNombre }) => setForm((s) => ({
                   ...s,
                   estado_id: estadoId != null ? String(estadoId) : '',
                   estado_nombre: estadoNombre,
                   municipio_id: municipioId != null ? String(municipioId) : '',
                   municipio_nombre: municipioNombre,
-                  parroquia_id: parroquiaId != null ? String(parroquiaId) : '',
-                  parroquia_nombre: parroquiaNombre,
                 }))}
               />
               <TextInput value={form.direccion} onChangeText={(value) => setForm((s) => ({ ...s, direccion: value }))} style={[sharedFormStyles.input, sharedFormStyles.textArea]} placeholder="Dirección" multiline numberOfLines={3} />
@@ -593,6 +596,58 @@ export default function AdminUsuariosScreen() {
                 allowClear
                 clearLabel="Sin consejo asignado"
               />
+              {isAdmin ? (
+                <View style={styles.photoCard}>
+                  <Text style={styles.photoCardTitle}>Roles / Perfiles Adicionales</Text>
+                  <Text style={{ fontSize: Theme.fontSize.xs, color: Theme.colors.mediumGray, marginBottom: 8 }}>
+                    Como Administrador, puedes asignar perfiles adicionales a esta persona:
+                  </Text>
+                  {form.rol === 'administrador' ? (
+                    <>
+                      <View style={[sharedFormStyles.switchRow, { marginBottom: 6 }]}>
+                        <Text style={{ fontSize: Theme.fontSize.sm, color: Theme.colors.darkGray, fontWeight: '600' }}>
+                          Encuestador (Acceso al sistema)
+                        </Text>
+                        <Switch
+                          value={form.es_encuestador}
+                          onValueChange={(val) => setForm((s) => ({ ...s, es_encuestador: val }))}
+                        />
+                      </View>
+                      <View style={sharedFormStyles.switchRow}>
+                        <Text style={{ fontSize: Theme.fontSize.sm, color: Theme.colors.darkGray, fontWeight: '600' }}>
+                          Campesino (Productor Agrícola)
+                        </Text>
+                        <Switch
+                          value={form.es_campesino}
+                          onValueChange={(val) => setForm((s) => ({ ...s, es_campesino: val }))}
+                        />
+                      </View>
+                    </>
+                  ) : (
+                    <>
+                      <View style={[sharedFormStyles.switchRow, { marginBottom: 6 }]}>
+                        <Text style={{ fontSize: Theme.fontSize.sm, color: Theme.colors.darkGray, fontWeight: '600' }}>
+                          Administrador (Acceso al sistema)
+                        </Text>
+                        <Switch
+                          value={form.es_administrador}
+                          onValueChange={(val) => setForm((s) => ({ ...s, es_administrador: val }))}
+                        />
+                      </View>
+                      <View style={sharedFormStyles.switchRow}>
+                        <Text style={{ fontSize: Theme.fontSize.sm, color: Theme.colors.darkGray, fontWeight: '600' }}>
+                          Campesino (Productor Agrícola)
+                        </Text>
+                        <Switch
+                          value={form.es_campesino}
+                          onValueChange={(val) => setForm((s) => ({ ...s, es_campesino: val }))}
+                        />
+                      </View>
+                    </>
+                  )}
+                </View>
+              ) : null}
+
               <View style={styles.photoCard}>
                 <Text style={styles.photoCardTitle}>Foto de perfil</Text>
                 <View style={styles.photoPreviewRow}>

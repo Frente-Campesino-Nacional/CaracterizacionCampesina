@@ -52,6 +52,10 @@ __decorate([
 __decorate([
     (0, class_validator_1.IsOptional)(),
     __metadata("design:type", String)
+], CreateCampesinDto.prototype, "sexo", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
 ], CreateCampesinDto.prototype, "genero", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
@@ -97,4 +101,19 @@ __decorate([
     (0, class_validator_1.IsObject)(),
     __metadata("design:type", Object)
 ], CreateCampesinDto.prototype, "metadata", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], CreateCampesinDto.prototype, "es_administrador", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], CreateCampesinDto.prototype, "es_encuestador", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CreateCampesinDto.prototype, "password", void 0);
 //# sourceMappingURL=create-campesino.dto.js.map

@@ -295,18 +295,14 @@ export class FormulariosService {
         p.email,
         p.consejo_id,
         co.nombre_consejo AS consejo_nombre,
-        est.nombre_estado AS estado,
-        mun.nombre_municipio AS municipio,
-        par.nombre_parroquia AS parroquia
+        est.nombre_estado AS estado
       FROM operacional.campesinos c
       LEFT JOIN registros.personas p ON p.id_personas = c.id_campesinos
       LEFT JOIN operacional.consejos co ON co.consejo_id::text = p.consejo_id::text
-      LEFT JOIN catalogos.parroquias par ON par.id_parroquia = p.parroquia
-      LEFT JOIN catalogos.municipios mun ON mun.id_municipio = par.municipio
-      LEFT JOIN catalogos.estados est ON est.id_estados = mun.estado
+      LEFT JOIN catalogos.estados est ON est.id_estados = p.estado
+      LEFT JOIN catalogos.municipios mun ON mun.id_municipio = p.municipio
       WHERE c.id_campesinos::text = ANY (${campesinoIds})
     `);
-
 
     return campesinos
       .map((campesino) => {
@@ -336,6 +332,228 @@ export class FormulariosService {
       .filter((item): item is NonNullable<typeof item> => Boolean(item));
   }
 
+  async listAllRespuestas(formularioId: string | number) {
+    const formulario = await this.findFormularioRow(formularioId);
+    if (!formulario) {
+      throw new NotFoundException('Formulario no encontrado');
+    }
+
+    const questions = this.extractQuestionsFromStructure(formulario.estructura);
+
+    const responseRows = await this.prisma.$queryRaw<Array<any>>(Prisma.sql`
+      SELECT
+        r.id_respuesta,
+        r.id_formulario,
+        r.respuestas,
+        r.llenado_por,
+        r.creado_en,
+        p.id_personas AS campesino_id,
+        p.cedula AS campesino_cedula,
+        p.nombre AS campesino_nombre,
+        p.apellido AS campesino_apellido,
+        p.numero_telefonico AS campesino_telefono,
+        p.email AS campesino_email,
+        co.nombre_consejo AS campesino_consejo,
+        est.nombre_estado AS estado,
+        mun.nombre_municipio AS municipio,
+        e.id_personas AS encuestador_id,
+        e.cedula AS encuestador_cedula,
+        e.nombre AS encuestador_nombre,
+        e.apellido AS encuestador_apellido
+      FROM respuestas.respuesta_form r
+      LEFT JOIN registros.personas p ON p.id_personas::text = (r.respuestas->>'campesino_id')
+      LEFT JOIN operacional.consejos co ON co.consejo_id::text = p.consejo_id::text
+      LEFT JOIN catalogos.estados est ON est.id_estados = p.estado
+      LEFT JOIN catalogos.municipios mun ON mun.id_municipio = p.municipio
+      LEFT JOIN registros.personas e ON e.id_personas::text = COALESCE(r.llenado_por::text, r.respuestas->>'encuestador_id')
+      WHERE r.id_formulario::text = ${String(formulario.id)}
+      ORDER BY r.creado_en DESC;
+    `);
+
+    const discoveredQuestionIds = new Set(questions.map((q) => q.id));
+    const extraQuestions: Array<{ id: string; label: string; tipo: string }> = [];
+
+    const parsedResponses = responseRows.map((row) => {
+      const payload = row.respuestas && typeof row.respuestas === 'object' && !Array.isArray(row.respuestas)
+        ? (row.respuestas as Record<string, unknown>)
+        : {};
+
+      const rawAnswers = (payload.respuestas && typeof payload.respuestas === 'object' && !Array.isArray(payload.respuestas))
+        ? (payload.respuestas as Record<string, unknown>)
+        : payload;
+
+      // Detect any uncatalogued question keys that have values in responses
+      for (const [key, val] of Object.entries(rawAnswers)) {
+        if (
+          key === 'campesino_id' ||
+          key === 'encuestador_id' ||
+          key === 'formulario_id' ||
+          key === 'metadata' ||
+          key === 'capturado_en' ||
+          key === 'respuestas'
+        ) {
+          continue;
+        }
+        if (!discoveredQuestionIds.has(key)) {
+          discoveredQuestionIds.add(key);
+          extraQuestions.push({
+            id: key,
+            label: this.formatKeyToLabel(key),
+            tipo: typeof val === 'number' ? 'number' : typeof val === 'boolean' ? 'boolean' : 'text',
+          });
+        }
+      }
+
+      const formattedAnswers: Record<string, string> = {};
+      for (const [k, v] of Object.entries(rawAnswers)) {
+        if (
+          k === 'campesino_id' ||
+          k === 'encuestador_id' ||
+          k === 'formulario_id' ||
+          k === 'metadata' ||
+          k === 'capturado_en' ||
+          k === 'respuestas'
+        ) {
+          continue;
+        }
+        formattedAnswers[k] = this.formatAnswerValue(v);
+      }
+
+      const campesinoNombre = `${row.campesino_nombre || ''} ${row.campesino_apellido || ''}`.trim();
+      const encuestadorNombre = `${row.encuestador_nombre || ''} ${row.encuestador_apellido || ''}`.trim();
+
+      return {
+        id_respuesta: String(row.id_respuesta),
+        capturado_en: row.creado_en ? new Date(row.creado_en).toISOString() : null,
+        campesino: (row.campesino_cedula || campesinoNombre) ? {
+          id: row.campesino_id ? String(row.campesino_id) : (payload.campesino_id ? String(payload.campesino_id) : null),
+          cedula: row.campesino_cedula || 'N/A',
+          nombre: row.campesino_nombre || '',
+          apellido: row.campesino_apellido || '',
+          nombre_completo: campesinoNombre || 'N/A',
+          telefono: row.campesino_telefono || null,
+          email: row.campesino_email || null,
+          consejo: row.campesino_consejo || null,
+          estado: row.estado || null,
+          municipio: row.municipio || null,
+        } : null,
+        encuestador: encuestadorNombre ? {
+          id: row.encuestador_id ? String(row.encuestador_id) : (row.llenado_por ? String(row.llenado_por) : null),
+          cedula: row.encuestador_cedula || null,
+          nombre: row.encuestador_nombre || '',
+          apellido: row.encuestador_apellido || '',
+          nombre_completo: encuestadorNombre,
+        } : null,
+        valores: rawAnswers,
+        valores_formateados: formattedAnswers,
+      };
+    });
+
+    const allQuestions = [...questions, ...extraQuestions];
+
+    return {
+      formulario: {
+        id: String(formulario.id),
+        titulo: formulario.titulo,
+        version: formulario.version,
+        activo: formulario.activo,
+        preguntas: allQuestions,
+      },
+      total_respuestas: parsedResponses.length,
+      respuestas: parsedResponses,
+    };
+  }
+
+  private extractQuestionsFromStructure(estructura: unknown): Array<{
+    id: string;
+    label: string;
+    tipo: string;
+    opciones?: string[];
+  }> {
+    if (!estructura) return [];
+
+    let current = estructura;
+    if (typeof current === 'string') {
+      try {
+        current = JSON.parse(current);
+      } catch {
+        return [];
+      }
+    }
+    if (typeof current === 'string') {
+      try {
+        current = JSON.parse(current);
+      } catch {
+        return [];
+      }
+    }
+
+    let rawList: unknown[] = [];
+    if (Array.isArray(current)) {
+      rawList = current;
+    } else if (current && typeof current === 'object') {
+      const obj = current as Record<string, unknown>;
+      if (Array.isArray(obj.preguntas)) {
+        rawList = obj.preguntas;
+      } else if (Array.isArray(obj.fields)) {
+        rawList = obj.fields;
+      } else if (Array.isArray(obj.questions)) {
+        rawList = obj.questions;
+      } else if (Array.isArray(obj.secciones)) {
+        for (const sec of obj.secciones) {
+          if (sec && typeof sec === 'object') {
+            const secObj = sec as Record<string, unknown>;
+            const qList = secObj.preguntas || secObj.fields || secObj.questions;
+            if (Array.isArray(qList)) {
+              rawList.push(...qList);
+            }
+          }
+        }
+      } else if (Array.isArray(obj.sections)) {
+        for (const sec of obj.sections) {
+          if (sec && typeof sec === 'object') {
+            const secObj = sec as Record<string, unknown>;
+            const qList = secObj.fields || secObj.preguntas || secObj.questions;
+            if (Array.isArray(qList)) {
+              rawList.push(...qList);
+            }
+          }
+        }
+      }
+    }
+
+    const seenIds = new Set<string>();
+    const questions: Array<{ id: string; label: string; tipo: string; opciones?: string[] }> = [];
+
+    rawList.forEach((item, index) => {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) return;
+      const q = item as Record<string, unknown>;
+      const id = String(q.id ?? q.key ?? q.name ?? `pregunta_${index + 1}`).trim();
+      const label = String(q.label ?? q.etiqueta ?? q.titulo ?? q.nombre ?? `Pregunta ${index + 1}`).trim();
+      const tipo = String(q.type ?? q.tipo ?? 'text').trim();
+
+      if (!id || seenIds.has(id)) return;
+      seenIds.add(id);
+
+      let opciones: string[] | undefined = undefined;
+      const rawOptions = (q.options ?? q.opciones) as unknown[];
+      if (Array.isArray(rawOptions)) {
+        opciones = rawOptions.map((o: any) =>
+          typeof o === 'string' ? o : String(o?.label ?? o?.nombre ?? o?.valor ?? o?.value ?? ''),
+        ).filter(Boolean);
+      }
+
+      questions.push({ id, label, tipo, opciones });
+    });
+
+    return questions;
+  }
+
+  private formatKeyToLabel(key: string): string {
+    return key
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, (c) => c.toUpperCase());
+  }
 
   private hasCompletedValue(value: unknown): boolean {
     if (value == null) {
@@ -370,12 +588,73 @@ export class FormulariosService {
       return '';
     }
 
-    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    if (typeof value === 'boolean') {
+      return value ? 'Sí' : 'No';
+    }
+
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (/^\d{4}-\d{2}-\d{2}(T.*)?$/.test(trimmed)) {
+        const d = new Date(trimmed);
+        if (!isNaN(d.getTime())) {
+          const day = String(d.getUTCDate()).padStart(2, '0');
+          const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+          const year = d.getUTCFullYear();
+          return `${day}/${month}/${year}`;
+        }
+      }
+      return trimmed;
+    }
+
+    if (typeof value === 'number') {
       return String(value);
     }
 
     if (Array.isArray(value)) {
-      return value.map((item) => String(item)).join(', ');
+      if (value.length === 0) return '';
+
+      // Si es un arreglo de rubros agrícolas
+      if (
+        value.every(
+          (item) => item && typeof item === 'object' && ('rubro' in item || 'superficie_m2' in item),
+        )
+      ) {
+        const parts = value.map((r: any) => `${r.rubro || 'Rubro'}: ${r.superficie_m2 || 0} m²`);
+        const total = value.reduce((sum: number, r: any) => sum + (Number(r.superficie_m2) || 0), 0);
+        return `${parts.join(', ')} (Total: ${total} m²)`;
+      }
+
+      // Si es un arreglo de producción animal
+      if (
+        value.every(
+          (item) =>
+            item &&
+            typeof item === 'object' &&
+            ('especie' in item || 'hembras' in item || 'espacio_productivo_m2' in item),
+        )
+      ) {
+        const parts = value.map(
+          (a: any) =>
+            `${a.especie || 'Especie'}: ${a.hembras || 0}H, ${a.machos || 0}M, ${a.crias || 0}C (${a.espacio_productivo_m2 || 0} m²)`,
+        );
+        const totalM2 = value.reduce(
+          (sum: number, a: any) => sum + (Number(a.espacio_productivo_m2) || 0),
+          0,
+        );
+        return `${parts.join(' | ')} [Total: ${totalM2} m²]`;
+      }
+
+      return value
+        .map((item) =>
+          typeof item === 'boolean'
+            ? item
+              ? 'Sí'
+              : 'No'
+            : typeof item === 'object'
+            ? JSON.stringify(item)
+            : String(item),
+        )
+        .join(', ');
     }
 
     try {

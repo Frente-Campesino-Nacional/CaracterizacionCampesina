@@ -24,8 +24,9 @@ let FormulariosController = class FormulariosController {
     constructor(formulariosService) {
         this.formulariosService = formulariosService;
     }
-    findAll() {
-        return this.formulariosService.findAll();
+    findAll(includeInactive) {
+        const showAll = includeInactive === 'true' || includeInactive === '1';
+        return this.formulariosService.findAll(showAll);
     }
     listFilterQuestions() {
         return this.formulariosService.listFilterQuestions();
@@ -45,6 +46,9 @@ let FormulariosController = class FormulariosController {
     remove(id) {
         return this.formulariosService.remove(id);
     }
+    findAllRespuestas(id) {
+        return this.formulariosService.listAllRespuestas(id);
+    }
     submitRespuesta(req, id, submitFormularioRespuestaDto) {
         return this.formulariosService.submitRespuesta(id, submitFormularioRespuestaDto, req.user?.id);
     }
@@ -53,8 +57,9 @@ exports.FormulariosController = FormulariosController;
 __decorate([
     (0, common_1.Get)(),
     (0, swagger_1.ApiOperation)({ summary: 'Listar todos los formularios' }),
+    __param(0, (0, common_1.Query)('include_inactive')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
+    __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], FormulariosController.prototype, "findAll", null);
 __decorate([
@@ -106,6 +111,14 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], FormulariosController.prototype, "remove", null);
+__decorate([
+    (0, common_1.Get)(':id/respuestas'),
+    (0, swagger_1.ApiOperation)({ summary: 'Obtener todas las respuestas de un formulario' }),
+    __param(0, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], FormulariosController.prototype, "findAllRespuestas", null);
 __decorate([
     (0, common_1.Post)(':id/respuestas'),
     (0, swagger_1.ApiOperation)({ summary: 'Guardar respuesta de formulario en PostgreSQL' }),

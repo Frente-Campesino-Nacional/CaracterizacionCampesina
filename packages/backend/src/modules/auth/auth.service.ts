@@ -227,10 +227,10 @@ export class AuthService {
     const cedula = `${Math.floor(10000000 + Math.random() * 90000000)}`;
     const birthDate = new Date('1990-01-01T00:00:00.000Z');
 
-    const parroquiaRows = await this.prisma.$queryRaw<Array<{ id_parroquia: number }>>(Prisma.sql`
-      SELECT id_parroquia
-      FROM catalogos.parroquias
-      ORDER BY id_parroquia
+    const estadoRows = await this.prisma.$queryRaw<Array<{ id_estados: number }>>(Prisma.sql`
+      SELECT id_estados
+      FROM catalogos.estados
+      ORDER BY id_estados
       LIMIT 1
     `);
 
@@ -241,12 +241,8 @@ export class AuthService {
       LIMIT 1
     `);
 
-    const parroquiaId = parroquiaRows[0]?.id_parroquia;
-    const generoId = generoRows[0]?.id_sexo;
-
-    if (parroquiaId == null || generoId == null) {
-      throw new UnauthorizedException('No hay catálogos base disponibles para crear el usuario');
-    }
+    const estadoId = estadoRows[0]?.id_estados ?? 1;
+    const generoId = generoRows[0]?.id_sexo ?? 2;
 
     await this.prisma.$transaction(async (transaction) => {
       await transaction.$queryRaw(Prisma.sql`
@@ -257,7 +253,8 @@ export class AuthService {
           tipo_cedula,
           cedula,
           fecha_nacimiento,
-          parroquia,
+          estado,
+          municipio,
           direccion_usuario,
           email,
           numero_telefonico,
@@ -270,7 +267,8 @@ export class AuthService {
           'V',
           ${cedula},
           ${birthDate},
-          ${parroquiaId},
+          ${estadoId},
+          NULL,
           ${registerDto.nombre},
           ${registerDto.email},
           NULL,

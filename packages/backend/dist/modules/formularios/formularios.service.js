@@ -29,8 +29,8 @@ let FormulariosService = class FormulariosService {
         estructura,
         activo,
         creado_por,
-        created_at AS creado_en,
-        update_at AS actualizado_en
+        creado_en AS creado_en,
+        actualizado_en AS actualizado_en
       FROM operacional.formularios
       WHERE id_formulario::text = ${textValue}
       LIMIT 1
@@ -49,7 +49,8 @@ let FormulariosService = class FormulariosService {
             actualizado_en: formulario.actualizado_en,
         };
     }
-    async findAll() {
+    async findAll(includeInactive = false) {
+        const whereClause = includeInactive ? client_1.Prisma.empty : client_1.Prisma.sql `WHERE activo = TRUE`;
         const formularios = await this.prisma.$queryRaw(client_1.Prisma.sql `
       SELECT
         id_formulario AS id,
@@ -58,11 +59,11 @@ let FormulariosService = class FormulariosService {
         estructura,
         activo,
         creado_por,
-        created_at AS creado_en,
-        update_at AS actualizado_en
+        creado_en AS creado_en,
+        actualizado_en AS actualizado_en
       FROM operacional.formularios
-      WHERE activo = TRUE
-      ORDER BY created_at DESC
+      ${whereClause}
+      ORDER BY creado_en DESC
     `);
         return formularios.map((formulario) => this.mapFormulario(formulario));
     }
@@ -83,7 +84,7 @@ let FormulariosService = class FormulariosService {
         ${createFormularioDto.activo ?? true},
         CAST(${createFormularioDto.creado_por ?? null} AS uuid)
       )
-      RETURNING id_formulario AS id, titulo, version, estructura, activo, creado_por, created_at AS creado_en, update_at AS actualizado_en
+      RETURNING id_formulario AS id, titulo, version, estructura, activo, creado_por, creado_en AS creado_en, actualizado_en AS actualizado_en
     `);
         return this.mapFormulario(created[0]);
     }
@@ -100,7 +101,7 @@ let FormulariosService = class FormulariosService {
         estructura = COALESCE(${updateFormularioDto.estructura ? JSON.stringify(updateFormularioDto.estructura) : null}::jsonb, estructura),
         activo = COALESCE(${updateFormularioDto.activo ?? null}, activo)
       WHERE id_formulario::text = ${String(formulario.id)}
-      RETURNING id_formulario AS id, titulo, version, estructura, activo, creado_por, created_at AS creado_en, update_at AS actualizado_en
+      RETURNING id_formulario AS id, titulo, version, estructura, activo, creado_por, creado_en AS creado_en, actualizado_en AS actualizado_en
     `);
         return this.mapFormulario(updated[0] ?? formulario);
     }
@@ -160,7 +161,7 @@ let FormulariosService = class FormulariosService {
       SELECT id_formulario AS id, titulo, estructura
       FROM operacional.formularios
       WHERE activo = TRUE
-      ORDER BY created_at DESC
+      ORDER BY creado_en DESC
     `);
         const results = [];
         for (const formulario of formularios) {
@@ -205,10 +206,10 @@ let FormulariosService = class FormulariosService {
         }
         const selectedLabel = String(selectedQuestion.label ?? selectedQuestion.etiqueta ?? selectedQuestion.titulo ?? preguntaId).trim();
         const responseRows = await this.prisma.$queryRaw(client_1.Prisma.sql `
-      SELECT respuestas, created_at
+      SELECT respuestas, creado_en
       FROM respuestas.respuesta_form
       WHERE id_formulario = CAST(${String(formulario.id)} AS uuid)
-      ORDER BY created_at DESC;
+      ORDER BY creado_en DESC;
     `);
         const byCampesino = new Map();
         for (const row of responseRows) {
@@ -237,7 +238,7 @@ let FormulariosService = class FormulariosService {
             }
             byCampesino.set(campesinoId, {
                 valor: this.formatAnswerValue(answerValue),
-                capturado_en: row.created_at ? row.created_at.toISOString() : null,
+                capturado_en: row.creado_en ? row.creado_en.toISOString() : null,
             });
         }
         const campesinoIds = Array.from(byCampesino.keys());
@@ -254,15 +255,12 @@ let FormulariosService = class FormulariosService {
         p.email,
         p.consejo_id,
         co.nombre_consejo AS consejo_nombre,
-        est.nombre_estado AS estado,
-        mun.nombre_municipio AS municipio,
-        par.nombre_parroquia AS parroquia
+        est.nombre_estado AS estado
       FROM operacional.campesinos c
       LEFT JOIN registros.personas p ON p.id_personas = c.id_campesinos
       LEFT JOIN operacional.consejos co ON co.consejo_id::text = p.consejo_id::text
-      LEFT JOIN catalogos.parroquias par ON par.id_parroquia = p.parroquia
-      LEFT JOIN catalogos.municipios mun ON mun.id_municipio = par.municipio
-      LEFT JOIN catalogos.estados est ON est.id_estados = mun.estado
+      LEFT JOIN catalogos.estados est ON est.id_estados = p.estado
+      LEFT JOIN catalogos.municipios mun ON mun.id_municipio = p.municipio
       WHERE c.id_campesinos::text = ANY (${campesinoIds})
     `);
         return campesinos
@@ -291,6 +289,205 @@ let FormulariosService = class FormulariosService {
         })
             .filter((item) => Boolean(item));
     }
+    async listAllRespuestas(formularioId) {
+        const formulario = await this.findFormularioRow(formularioId);
+        if (!formulario) {
+            throw new common_1.NotFoundException('Formulario no encontrado');
+        }
+        const questions = this.extractQuestionsFromStructure(formulario.estructura);
+        const responseRows = await this.prisma.$queryRaw(client_1.Prisma.sql `
+      SELECT
+        r.id_respuesta,
+        r.id_formulario,
+        r.respuestas,
+        r.llenado_por,
+        r.creado_en,
+        p.id_personas AS campesino_id,
+        p.cedula AS campesino_cedula,
+        p.nombre AS campesino_nombre,
+        p.apellido AS campesino_apellido,
+        p.numero_telefonico AS campesino_telefono,
+        p.email AS campesino_email,
+        co.nombre_consejo AS campesino_consejo,
+        est.nombre_estado AS estado,
+        mun.nombre_municipio AS municipio,
+        e.id_personas AS encuestador_id,
+        e.cedula AS encuestador_cedula,
+        e.nombre AS encuestador_nombre,
+        e.apellido AS encuestador_apellido
+      FROM respuestas.respuesta_form r
+      LEFT JOIN registros.personas p ON p.id_personas::text = (r.respuestas->>'campesino_id')
+      LEFT JOIN operacional.consejos co ON co.consejo_id::text = p.consejo_id::text
+      LEFT JOIN catalogos.estados est ON est.id_estados = p.estado
+      LEFT JOIN catalogos.municipios mun ON mun.id_municipio = p.municipio
+      LEFT JOIN registros.personas e ON e.id_personas::text = COALESCE(r.llenado_por::text, r.respuestas->>'encuestador_id')
+      WHERE r.id_formulario::text = ${String(formulario.id)}
+      ORDER BY r.creado_en DESC;
+    `);
+        const discoveredQuestionIds = new Set(questions.map((q) => q.id));
+        const extraQuestions = [];
+        const parsedResponses = responseRows.map((row) => {
+            const payload = row.respuestas && typeof row.respuestas === 'object' && !Array.isArray(row.respuestas)
+                ? row.respuestas
+                : {};
+            const rawAnswers = (payload.respuestas && typeof payload.respuestas === 'object' && !Array.isArray(payload.respuestas))
+                ? payload.respuestas
+                : payload;
+            for (const [key, val] of Object.entries(rawAnswers)) {
+                if (key === 'campesino_id' ||
+                    key === 'encuestador_id' ||
+                    key === 'formulario_id' ||
+                    key === 'metadata' ||
+                    key === 'capturado_en' ||
+                    key === 'respuestas') {
+                    continue;
+                }
+                if (!discoveredQuestionIds.has(key)) {
+                    discoveredQuestionIds.add(key);
+                    extraQuestions.push({
+                        id: key,
+                        label: this.formatKeyToLabel(key),
+                        tipo: typeof val === 'number' ? 'number' : typeof val === 'boolean' ? 'boolean' : 'text',
+                    });
+                }
+            }
+            const formattedAnswers = {};
+            for (const [k, v] of Object.entries(rawAnswers)) {
+                if (k === 'campesino_id' ||
+                    k === 'encuestador_id' ||
+                    k === 'formulario_id' ||
+                    k === 'metadata' ||
+                    k === 'capturado_en' ||
+                    k === 'respuestas') {
+                    continue;
+                }
+                formattedAnswers[k] = this.formatAnswerValue(v);
+            }
+            const campesinoNombre = `${row.campesino_nombre || ''} ${row.campesino_apellido || ''}`.trim();
+            const encuestadorNombre = `${row.encuestador_nombre || ''} ${row.encuestador_apellido || ''}`.trim();
+            return {
+                id_respuesta: String(row.id_respuesta),
+                capturado_en: row.creado_en ? new Date(row.creado_en).toISOString() : null,
+                campesino: (row.campesino_cedula || campesinoNombre) ? {
+                    id: row.campesino_id ? String(row.campesino_id) : (payload.campesino_id ? String(payload.campesino_id) : null),
+                    cedula: row.campesino_cedula || 'N/A',
+                    nombre: row.campesino_nombre || '',
+                    apellido: row.campesino_apellido || '',
+                    nombre_completo: campesinoNombre || 'N/A',
+                    telefono: row.campesino_telefono || null,
+                    email: row.campesino_email || null,
+                    consejo: row.campesino_consejo || null,
+                    estado: row.estado || null,
+                    municipio: row.municipio || null,
+                } : null,
+                encuestador: encuestadorNombre ? {
+                    id: row.encuestador_id ? String(row.encuestador_id) : (row.llenado_por ? String(row.llenado_por) : null),
+                    cedula: row.encuestador_cedula || null,
+                    nombre: row.encuestador_nombre || '',
+                    apellido: row.encuestador_apellido || '',
+                    nombre_completo: encuestadorNombre,
+                } : null,
+                valores: rawAnswers,
+                valores_formateados: formattedAnswers,
+            };
+        });
+        const allQuestions = [...questions, ...extraQuestions];
+        return {
+            formulario: {
+                id: String(formulario.id),
+                titulo: formulario.titulo,
+                version: formulario.version,
+                activo: formulario.activo,
+                preguntas: allQuestions,
+            },
+            total_respuestas: parsedResponses.length,
+            respuestas: parsedResponses,
+        };
+    }
+    extractQuestionsFromStructure(estructura) {
+        if (!estructura)
+            return [];
+        let current = estructura;
+        if (typeof current === 'string') {
+            try {
+                current = JSON.parse(current);
+            }
+            catch {
+                return [];
+            }
+        }
+        if (typeof current === 'string') {
+            try {
+                current = JSON.parse(current);
+            }
+            catch {
+                return [];
+            }
+        }
+        let rawList = [];
+        if (Array.isArray(current)) {
+            rawList = current;
+        }
+        else if (current && typeof current === 'object') {
+            const obj = current;
+            if (Array.isArray(obj.preguntas)) {
+                rawList = obj.preguntas;
+            }
+            else if (Array.isArray(obj.fields)) {
+                rawList = obj.fields;
+            }
+            else if (Array.isArray(obj.questions)) {
+                rawList = obj.questions;
+            }
+            else if (Array.isArray(obj.secciones)) {
+                for (const sec of obj.secciones) {
+                    if (sec && typeof sec === 'object') {
+                        const secObj = sec;
+                        const qList = secObj.preguntas || secObj.fields || secObj.questions;
+                        if (Array.isArray(qList)) {
+                            rawList.push(...qList);
+                        }
+                    }
+                }
+            }
+            else if (Array.isArray(obj.sections)) {
+                for (const sec of obj.sections) {
+                    if (sec && typeof sec === 'object') {
+                        const secObj = sec;
+                        const qList = secObj.fields || secObj.preguntas || secObj.questions;
+                        if (Array.isArray(qList)) {
+                            rawList.push(...qList);
+                        }
+                    }
+                }
+            }
+        }
+        const seenIds = new Set();
+        const questions = [];
+        rawList.forEach((item, index) => {
+            if (!item || typeof item !== 'object' || Array.isArray(item))
+                return;
+            const q = item;
+            const id = String(q.id ?? q.key ?? q.name ?? `pregunta_${index + 1}`).trim();
+            const label = String(q.label ?? q.etiqueta ?? q.titulo ?? q.nombre ?? `Pregunta ${index + 1}`).trim();
+            const tipo = String(q.type ?? q.tipo ?? 'text').trim();
+            if (!id || seenIds.has(id))
+                return;
+            seenIds.add(id);
+            let opciones = undefined;
+            const rawOptions = (q.options ?? q.opciones);
+            if (Array.isArray(rawOptions)) {
+                opciones = rawOptions.map((o) => typeof o === 'string' ? o : String(o?.label ?? o?.nombre ?? o?.valor ?? o?.value ?? '')).filter(Boolean);
+            }
+            questions.push({ id, label, tipo, opciones });
+        });
+        return questions;
+    }
+    formatKeyToLabel(key) {
+        return key
+            .replace(/_/g, ' ')
+            .replace(/\b\w/g, (c) => c.toUpperCase());
+    }
     hasCompletedValue(value) {
         if (value == null) {
             return false;
@@ -316,11 +513,49 @@ let FormulariosService = class FormulariosService {
         if (value == null) {
             return '';
         }
-        if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+        if (typeof value === 'boolean') {
+            return value ? 'Sí' : 'No';
+        }
+        if (typeof value === 'string') {
+            const trimmed = value.trim();
+            if (/^\d{4}-\d{2}-\d{2}(T.*)?$/.test(trimmed)) {
+                const d = new Date(trimmed);
+                if (!isNaN(d.getTime())) {
+                    const day = String(d.getUTCDate()).padStart(2, '0');
+                    const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+                    const year = d.getUTCFullYear();
+                    return `${day}/${month}/${year}`;
+                }
+            }
+            return trimmed;
+        }
+        if (typeof value === 'number') {
             return String(value);
         }
         if (Array.isArray(value)) {
-            return value.map((item) => String(item)).join(', ');
+            if (value.length === 0)
+                return '';
+            if (value.every((item) => item && typeof item === 'object' && ('rubro' in item || 'superficie_m2' in item))) {
+                const parts = value.map((r) => `${r.rubro || 'Rubro'}: ${r.superficie_m2 || 0} m²`);
+                const total = value.reduce((sum, r) => sum + (Number(r.superficie_m2) || 0), 0);
+                return `${parts.join(', ')} (Total: ${total} m²)`;
+            }
+            if (value.every((item) => item &&
+                typeof item === 'object' &&
+                ('especie' in item || 'hembras' in item || 'espacio_productivo_m2' in item))) {
+                const parts = value.map((a) => `${a.especie || 'Especie'}: ${a.hembras || 0}H, ${a.machos || 0}M, ${a.crias || 0}C (${a.espacio_productivo_m2 || 0} m²)`);
+                const totalM2 = value.reduce((sum, a) => sum + (Number(a.espacio_productivo_m2) || 0), 0);
+                return `${parts.join(' | ')} [Total: ${totalM2} m²]`;
+            }
+            return value
+                .map((item) => typeof item === 'boolean'
+                ? item
+                    ? 'Sí'
+                    : 'No'
+                : typeof item === 'object'
+                    ? JSON.stringify(item)
+                    : String(item))
+                .join(', ');
         }
         try {
             return JSON.stringify(value);

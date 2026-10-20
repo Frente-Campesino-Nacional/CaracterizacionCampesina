@@ -5,6 +5,7 @@ export declare class CreateCampesinDto {
     telefono?: string;
     correo?: string;
     fecha_nacimiento?: string;
+    sexo?: string;
     genero?: string;
     estado_id?: number;
     municipio_id?: number;
@@ -15,4 +16,7 @@ export declare class CreateCampesinDto {
     asignado_a?: string | number;
     tiene_pendientes?: boolean;
     metadata?: Record<string, unknown>;
+    es_administrador?: boolean;
+    es_encuestador?: boolean;
+    password?: string;
 }

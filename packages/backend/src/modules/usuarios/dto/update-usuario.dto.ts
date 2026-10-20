@@ -65,5 +65,16 @@ export class UpdateUsuarioDto {
   @IsOptional()
   consejo_id?: string | number | null;
 
+  @IsOptional()
+  @IsBoolean()
+  es_campesino?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  es_encuestador?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  es_administrador?: boolean;
 }
 

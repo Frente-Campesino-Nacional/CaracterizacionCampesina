@@ -11,10 +11,7 @@ export declare class CatalogosService {
             municipios: {
                 id: number;
                 nombre: string;
-                parroquias: {
-                    id: number;
-                    nombre: string;
-                }[];
+                parroquias: any[];
             }[];
         }[];
     }>;

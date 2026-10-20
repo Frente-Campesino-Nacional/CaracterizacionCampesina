@@ -103,7 +103,7 @@ export async function exportHistoryToPDF(items: HistoryExportItem[], title: stri
         </head>
         <body>
           <div class="header">
-            <h1 class="title">Censo Campesino - ${title}</h1>
+            <h1 class="title">Producir es vencer FUNCN - ${title}</h1>
             <div class="subtitle">Reporte detallado de historial de cambios y auditoría</div>
           </div>
           
@@ -129,7 +129,7 @@ export async function exportHistoryToPDF(items: HistoryExportItem[], title: stri
           </table>
 
           <div class="footer">
-            Generado automáticamente por el Sistema Censo Campesino Ezequiel Zamora.
+            Generado automáticamente por el Sistema Producir es vencer FUNCN.
           </div>
         </body>
       </html>

@@ -16,9 +16,9 @@ class CreateUsuarioDto {
 }
 exports.CreateUsuarioDto = CreateUsuarioDto;
 __decorate([
-    (0, class_validator_1.IsEmail)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsEmail)({}, { message: 'El correo electrónico debe ser una dirección de correo válida' }),
     (0, class_validator_1.Matches)(/^[a-zA-Z0-9._%+-]+@gmail\.com$/i, { message: 'El correo electrónico debe pertenecer al dominio @gmail.com' }),
-    (0, class_validator_1.IsNotEmpty)(),
     __metadata("design:type", String)
 ], CreateUsuarioDto.prototype, "email", void 0);
 __decorate([
@@ -58,6 +58,10 @@ __decorate([
 __decorate([
     (0, class_validator_1.IsOptional)(),
     __metadata("design:type", String)
+], CreateUsuarioDto.prototype, "sexo", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
 ], CreateUsuarioDto.prototype, "genero", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
@@ -87,4 +91,19 @@ __decorate([
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
 ], CreateUsuarioDto.prototype, "activo", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], CreateUsuarioDto.prototype, "es_campesino", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], CreateUsuarioDto.prototype, "es_encuestador", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], CreateUsuarioDto.prototype, "es_administrador", void 0);
 //# sourceMappingURL=create-usuario.dto.js.map
