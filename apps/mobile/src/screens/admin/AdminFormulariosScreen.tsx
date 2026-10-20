@@ -42,6 +42,7 @@ const QUESTION_TYPE_OPTIONS = [
   { key: 'select_multiple', label: 'Selección múltiple' },
   { key: 'rubros_agricolas', label: 'Rubros agrícolas (m²)' },
   { key: 'produccion_animal', label: 'Producción animal' },
+  { key: 'carga_familiar', label: 'Carga familiar (Grupos etarios)' },
 ] as const;
 
 type QuestionKind = (typeof QUESTION_TYPE_OPTIONS)[number]['key'];
@@ -977,6 +978,22 @@ export default function AdminFormulariosScreen() {
                     </View>
                   ) : null}
 
+                  {question.kind === 'carga_familiar' ? (
+                    <View style={styles.cargaFamiliarAdminBox}>
+                      <Text style={styles.cargaFamiliarAdminTitle}>👥 Estructura de Carga Familiar</Text>
+                      <Text style={styles.cargaFamiliarAdminSubtitle}>
+                        El encuestador registrará féminas y masculinos en los 5 grupos etarios oficiales:
+                      </Text>
+                      <View style={styles.cargaFamiliarAdminList}>
+                        <Text style={styles.cargaFamiliarAdminItem}>• <Text style={{ fontWeight: '700' }}>Adulto Mayor:</Text> Féminas ≥ 55 años y Masculinos ≥ 60 años</Text>
+                        <Text style={styles.cargaFamiliarAdminItem}>• <Text style={{ fontWeight: '700' }}>Adulto:</Text> Féminas de 18 a 54 años y Masculinos de 18 a 59 años</Text>
+                        <Text style={styles.cargaFamiliarAdminItem}>• <Text style={{ fontWeight: '700' }}>Adolescente:</Text> Féminas y Masculinos de 12 a 17 años</Text>
+                        <Text style={styles.cargaFamiliarAdminItem}>• <Text style={{ fontWeight: '700' }}>Menor:</Text> Féminas y Masculinos de 4 a 11 años</Text>
+                        <Text style={styles.cargaFamiliarAdminItem}>• <Text style={{ fontWeight: '700' }}>Infante:</Text> Féminas y Masculinos de 0 a 3 años</Text>
+                      </View>
+                    </View>
+                  ) : null}
+
                   {question.kind === 'text' || question.kind === 'number' || question.kind === 'date' ? (
                     <TextInput
                       value={question.placeholder}
@@ -1257,6 +1274,32 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#334155',
     marginLeft: 4,
+  },
+  cargaFamiliarAdminBox: {
+    backgroundColor: '#eff6ff',
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 12,
+  },
+  cargaFamiliarAdminTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1d4ed8',
+    marginBottom: 4,
+  },
+  cargaFamiliarAdminSubtitle: {
+    fontSize: 12,
+    color: '#334155',
+    marginBottom: 8,
+  },
+  cargaFamiliarAdminList: {
+    gap: 4,
+  },
+  cargaFamiliarAdminItem: {
+    fontSize: 12,
+    color: '#1e293b',
   },
   previewEmptyText: {
     color: '#64748b',

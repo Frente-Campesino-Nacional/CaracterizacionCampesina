@@ -38,7 +38,7 @@ export async function exportAllFormResponsesToPDF(data: FormularioRespuestasComp
       minute: '2-digit',
     });
 
-    const questions = formulario.preguntas || [];
+    const questions = (formulario.preguntas || []).filter((q) => !q.label.match(/^Pregunta \d{10,}/i));
 
     // Summary table rows
     const summaryRowsHtml = respuestas
@@ -324,7 +324,7 @@ export async function exportAllFormResponsesToExcel(data: FormularioRespuestasCo
     }
 
     const { formulario, respuestas } = data;
-    const questions = formulario.preguntas || [];
+    const questions = (formulario.preguntas || []).filter((q) => !q.label.match(/^Pregunta \d{10,}/i));
 
     const generatedAt = new Date().toLocaleString('es-ES', {
       year: 'numeric',

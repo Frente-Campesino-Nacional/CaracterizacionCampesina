@@ -295,14 +295,18 @@ export class FormulariosService {
         p.email,
         p.consejo_id,
         co.nombre_consejo AS consejo_nombre,
-        est.nombre_estado AS estado
+        est.nombre_estado AS estado,
+        mun.nombre_municipio AS municipio,
+        par.nombre_parroquia AS parroquia
       FROM operacional.campesinos c
       LEFT JOIN registros.personas p ON p.id_personas = c.id_campesinos
       LEFT JOIN operacional.consejos co ON co.consejo_id::text = p.consejo_id::text
-      LEFT JOIN catalogos.estados est ON est.id_estados = p.estado
-      LEFT JOIN catalogos.municipios mun ON mun.id_municipio = p.municipio
+      LEFT JOIN catalogos.parroquias par ON par.id_parroquia = p.parroquia
+      LEFT JOIN catalogos.municipios mun ON mun.id_municipio = par.municipio
+      LEFT JOIN catalogos.estados est ON est.id_estados = mun.estado
       WHERE c.id_campesinos::text = ANY (${campesinoIds})
     `);
+
 
     return campesinos
       .map((campesino) => {
@@ -331,6 +335,7 @@ export class FormulariosService {
       })
       .filter((item): item is NonNullable<typeof item> => Boolean(item));
   }
+
 
   async listAllRespuestas(formularioId: string | number) {
     const formulario = await this.findFormularioRow(formularioId);
@@ -370,9 +375,6 @@ export class FormulariosService {
       ORDER BY r.creado_en DESC;
     `);
 
-    const discoveredQuestionIds = new Set(questions.map((q) => q.id));
-    const extraQuestions: Array<{ id: string; label: string; tipo: string }> = [];
-
     const parsedResponses = responseRows.map((row) => {
       const payload = row.respuestas && typeof row.respuestas === 'object' && !Array.isArray(row.respuestas)
         ? (row.respuestas as Record<string, unknown>)
@@ -381,28 +383,6 @@ export class FormulariosService {
       const rawAnswers = (payload.respuestas && typeof payload.respuestas === 'object' && !Array.isArray(payload.respuestas))
         ? (payload.respuestas as Record<string, unknown>)
         : payload;
-
-      // Detect any uncatalogued question keys that have values in responses
-      for (const [key, val] of Object.entries(rawAnswers)) {
-        if (
-          key === 'campesino_id' ||
-          key === 'encuestador_id' ||
-          key === 'formulario_id' ||
-          key === 'metadata' ||
-          key === 'capturado_en' ||
-          key === 'respuestas'
-        ) {
-          continue;
-        }
-        if (!discoveredQuestionIds.has(key)) {
-          discoveredQuestionIds.add(key);
-          extraQuestions.push({
-            id: key,
-            label: this.formatKeyToLabel(key),
-            tipo: typeof val === 'number' ? 'number' : typeof val === 'boolean' ? 'boolean' : 'text',
-          });
-        }
-      }
 
       const formattedAnswers: Record<string, string> = {};
       for (const [k, v] of Object.entries(rawAnswers)) {
@@ -449,7 +429,9 @@ export class FormulariosService {
       };
     });
 
-    const allQuestions = [...questions, ...extraQuestions];
+    // IMPORTANT: Only return questions that belong to the form structure.
+    // Ghost or obsolete question IDs will never be displayed in exports.
+    const allQuestions = questions;
 
     return {
       formulario: {
@@ -588,73 +570,12 @@ export class FormulariosService {
       return '';
     }
 
-    if (typeof value === 'boolean') {
-      return value ? 'Sí' : 'No';
-    }
-
-    if (typeof value === 'string') {
-      const trimmed = value.trim();
-      if (/^\d{4}-\d{2}-\d{2}(T.*)?$/.test(trimmed)) {
-        const d = new Date(trimmed);
-        if (!isNaN(d.getTime())) {
-          const day = String(d.getUTCDate()).padStart(2, '0');
-          const month = String(d.getUTCMonth() + 1).padStart(2, '0');
-          const year = d.getUTCFullYear();
-          return `${day}/${month}/${year}`;
-        }
-      }
-      return trimmed;
-    }
-
-    if (typeof value === 'number') {
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
       return String(value);
     }
 
     if (Array.isArray(value)) {
-      if (value.length === 0) return '';
-
-      // Si es un arreglo de rubros agrícolas
-      if (
-        value.every(
-          (item) => item && typeof item === 'object' && ('rubro' in item || 'superficie_m2' in item),
-        )
-      ) {
-        const parts = value.map((r: any) => `${r.rubro || 'Rubro'}: ${r.superficie_m2 || 0} m²`);
-        const total = value.reduce((sum: number, r: any) => sum + (Number(r.superficie_m2) || 0), 0);
-        return `${parts.join(', ')} (Total: ${total} m²)`;
-      }
-
-      // Si es un arreglo de producción animal
-      if (
-        value.every(
-          (item) =>
-            item &&
-            typeof item === 'object' &&
-            ('especie' in item || 'hembras' in item || 'espacio_productivo_m2' in item),
-        )
-      ) {
-        const parts = value.map(
-          (a: any) =>
-            `${a.especie || 'Especie'}: ${a.hembras || 0}H, ${a.machos || 0}M, ${a.crias || 0}C (${a.espacio_productivo_m2 || 0} m²)`,
-        );
-        const totalM2 = value.reduce(
-          (sum: number, a: any) => sum + (Number(a.espacio_productivo_m2) || 0),
-          0,
-        );
-        return `${parts.join(' | ')} [Total: ${totalM2} m²]`;
-      }
-
-      return value
-        .map((item) =>
-          typeof item === 'boolean'
-            ? item
-              ? 'Sí'
-              : 'No'
-            : typeof item === 'object'
-            ? JSON.stringify(item)
-            : String(item),
-        )
-        .join(', ');
+      return value.map((item) => String(item)).join(', ');
     }
 
     try {

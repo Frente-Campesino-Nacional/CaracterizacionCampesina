@@ -17,6 +17,8 @@ import {
   QuestionDependency,
   SubmissionHistoryItem,
   SubmitFormularioRespuestaPayload,
+  CargaFamiliarItem,
+  DEFAULT_CARGA_FAMILIAR_GRUPOS,
 } from '../types/formularios';
 import { getCachedCampesinoById } from './encuestadorCampesinoOfflineService';
 import {
@@ -283,6 +285,8 @@ export function getPreguntasFromStructure(estructura: Record<string, unknown> | 
         type = 'rubros_agricolas';
       } else if (lowerType === 'produccion_animal' || lowerType === 'animal' || lowerType === 'pecuario' || lowerType === 'animales') {
         type = 'produccion_animal';
+      } else if (lowerType === 'carga_familiar' || lowerType === 'familia' || lowerType === 'carga' || lowerType === 'demografia') {
+        type = 'carga_familiar';
       } else {
         type = 'text';
       }
@@ -367,6 +371,31 @@ function normalizeSelectionMode(value: unknown): 'single' | 'multiple' {
   return 'single';
 }
 
+export function calcularTotalCargaFamiliar(items: unknown): {
+  totalFemenino: number;
+  totalMasculino: number;
+  totalPersonas: number;
+} {
+  if (!Array.isArray(items)) {
+    return { totalFemenino: 0, totalMasculino: 0, totalPersonas: 0 };
+  }
+  let totalFemenino = 0;
+  let totalMasculino = 0;
+  for (const item of items) {
+    if (item && typeof item === 'object') {
+      const f = Number((item as any).femenino);
+      const m = Number((item as any).masculino);
+      if (!isNaN(f) && f > 0) totalFemenino += f;
+      if (!isNaN(m) && m > 0) totalMasculino += m;
+    }
+  }
+  return {
+    totalFemenino,
+    totalMasculino,
+    totalPersonas: totalFemenino + totalMasculino,
+  };
+}
+
 export function calcularTotalM2Rubros(value: unknown): number {
   if (!Array.isArray(value)) return 0;
   return value.reduce((sum, item) => {
@@ -413,6 +442,16 @@ export function buildDefaultAnswers(questions: FormQuestion[]): Record<string, u
   if (!Array.isArray(questions)) return {};
   return questions.reduce<Record<string, unknown>>((acc, question) => {
     if (!question || !question.id) return acc;
+    if (question.type === 'carga_familiar') {
+      acc[question.id] = DEFAULT_CARGA_FAMILIAR_GRUPOS.map((g: { grupo: string; label: string; rango_edad: string }) => ({
+        grupo: g.grupo,
+        label: g.label,
+        rango_edad: g.rango_edad,
+        femenino: 0,
+        masculino: 0,
+      }));
+      return acc;
+    }
     if (question.type === 'boolean') {
       acc[question.id] = false;
       return acc;
@@ -454,6 +493,14 @@ export function validateAnswers(
     }
 
     const value = answers[question.id];
+
+    if (question.type === 'carga_familiar') {
+      const { totalPersonas } = calcularTotalCargaFamiliar(value);
+      if (question.required && totalPersonas === 0) {
+        return `Debes registrar al menos una persona en la carga familiar para: ${question.label}`;
+      }
+      continue;
+    }
 
     if (question.type === 'rubros_agricolas') {
       const rubrosM2 = calcularTotalM2Rubros(value);

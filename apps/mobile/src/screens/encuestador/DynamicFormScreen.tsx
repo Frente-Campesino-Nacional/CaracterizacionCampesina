@@ -30,10 +30,11 @@ import {
   saveDraftAnswers,
   submitAndMarkFormulario,
   validateAnswers,
+  calcularTotalCargaFamiliar,
 } from '../../services/encuestadorFormService';
 
 import { showErrorAlert } from '../../utils/humanizerUtils';
-import { FormQuestion, ProduccionAnimalItem, RubroAgricolaItem } from '../../types/formularios';
+import { FormQuestion, ProduccionAnimalItem, RubroAgricolaItem, CargaFamiliarItem, DEFAULT_CARGA_FAMILIAR_GRUPOS } from '../../types/formularios';
 import { Theme } from '../../theme/colors';
 
 type RouteParams = {
@@ -86,7 +87,19 @@ export default function DynamicFormScreen() {
 
         const draft = await getDraftAnswers(params.campesinoId, params.formularioId).catch(() => ({}));
         const hasDraft = draft && Object.keys(draft).length > 0;
-        setAnswers(hasDraft ? draft : buildDefaultAnswers(questionsList));
+        if (hasDraft) {
+          const validQuestionIds = new Set(questionsList.map((q) => q.id));
+          const cleanDraft: Record<string, unknown> = {};
+          for (const [k, v] of Object.entries(draft)) {
+            if (validQuestionIds.has(k)) {
+              cleanDraft[k] = v;
+            }
+          }
+          const defaultAnswers = buildDefaultAnswers(questionsList);
+          setAnswers({ ...defaultAnswers, ...cleanDraft });
+        } else {
+          setAnswers(buildDefaultAnswers(questionsList));
+        }
       })
       .catch(() => {
         showErrorAlert('Ocurrió un inconveniente al cargar el formulario.', 'Error de carga');
@@ -626,6 +639,139 @@ function renderQuestionInput(
     );
   }
 
+  if (question.type === 'carga_familiar') {
+    const rawList: CargaFamiliarItem[] = Array.isArray(value) ? (value as CargaFamiliarItem[]) : [];
+
+    const currentList: CargaFamiliarItem[] = DEFAULT_CARGA_FAMILIAR_GRUPOS.map((defGroup) => {
+      const existing = rawList.find(
+        (item) => item && (item.grupo === defGroup.grupo || item.label === defGroup.label),
+      );
+      return {
+        grupo: defGroup.grupo,
+        label: defGroup.label,
+        rango_edad: defGroup.rango_edad,
+        femenino: existing ? Number(existing.femenino) || 0 : 0,
+        masculino: existing ? Number(existing.masculino) || 0 : 0,
+      };
+    });
+
+    const updateGroupGender = (grupoKey: string, gender: 'femenino' | 'masculino', text: string) => {
+      const val = parseInt(text.replace(/[^0-9]/g, ''), 10) || 0;
+      const next = currentList.map((item) =>
+        item.grupo === grupoKey ? { ...item, [gender]: Math.max(0, val) } : item,
+      );
+      setAnswer(question.id, next);
+    };
+
+    const adjustGroupGender = (grupoKey: string, gender: 'femenino' | 'masculino', delta: number) => {
+      const next = currentList.map((item) => {
+        if (item.grupo === grupoKey) {
+          const currentVal = Number(item[gender]) || 0;
+          return { ...item, [gender]: Math.max(0, currentVal + delta) };
+        }
+        return item;
+      });
+      setAnswer(question.id, next);
+    };
+
+    const { totalFemenino, totalMasculino, totalPersonas } = calcularTotalCargaFamiliar(currentList);
+
+    return (
+      <View style={styles.cargaFamiliarContainer}>
+        <Text style={styles.agroHelpText}>
+          Ingresa la cantidad de personas por grupo etario y género:
+        </Text>
+
+        <View style={styles.cargaFamiliarList}>
+          {currentList.map((item) => {
+            const subtotalGrupo = (Number(item.femenino) || 0) + (Number(item.masculino) || 0);
+            return (
+              <View key={item.grupo} style={styles.cargaFamiliarCard}>
+                <View style={styles.cargaFamiliarCardHeader}>
+                  <View style={{ flex: 1, marginRight: 8 }}>
+                    <Text style={styles.cargaFamiliarGroupTitle}>{item.label}</Text>
+                    <Text style={styles.cargaFamiliarRangeText}>{item.rango_edad}</Text>
+                  </View>
+                  <View style={styles.cargaFamiliarSubtotalBadge}>
+                    <Text style={styles.cargaFamiliarSubtotalText}>
+                      Subtotal: {subtotalGrupo}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.cargaFamiliarInputsRow}>
+                  {/* Femenino */}
+                  <View style={styles.genderInputBox}>
+                    <View style={styles.genderHeaderRow}>
+                      <Text style={[styles.genderLabel, { color: '#be185d' }]}>♀️ Femenino</Text>
+                    </View>
+                    <View style={styles.stepperContainer}>
+                      <TouchableOpacity
+                        style={styles.stepperBtn}
+                        onPress={() => adjustGroupGender(item.grupo, 'femenino', -1)}
+                      >
+                        <Text style={styles.stepperBtnText}>-</Text>
+                      </TouchableOpacity>
+                      <TextInput
+                        style={styles.genderInput}
+                        keyboardType="numeric"
+                        value={item.femenino > 0 ? String(item.femenino) : '0'}
+                        onChangeText={(t) => updateGroupGender(item.grupo, 'femenino', t)}
+                      />
+                      <TouchableOpacity
+                        style={styles.stepperBtn}
+                        onPress={() => adjustGroupGender(item.grupo, 'femenino', 1)}
+                      >
+                        <Text style={styles.stepperBtnText}>+</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  {/* Masculino */}
+                  <View style={styles.genderInputBox}>
+                    <View style={styles.genderHeaderRow}>
+                      <Text style={[styles.genderLabel, { color: '#1d4ed8' }]}>♂️ Masculino</Text>
+                    </View>
+                    <View style={styles.stepperContainer}>
+                      <TouchableOpacity
+                        style={styles.stepperBtn}
+                        onPress={() => adjustGroupGender(item.grupo, 'masculino', -1)}
+                      >
+                        <Text style={styles.stepperBtnText}>-</Text>
+                      </TouchableOpacity>
+                      <TextInput
+                        style={styles.genderInput}
+                        keyboardType="numeric"
+                        value={item.masculino > 0 ? String(item.masculino) : '0'}
+                        onChangeText={(t) => updateGroupGender(item.grupo, 'masculino', t)}
+                      />
+                      <TouchableOpacity
+                        style={styles.stepperBtn}
+                        onPress={() => adjustGroupGender(item.grupo, 'masculino', 1)}
+                      >
+                        <Text style={styles.stepperBtnText}>+</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+              </View>
+            );
+          })}
+        </View>
+
+        {/* Total Summary Banner */}
+        <View style={styles.cargaFamiliarTotalBanner}>
+          <Text style={styles.cargaFamiliarTotalTitle}>
+            👥 Total Carga Familiar: <Text style={{ fontWeight: '900', color: '#166534' }}>{totalPersonas} personas</Text>
+          </Text>
+          <Text style={styles.cargaFamiliarTotalSubtitle}>
+            (♀️ {totalFemenino} Femeninas &nbsp;|&nbsp; ♂️ {totalMasculino} Masculinos)
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
   if (question.type === 'select') {
     const selectedValues = Array.isArray(value) ? value.map((item) => String(item)) : [];
     const isMultiple = question.selectionMode === 'multiple';
@@ -777,6 +923,119 @@ const styles = StyleSheet.create({
   },
 
   // Agro & Animal Styles
+  cargaFamiliarContainer: {
+    marginTop: 4,
+  },
+  cargaFamiliarList: {
+    gap: 10,
+    marginTop: 8,
+  },
+  cargaFamiliarCard: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  cargaFamiliarCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+  },
+  cargaFamiliarGroupTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1e293b',
+  },
+  cargaFamiliarRangeText: {
+    fontSize: 11,
+    color: '#64748b',
+    marginTop: 2,
+    fontWeight: '500',
+  },
+  cargaFamiliarSubtotalBadge: {
+    backgroundColor: '#e0f2fe',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  cargaFamiliarSubtotalText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#0369a1',
+  },
+  cargaFamiliarInputsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 4,
+  },
+  genderInputBox: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+    borderRadius: 10,
+    padding: 8,
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+  },
+  genderHeaderRow: {
+    marginBottom: 6,
+    alignItems: 'center',
+  },
+  genderLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  stepperContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  stepperBtn: {
+    backgroundColor: '#f1f5f9',
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+  },
+  stepperBtnText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#334155',
+    lineHeight: 20,
+  },
+  genderInput: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0f172a',
+    paddingVertical: 2,
+    marginHorizontal: 4,
+  },
+  cargaFamiliarTotalBanner: {
+    backgroundColor: '#f0fdf4',
+    borderColor: '#86efac',
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 12,
+    alignItems: 'center',
+  },
+  cargaFamiliarTotalTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#14532d',
+  },
+  cargaFamiliarTotalSubtitle: {
+    fontSize: 12,
+    color: '#15803d',
+    marginTop: 3,
+    fontWeight: '600',
+  },
   agroContainer: {
     gap: 10,
   },
