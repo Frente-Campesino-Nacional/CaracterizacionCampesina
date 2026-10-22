@@ -512,7 +512,10 @@ export class FormulariosService {
       const q = item as Record<string, unknown>;
       const id = String(q.id ?? q.key ?? q.name ?? `pregunta_${index + 1}`).trim();
       const label = String(q.label ?? q.etiqueta ?? q.titulo ?? q.nombre ?? `Pregunta ${index + 1}`).trim();
-      const tipo = String(q.type ?? q.tipo ?? 'text').trim();
+      let tipo = String(q.type ?? q.tipo ?? 'text').trim();
+      if (tipo === 'text' && (/carga.*familiar/i.test(label) || /personas.*viviendo/i.test(label))) {
+        tipo = 'carga_familiar';
+      }
 
       if (!id || seenIds.has(id)) return;
       seenIds.add(id);

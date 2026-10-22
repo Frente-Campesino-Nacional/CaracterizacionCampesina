@@ -640,20 +640,46 @@ function renderQuestionInput(
   }
 
   if (question.type === 'carga_familiar') {
-    const rawList: CargaFamiliarItem[] = Array.isArray(value) ? (value as CargaFamiliarItem[]) : [];
-
-    const currentList: CargaFamiliarItem[] = DEFAULT_CARGA_FAMILIAR_GRUPOS.map((defGroup) => {
-      const existing = rawList.find(
-        (item) => item && (item.grupo === defGroup.grupo || item.label === defGroup.label),
-      );
-      return {
-        grupo: defGroup.grupo,
-        label: defGroup.label,
-        rango_edad: defGroup.rango_edad,
-        femenino: existing ? Number(existing.femenino) || 0 : 0,
-        masculino: existing ? Number(existing.masculino) || 0 : 0,
-      };
+    const currentList: CargaFamiliarItem[] = Array.isArray(value) ? (value as CargaFamiliarItem[]) : [];
+    const activeGroupMap = new Map<string, CargaFamiliarItem>();
+    currentList.forEach((item) => {
+      if (item && item.grupo) {
+        activeGroupMap.set(item.grupo, item);
+      }
     });
+
+    const optionsList =
+      question.options && question.options.length
+        ? question.options
+        : [
+            { label: 'Adulto Mayor (Fem. ≥ 55 | Masc. ≥ 60)', value: 'adulto_mayor' },
+            { label: 'Adulto (Fem. 18-54 | Masc. 18-59)', value: 'adulto' },
+            { label: 'Adolescente (12 a 17 años)', value: 'adolescente' },
+            { label: 'Menor (4 a 11 años)', value: 'menor' },
+            { label: 'Infante (0 a 3 años)', value: 'infante' },
+          ];
+
+    const toggleGroup = (grupoKey: string, optLabel: string) => {
+      if (activeGroupMap.has(grupoKey)) {
+        const next = currentList.filter((item) => item.grupo !== grupoKey);
+        setAnswer(question.id, next);
+      } else {
+        const def = DEFAULT_CARGA_FAMILIAR_GRUPOS.find((g) => g.grupo === grupoKey);
+        const cleanLabel = def?.label || optLabel.replace(/\s*\(.*\)$/, '').trim();
+        const rangoEdad = def?.rango_edad || optLabel;
+        const next = [
+          ...currentList,
+          {
+            grupo: grupoKey,
+            label: cleanLabel,
+            rango_edad: rangoEdad,
+            femenino: 1,
+            masculino: 0,
+          },
+        ];
+        setAnswer(question.id, next);
+      }
+    };
 
     const updateGroupGender = (grupoKey: string, gender: 'femenino' | 'masculino', text: string) => {
       const val = parseInt(text.replace(/[^0-9]/g, ''), 10) || 0;
@@ -679,95 +705,131 @@ function renderQuestionInput(
     return (
       <View style={styles.cargaFamiliarContainer}>
         <Text style={styles.agroHelpText}>
-          Ingresa la cantidad de personas por grupo etario y género:
+          Selecciona los grupos etarios presentes en el hogar e ingresa la cantidad de féminas y masculinos:
         </Text>
 
-        <View style={styles.cargaFamiliarList}>
-          {currentList.map((item) => {
-            const subtotalGrupo = (Number(item.femenino) || 0) + (Number(item.masculino) || 0);
+        {/* Pills de selección de grupos */}
+        <View style={styles.optionsContainer}>
+          {optionsList.map((opt) => {
+            const grupoKey = opt.value || opt.label;
+            const isSelected = activeGroupMap.has(grupoKey);
             return (
-              <View key={item.grupo} style={styles.cargaFamiliarCard}>
-                <View style={styles.cargaFamiliarCardHeader}>
-                  <View style={{ flex: 1, marginRight: 8 }}>
-                    <Text style={styles.cargaFamiliarGroupTitle}>{item.label}</Text>
-                    <Text style={styles.cargaFamiliarRangeText}>{item.rango_edad}</Text>
-                  </View>
-                  <View style={styles.cargaFamiliarSubtotalBadge}>
-                    <Text style={styles.cargaFamiliarSubtotalText}>
-                      Subtotal: {subtotalGrupo}
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.cargaFamiliarInputsRow}>
-                  {/* Femenino */}
-                  <View style={styles.genderInputBox}>
-                    <View style={styles.genderHeaderRow}>
-                      <Text style={[styles.genderLabel, { color: '#be185d' }]}>♀️ Femenino</Text>
-                    </View>
-                    <View style={styles.stepperContainer}>
-                      <TouchableOpacity
-                        style={styles.stepperBtn}
-                        onPress={() => adjustGroupGender(item.grupo, 'femenino', -1)}
-                      >
-                        <Text style={styles.stepperBtnText}>-</Text>
-                      </TouchableOpacity>
-                      <TextInput
-                        style={styles.genderInput}
-                        keyboardType="numeric"
-                        value={item.femenino > 0 ? String(item.femenino) : '0'}
-                        onChangeText={(t) => updateGroupGender(item.grupo, 'femenino', t)}
-                      />
-                      <TouchableOpacity
-                        style={styles.stepperBtn}
-                        onPress={() => adjustGroupGender(item.grupo, 'femenino', 1)}
-                      >
-                        <Text style={styles.stepperBtnText}>+</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-
-                  {/* Masculino */}
-                  <View style={styles.genderInputBox}>
-                    <View style={styles.genderHeaderRow}>
-                      <Text style={[styles.genderLabel, { color: '#1d4ed8' }]}>♂️ Masculino</Text>
-                    </View>
-                    <View style={styles.stepperContainer}>
-                      <TouchableOpacity
-                        style={styles.stepperBtn}
-                        onPress={() => adjustGroupGender(item.grupo, 'masculino', -1)}
-                      >
-                        <Text style={styles.stepperBtnText}>-</Text>
-                      </TouchableOpacity>
-                      <TextInput
-                        style={styles.genderInput}
-                        keyboardType="numeric"
-                        value={item.masculino > 0 ? String(item.masculino) : '0'}
-                        onChangeText={(t) => updateGroupGender(item.grupo, 'masculino', t)}
-                      />
-                      <TouchableOpacity
-                        style={styles.stepperBtn}
-                        onPress={() => adjustGroupGender(item.grupo, 'masculino', 1)}
-                      >
-                        <Text style={styles.stepperBtnText}>+</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                </View>
-              </View>
+              <TouchableOpacity
+                key={grupoKey}
+                style={[styles.optionPill, isSelected && styles.optionPillSelected]}
+                onPress={() => toggleGroup(grupoKey, opt.label)}
+              >
+                <Text style={[styles.optionText, isSelected && styles.optionTextSelected]}>
+                  {isSelected ? '✓ ' : '+ '}
+                  {opt.label}
+                </Text>
+              </TouchableOpacity>
             );
           })}
         </View>
 
-        {/* Total Summary Banner */}
-        <View style={styles.cargaFamiliarTotalBanner}>
-          <Text style={styles.cargaFamiliarTotalTitle}>
-            👥 Total Carga Familiar: <Text style={{ fontWeight: '900', color: '#166534' }}>{totalPersonas} personas</Text>
-          </Text>
-          <Text style={styles.cargaFamiliarTotalSubtitle}>
-            (♀️ {totalFemenino} Femeninas &nbsp;|&nbsp; ♂️ {totalMasculino} Masculinos)
-          </Text>
-        </View>
+        {/* Tarjetas de detalle por cada grupo seleccionado */}
+        {currentList.length > 0 ? (
+          <View style={styles.activeItemsList}>
+            {currentList.map((item) => {
+              const subtotalGrupo = (Number(item.femenino) || 0) + (Number(item.masculino) || 0);
+              const groupIcon =
+                item.grupo.includes('mayor') ? '👴👵' :
+                item.grupo.includes('adulto') ? '🧑👩' :
+                item.grupo.includes('adolescente') ? '👦👧' :
+                item.grupo.includes('menor') ? '🧒' :
+                item.grupo.includes('infante') ? '👶' : '👥';
+
+              return (
+                <View key={item.grupo} style={styles.activeItemCard}>
+                  <View style={styles.activeItemHeader}>
+                    <View style={{ flex: 1, marginRight: 8 }}>
+                      <Text style={styles.activeItemTitle}>
+                        {groupIcon} {item.label}
+                      </Text>
+                      <Text style={styles.cargaFamiliarRangeText}>{item.rango_edad}</Text>
+                    </View>
+                    <TouchableOpacity onPress={() => toggleGroup(item.grupo, item.label)}>
+                      <Text style={styles.activeItemRemove}>Quitar</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  <View style={styles.cargaFamiliarInputsRow}>
+                    {/* Femenino */}
+                    <View style={styles.genderInputBox}>
+                      <View style={styles.genderHeaderRow}>
+                        <Text style={[styles.genderLabel, { color: '#be185d' }]}>♀️ Femenino</Text>
+                      </View>
+                      <View style={styles.stepperContainer}>
+                        <TouchableOpacity
+                          style={styles.stepperBtn}
+                          onPress={() => adjustGroupGender(item.grupo, 'femenino', -1)}
+                        >
+                          <Text style={styles.stepperBtnText}>-</Text>
+                        </TouchableOpacity>
+                        <TextInput
+                          style={styles.genderInput}
+                          keyboardType="numeric"
+                          value={item.femenino !== undefined ? String(item.femenino) : '0'}
+                          onChangeText={(t) => updateGroupGender(item.grupo, 'femenino', t)}
+                        />
+                        <TouchableOpacity
+                          style={styles.stepperBtn}
+                          onPress={() => adjustGroupGender(item.grupo, 'femenino', 1)}
+                        >
+                          <Text style={styles.stepperBtnText}>+</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+
+                    {/* Masculino */}
+                    <View style={styles.genderInputBox}>
+                      <View style={styles.genderHeaderRow}>
+                        <Text style={[styles.genderLabel, { color: '#1d4ed8' }]}>♂️ Masculino</Text>
+                      </View>
+                      <View style={styles.stepperContainer}>
+                        <TouchableOpacity
+                          style={styles.stepperBtn}
+                          onPress={() => adjustGroupGender(item.grupo, 'masculino', -1)}
+                        >
+                          <Text style={styles.stepperBtnText}>-</Text>
+                        </TouchableOpacity>
+                        <TextInput
+                          style={styles.genderInput}
+                          keyboardType="numeric"
+                          value={item.masculino !== undefined ? String(item.masculino) : '0'}
+                          onChangeText={(t) => updateGroupGender(item.grupo, 'masculino', t)}
+                        />
+                        <TouchableOpacity
+                          style={styles.stepperBtn}
+                          onPress={() => adjustGroupGender(item.grupo, 'masculino', 1)}
+                        >
+                          <Text style={styles.stepperBtnText}>+</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </View>
+
+                  <View style={{ marginTop: 8, alignItems: 'flex-end' }}>
+                    <Text style={styles.cargaFamiliarSubtotalText}>
+                      Subtotal grupo: <Text style={{ fontWeight: '800' }}>{subtotalGrupo} personas</Text>
+                    </Text>
+                  </View>
+                </View>
+              );
+            })}
+
+            {/* Total Summary Banner */}
+            <View style={styles.cargaFamiliarTotalBanner}>
+              <Text style={styles.cargaFamiliarTotalTitle}>
+                👥 Total Carga Familiar: <Text style={{ fontWeight: '900', color: '#166534' }}>{totalPersonas} personas</Text>
+              </Text>
+              <Text style={styles.cargaFamiliarTotalSubtitle}>
+                (♀️ {totalFemenino} Femeninas &nbsp;|&nbsp; ♂️ {totalMasculino} Masculinos)
+              </Text>
+            </View>
+          </View>
+        ) : null}
       </View>
     );
   }

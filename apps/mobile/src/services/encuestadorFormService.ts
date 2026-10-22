@@ -287,6 +287,8 @@ export function getPreguntasFromStructure(estructura: Record<string, unknown> | 
         type = 'produccion_animal';
       } else if (lowerType === 'carga_familiar' || lowerType === 'familia' || lowerType === 'carga' || lowerType === 'demografia') {
         type = 'carga_familiar';
+      } else if (type === 'text' && (/carga.*familiar/i.test(String(rawLabel)) || /personas.*viviendo/i.test(String(rawLabel)))) {
+        type = 'carga_familiar';
       } else {
         type = 'text';
       }
@@ -442,16 +444,7 @@ export function buildDefaultAnswers(questions: FormQuestion[]): Record<string, u
   if (!Array.isArray(questions)) return {};
   return questions.reduce<Record<string, unknown>>((acc, question) => {
     if (!question || !question.id) return acc;
-    if (question.type === 'carga_familiar') {
-      acc[question.id] = DEFAULT_CARGA_FAMILIAR_GRUPOS.map((g: { grupo: string; label: string; rango_edad: string }) => ({
-        grupo: g.grupo,
-        label: g.label,
-        rango_edad: g.rango_edad,
-        femenino: 0,
-        masculino: 0,
-      }));
-      return acc;
-    }
+    
     if (question.type === 'boolean') {
       acc[question.id] = false;
       return acc;
@@ -460,7 +453,8 @@ export function buildDefaultAnswers(questions: FormQuestion[]): Record<string, u
     if (
       (question.type === 'select' && question.selectionMode === 'multiple') ||
       question.type === 'rubros_agricolas' ||
-      question.type === 'produccion_animal'
+      question.type === 'produccion_animal' ||
+      question.type === 'carga_familiar'
     ) {
       acc[question.id] = [];
       return acc;

@@ -69,6 +69,15 @@ type FormEditorState = {
 };
 
 function getDefaultOptionsForKind(kind: QuestionKind): FormQuestionOption[] {
+  if (kind === 'carga_familiar') {
+    return [
+      { label: 'Adulto Mayor (Fem. ≥ 55 | Masc. ≥ 60)', value: 'adulto_mayor' },
+      { label: 'Adulto (Fem. 18-54 | Masc. 18-59)', value: 'adulto' },
+      { label: 'Adolescente (12 a 17 años)', value: 'adolescente' },
+      { label: 'Menor (4 a 11 años)', value: 'menor' },
+      { label: 'Infante (0 a 3 años)', value: 'infante' },
+    ];
+  }
   if (kind === 'rubros_agricolas') {
     return [
       { label: 'Café', value: 'Café' },
@@ -207,6 +216,9 @@ function mapDraftsToStructure(preguntas: QuestionDraft[]): Record<string, unknow
       } else if (question.kind === 'produccion_animal') {
         base.type = 'produccion_animal';
         base.options = normalizedOptions;
+      } else if (question.kind === 'carga_familiar') {
+        base.type = 'carga_familiar';
+        base.options = normalizedOptions.length > 0 ? normalizedOptions : getDefaultOptionsForKind('carga_familiar');
       } else if (isSelect) {
         base.type = 'select';
         base.selectionMode = question.kind === 'select_multiple' ? 'multiple' : 'single';
@@ -1016,10 +1028,12 @@ export default function AdminFormulariosScreen() {
                             ? 'Rubros agrícolas disponibles'
                             : question.kind === 'produccion_animal'
                             ? 'Especies animales disponibles'
+                            : question.kind === 'carga_familiar'
+                            ? 'Grupos etarios disponibles'
                             : 'Opciones'}
                         </Text>
                         <View style={{ flexDirection: 'row', gap: 8 }}>
-                          {(question.kind === 'rubros_agricolas' || question.kind === 'produccion_animal') ? (
+                          {(question.kind === 'rubros_agricolas' || question.kind === 'produccion_animal' || question.kind === 'carga_familiar') ? (
                             <TouchableOpacity
                               onPress={() =>
                                 setForm((current) => ({
