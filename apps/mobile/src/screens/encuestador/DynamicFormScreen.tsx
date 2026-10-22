@@ -673,7 +673,7 @@ function renderQuestionInput(
             grupo: grupoKey,
             label: cleanLabel,
             rango_edad: rangoEdad,
-            femenino: 1,
+            femenino: 0,
             masculino: 0,
           },
         ];
@@ -682,7 +682,8 @@ function renderQuestionInput(
     };
 
     const updateGroupGender = (grupoKey: string, gender: 'femenino' | 'masculino', text: string) => {
-      const val = parseInt(text.replace(/[^0-9]/g, ''), 10) || 0;
+      const clean = text.replace(/[^0-9]/g, '');
+      const val = clean === '' ? 0 : parseInt(clean, 10);
       const next = currentList.map((item) =>
         item.grupo === grupoKey ? { ...item, [gender]: Math.max(0, val) } : item,
       );
@@ -770,7 +771,9 @@ function renderQuestionInput(
                         <TextInput
                           style={styles.genderInput}
                           keyboardType="numeric"
-                          value={item.femenino !== undefined ? String(item.femenino) : '0'}
+                          value={item.femenino ? String(item.femenino) : ''}
+                          placeholder="0"
+                          placeholderTextColor="#94a3b8"
                           onChangeText={(t) => updateGroupGender(item.grupo, 'femenino', t)}
                         />
                         <TouchableOpacity
@@ -797,7 +800,9 @@ function renderQuestionInput(
                         <TextInput
                           style={styles.genderInput}
                           keyboardType="numeric"
-                          value={item.masculino !== undefined ? String(item.masculino) : '0'}
+                          value={item.masculino ? String(item.masculino) : ''}
+                          placeholder="0"
+                          placeholderTextColor="#94a3b8"
                           onChangeText={(t) => updateGroupGender(item.grupo, 'masculino', t)}
                         />
                         <TouchableOpacity

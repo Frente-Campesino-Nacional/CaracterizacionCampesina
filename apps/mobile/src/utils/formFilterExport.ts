@@ -38,7 +38,7 @@ export async function exportFormFilterToPDF(
           <tr class="${bgClass}">
             <td style="padding: 6px 8px; border-bottom: 1px solid #cbd5e1; font-size: 10px; font-weight: 600;">${formTitle}</td>
             <td style="padding: 6px 8px; border-bottom: 1px solid #cbd5e1; font-size: 10px; color: #1e293b;">${questionLabel}</td>
-            <td style="padding: 6px 8px; border-bottom: 1px solid #cbd5e1; font-size: 10px; font-weight: 700; color: #166534;">${item.valor}</td>
+            <td style="padding: 6px 8px; border-bottom: 1px solid #cbd5e1; font-size: 10px; font-weight: 700; color: #166534;">${String(item.valor || '').includes('[object Object]') ? 'Respuesta registrada' : (item.valor || 'N/A')}</td>
             <td style="padding: 6px 8px; border-bottom: 1px solid #cbd5e1; font-size: 10px; font-weight: 600; color: #334155;">${cedula}</td>
             <td style="padding: 6px 8px; border-bottom: 1px solid #cbd5e1; font-size: 10px; font-weight: 600;">${campesinoNombre}</td>
             <td style="padding: 6px 8px; border-bottom: 1px solid #cbd5e1; font-size: 10px;">${telefono}</td>
@@ -157,7 +157,11 @@ export async function exportFormFilterToExcel(
     results.forEach((item) => {
       const fTitle = String(formTitle || '').replace(/;/g, ',');
       const qLabel = String(questionLabel || '').replace(/;/g, ',');
-      const answer = String(item.valor || '').replace(/[\r\n]+/g, ' ').replace(/;/g, ',');
+      let rawVal = String(item.valor || '').trim();
+      if (rawVal.includes('[object Object]')) {
+        rawVal = 'Respuesta registrada';
+      }
+      const answer = rawVal.replace(/[\r\n]+/g, ' ').replace(/;/g, ',');
       const cedula = String(item.cedula || 'N/A').replace(/;/g, ',');
       const campesinoNombre = String(`${item.nombre} ${item.apellido || ''}`.trim() || 'N/A').replace(/;/g, ',');
       const telefono = String(item.telefono || 'Sin registro').replace(/;/g, ',');

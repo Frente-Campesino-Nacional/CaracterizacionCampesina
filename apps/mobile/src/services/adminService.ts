@@ -289,7 +289,9 @@ export interface CampesinoFiltroResultadoRecord {
   formulario_titulo?: string | null;
   pregunta_id: string;
   pregunta_label: string;
+  pregunta_type?: string | null;
   valor: string;
+  valor_raw?: any;
   capturado_en?: string | null;
 }
 

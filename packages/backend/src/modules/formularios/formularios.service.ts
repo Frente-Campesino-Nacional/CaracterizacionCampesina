@@ -179,7 +179,7 @@ export class FormulariosService {
       ORDER BY creado_en DESC
     `);
 
-    const results: Array<{ formulario_id: string; formulario_titulo: string; pregunta_id: string; pregunta_label: string }> = [];
+    const results: Array<{ formulario_id: string; formulario_titulo: string; pregunta_id: string; pregunta_label: string; pregunta_type?: string }> = [];
 
     for (const formulario of formularios) {
       const estructura = formulario.estructura as Record<string, unknown> | null;
@@ -203,11 +203,13 @@ export class FormulariosService {
           continue;
         }
 
+        const qType = String(question.type ?? question.tipo ?? question.kind ?? '').trim();
         results.push({
           formulario_id: formulario.id,
           formulario_titulo: formulario.titulo,
           pregunta_id: preguntaId,
           pregunta_label: preguntaLabel,
+          pregunta_type: qType,
         });
       }
     }
@@ -235,15 +237,18 @@ export class FormulariosService {
     const selectedLabel = String(
       selectedQuestion.label ?? selectedQuestion.etiqueta ?? selectedQuestion.titulo ?? preguntaId,
     ).trim();
+    const selectedType = String(
+      selectedQuestion.type ?? selectedQuestion.tipo ?? selectedQuestion.kind ?? '',
+    ).trim();
 
-   const responseRows = await this.prisma.$queryRaw<Array<{ respuestas: any; creado_en: Date | null }>>(Prisma.sql`
+    const responseRows = await this.prisma.$queryRaw<Array<{ respuestas: any; creado_en: Date | null }>>(Prisma.sql`
       SELECT respuestas, creado_en
       FROM respuestas.respuesta_form
       WHERE id_formulario = CAST(${String(formulario.id)} AS uuid)
       ORDER BY creado_en DESC;
     `);
 
-    const byCampesino = new Map<string, { valor: string; capturado_en: string | null }>();
+    const byCampesino = new Map<string, { valor: string; valor_raw: any; capturado_en: string | null }>();
 
     for (const row of responseRows) {
       const payload = row.respuestas && typeof row.respuestas === 'object' && !Array.isArray(row.respuestas)
@@ -275,7 +280,8 @@ export class FormulariosService {
       }
 
       byCampesino.set(campesinoId, {
-        valor: this.formatAnswerValue(answerValue),
+        valor: this.formatAnswerValue(answerValue, selectedType),
+        valor_raw: answerValue,
         capturado_en: row.creado_en ? row.creado_en.toISOString() : null,
       });
     }
@@ -326,8 +332,10 @@ export class FormulariosService {
           municipio: campesino.municipio || null,
           pregunta_id: preguntaId,
           pregunta_label: selectedLabel,
+          pregunta_type: selectedType,
           formulario_titulo: formulario.titulo,
           valor: answer.valor,
+          valor_raw: answer.valor_raw,
           capturado_en: answer.capturado_en,
         };
       })
@@ -394,7 +402,9 @@ export class FormulariosService {
         ) {
           continue;
         }
-        formattedAnswers[k] = this.formatAnswerValue(v);
+        const qDef = questions.find((item) => String(item.id).trim() === k);
+        const qType = qDef ? qDef.tipo : '';
+        formattedAnswers[k] = this.formatAnswerValue(v, qType);
       }
 
       const campesinoNombre = `${row.campesino_nombre || ''} ${row.campesino_apellido || ''}`.trim();
@@ -566,23 +576,194 @@ export class FormulariosService {
     return false;
   }
 
-  private formatAnswerValue(value: unknown): string {
+  private formatAnswerValue(value: unknown, questionType = ''): string {
     if (value == null) {
       return '';
     }
 
-    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    if (typeof value === 'number') {
       return String(value);
+    }
+
+    if (typeof value === 'boolean') {
+      return value ? 'Sí' : 'No';
+    }
+
+    if (typeof value === 'string') {
+      return value.trim();
     }
 
     if (Array.isArray(value)) {
-      return value.map((item) => String(item)).join(', ');
+      if (value.length === 0) {
+        return 'Sin respuesta';
+      }
+
+      // 1. Módulo Carga Familiar
+      const isCargaFamiliar =
+        questionType === 'carga_familiar' ||
+        value.some(
+          (item) =>
+            item &&
+            typeof item === 'object' &&
+            ('grupo' in item || ('femenino' in item && 'masculino' in item)),
+        );
+
+      if (isCargaFamiliar) {
+        const activeGroups = value.filter((item) => {
+          if (!item || typeof item !== 'object') return false;
+          const f = Number(item.femenino) || 0;
+          const m = Number(item.masculino) || 0;
+          return f > 0 || m > 0;
+        });
+
+        if (activeGroups.length === 0) {
+          return 'Sin integrantes registrados (0 personas)';
+        }
+
+        let totalFem = 0;
+        let totalMasc = 0;
+
+        const groupSummaries = activeGroups.map((item) => {
+          const label = String(item.label || item.grupo || 'Grupo').trim();
+          const f = Number(item.femenino) || 0;
+          const m = Number(item.masculino) || 0;
+          totalFem += f;
+          totalMasc += m;
+
+          if (f > 0 && m > 0) {
+            return `${label}: ${f} Fem, ${m} Masc`;
+          }
+          if (f > 0) {
+            return `${label}: ${f} Fem`;
+          }
+          if (m > 0) {
+            return `${label}: ${m} Masc`;
+          }
+          return `${label}: 0`;
+        });
+
+        const totalPersonas = totalFem + totalMasc;
+        const genderBreakdown =
+          totalFem > 0 && totalMasc > 0
+            ? ` (${totalFem} Fem, ${totalMasc} Masc)`
+            : totalFem > 0
+            ? ` (${totalFem} Fem)`
+            : ` (${totalMasc} Masc)`;
+
+        return `${groupSummaries.join('; ')} [Total: ${totalPersonas} personas${genderBreakdown}]`;
+      }
+
+      // 2. Módulo Rubros Agrícolas
+      const isRubros =
+        questionType === 'rubros_agricolas' ||
+        value.some(
+          (item) =>
+            item &&
+            typeof item === 'object' &&
+            ('rubro' in item || 'superficie_m2' in item || 'superficie' in item),
+        );
+
+      if (isRubros) {
+        let totalM2 = 0;
+        const itemsList = value
+          .filter((item) => item && typeof item === 'object')
+          .map((item) => {
+            const rubro = String(item.rubro || 'Rubro').trim();
+            const m2 = Number(item.superficie_m2 ?? item.superficie) || 0;
+            totalM2 += m2;
+            return `${rubro}: ${m2} m²`;
+          });
+
+        if (itemsList.length === 0) {
+          return 'Sin rubros registrados';
+        }
+
+        return `${itemsList.join(', ')} [Total: ${totalM2} m²]`;
+      }
+
+      // 3. Módulo Producción Animal
+      const isAnimal =
+        questionType === 'produccion_animal' ||
+        value.some(
+          (item) =>
+            item &&
+            typeof item === 'object' &&
+            ('especie' in item || 'hembras' in item || 'machos' in item || 'crias' in item),
+        );
+
+      if (isAnimal) {
+        let totalAnimales = 0;
+        let totalM2 = 0;
+
+        const itemsList = value
+          .filter((item) => item && typeof item === 'object')
+          .map((item) => {
+            const especie = String(item.especie || 'Especie').trim();
+            const hembras = Number(item.hembras) || 0;
+            const machos = Number(item.machos) || 0;
+            const crias = Number(item.crias) || 0;
+            const m2 = Number(item.espacio_productivo_m2) || 0;
+            const sumEspecie = hembras + machos + crias;
+            totalAnimales += sumEspecie;
+            totalM2 += m2;
+
+            const parts = [];
+            if (hembras > 0) parts.push(`${hembras} Hembras`);
+            if (machos > 0) parts.push(`${machos} Machos`);
+            if (crias > 0) parts.push(`${crias} Crías`);
+            const countsStr = parts.length ? parts.join(', ') : `${sumEspecie} animales`;
+            const m2Str = m2 > 0 ? ` - ${m2} m²` : '';
+
+            return `${especie}: ${countsStr}${m2Str}`;
+          });
+
+        if (itemsList.length === 0) {
+          return 'Sin producción animal registrada';
+        }
+
+        const m2TotalStr = totalM2 > 0 ? `, Espacio total: ${totalM2} m²` : '';
+        return `${itemsList.join('; ')} [Total: ${totalAnimales} animales${m2TotalStr}]`;
+      }
+
+      // Array de strings o primitivos
+      const hasObjects = value.some((item) => item && typeof item === 'object');
+      if (!hasObjects) {
+        return value.map((item) => String(item).trim()).filter(Boolean).join(', ');
+      }
+
+      // Array genérico de objetos
+      return value
+        .map((item) => {
+          if (!item) return '';
+          if (typeof item !== 'object') return String(item);
+          const obj = item;
+          if ('label' in obj) return String(obj.label);
+          if ('nombre' in obj) return String(obj.nombre);
+          if ('name' in obj) return String(obj.name);
+          if ('valor' in obj) return String(obj.valor);
+          if ('value' in obj) return String(obj.value);
+          try {
+            return JSON.stringify(item);
+          } catch {
+            return String(item);
+          }
+        })
+        .filter(Boolean)
+        .join(', ');
     }
 
-    try {
-      return JSON.stringify(value);
-    } catch {
-      return String(value);
+    if (typeof value === 'object') {
+      const obj = value;
+      if ('label' in obj) return String(obj.label);
+      if ('nombre' in obj) return String(obj.nombre);
+      if ('valor' in obj) return String(obj.valor);
+      try {
+        return JSON.stringify(value);
+      } catch {
+        return String(value);
+      }
     }
+
+    return String(value);
   }
 }

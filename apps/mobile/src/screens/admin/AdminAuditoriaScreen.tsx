@@ -221,21 +221,24 @@ export default function AdminAuditoriaScreen() {
     const fromFilter = filterQuestions.find(
       (item) => buildFilterKey(item.formulario_id, item.pregunta_id) === selectedFilterKey,
     );
-    if (fromFilter) return fromFilter;
 
     const currentForm = allFormularios.find((f) => f.id === formId);
-    let questionLabel = preguntaId;
+    let questionLabel = fromFilter?.pregunta_label || preguntaId;
+    let questionType = (fromFilter as any)?.pregunta_type || '';
+
     if (currentForm?.estructura) {
       const parsed = parseFormStructure(currentForm.estructura);
       const q = parsed.preguntas.find((item) => item.id === preguntaId);
       if (q?.label) questionLabel = q.label;
+      if (q?.type) questionType = q.type;
     }
 
     return {
       formulario_id: formId,
-      formulario_titulo: currentForm?.titulo || 'Formulario',
+      formulario_titulo: fromFilter?.formulario_titulo || currentForm?.titulo || 'Formulario',
       pregunta_id: preguntaId,
       pregunta_label: questionLabel,
+      pregunta_type: questionType,
     };
   }, [allFormularios, filterQuestions, selectedFilterKey]);
 
@@ -277,9 +280,175 @@ export default function AdminAuditoriaScreen() {
       return { chartData: [], summaryText: '' };
     }
 
+    const qType = (selectedFilterQuestion as any)?.pregunta_type || '';
+    const firstRaw = filterResults[0]?.valor_raw;
+
+    const isCargaFamiliar =
+      qType === 'carga_familiar' ||
+      (Array.isArray(firstRaw) && firstRaw.some((i: any) => i && ('grupo' in i || ('femenino' in i && 'masculino' in i)))) ||
+      filterResults.some((r) => r.valor && (r.valor.includes('Fem') || r.valor.includes('Masc')));
+
+    const isRubros =
+      qType === 'rubros_agricolas' ||
+      (Array.isArray(firstRaw) && firstRaw.some((i: any) => i && ('rubro' in i || 'superficie_m2' in i))) ||
+      filterResults.some((r) => r.valor && r.valor.includes('m²'));
+
+    const isAnimal =
+      qType === 'produccion_animal' ||
+      (Array.isArray(firstRaw) && firstRaw.some((i: any) => i && ('especie' in i || 'hembras' in i))) ||
+      filterResults.some((r) => r.valor && (r.valor.includes('Hembras') || r.valor.includes('animales')));
+
+    // 1. Módulo Carga Familiar: desglose por grupos etarios y totales
+    if (isCargaFamiliar) {
+      const groupCounts = new Map<string, { total: number; fem: number; masc: number }>();
+      let grandTotalFem = 0;
+      let grandTotalMasc = 0;
+
+      filterResults.forEach((res) => {
+        const list = Array.isArray(res.valor_raw) ? res.valor_raw : [];
+        list.forEach((item: any) => {
+          if (!item || typeof item !== 'object') return;
+          const f = Number(item.femenino) || 0;
+          const m = Number(item.masculino) || 0;
+          const sum = f + m;
+          if (sum <= 0) return;
+
+          const label = String(item.label || item.grupo || 'Grupo').trim();
+          grandTotalFem += f;
+          grandTotalMasc += m;
+          const prev = groupCounts.get(label) || { total: 0, fem: 0, masc: 0 };
+          groupCounts.set(label, {
+            total: prev.total + sum,
+            fem: prev.fem + f,
+            masc: prev.masc + m,
+          });
+        });
+      });
+
+      const grandTotal = grandTotalFem + grandTotalMasc;
+      if (grandTotal > 0) {
+        let cIdx = 0;
+        const chartData = Array.from(groupCounts.entries()).map(([label, data]) => {
+          const pct = Number(((data.total * 100) / grandTotal).toFixed(1));
+          const color = PIE_COLORS[cIdx % PIE_COLORS.length];
+          cIdx++;
+          return {
+            name: `${label}: ${data.total} (${pct}%)`,
+            population: data.total,
+            color,
+            legendFontColor: '#334155',
+            legendFontSize: 11,
+          };
+        });
+
+        const summaryParts = Array.from(groupCounts.entries()).map(([label, data]) => {
+          const pct = ((data.total * 100) / grandTotal).toFixed(1);
+          return `${label}: ${data.total} [${pct}%]`;
+        });
+
+        return {
+          chartData,
+          summaryText: `Total Personas: ${grandTotal} (${grandTotalFem} Féminas, ${grandTotalMasc} Masculinos) | ${summaryParts.join(' | ')}`,
+        };
+      }
+    }
+
+    // 2. Módulo Rubros Agrícolas: desglose por superficie (m²) de cada rubro
+    if (isRubros) {
+      const rubroM2 = new Map<string, number>();
+      let totalM2 = 0;
+
+      filterResults.forEach((res) => {
+        const list = Array.isArray(res.valor_raw) ? res.valor_raw : [];
+        list.forEach((item: any) => {
+          if (!item || typeof item !== 'object') return;
+          const rubro = String(item.rubro || 'Rubro').trim();
+          const m2 = Number(item.superficie_m2 ?? item.superficie) || 0;
+          totalM2 += m2;
+          rubroM2.set(rubro, (rubroM2.get(rubro) || 0) + m2);
+        });
+      });
+
+      if (totalM2 > 0) {
+        let cIdx = 0;
+        const chartData = Array.from(rubroM2.entries()).map(([rubro, m2]) => {
+          const pct = Number(((m2 * 100) / totalM2).toFixed(1));
+          const color = PIE_COLORS[cIdx % PIE_COLORS.length];
+          cIdx++;
+          return {
+            name: `${rubro}: ${m2}m² (${pct}%)`,
+            population: m2,
+            color,
+            legendFontColor: '#334155',
+            legendFontSize: 11,
+          };
+        });
+
+        const summaryParts = Array.from(rubroM2.entries()).map(([rubro, m2]) => {
+          const pct = ((m2 * 100) / totalM2).toFixed(1);
+          return `${rubro}: ${m2} m² (${pct}%)`;
+        });
+
+        return {
+          chartData,
+          summaryText: `Total Ocupado: ${totalM2} m² | ${summaryParts.join(' | ')}`,
+        };
+      }
+    }
+
+    // 3. Módulo Producción Animal: desglose por cabezas de cada especie
+    if (isAnimal) {
+      const animalCounts = new Map<string, number>();
+      let totalAnimales = 0;
+
+      filterResults.forEach((res) => {
+        const list = Array.isArray(res.valor_raw) ? res.valor_raw : [];
+        list.forEach((item: any) => {
+          if (!item || typeof item !== 'object') return;
+          const especie = String(item.especie || 'Especie').trim();
+          const h = Number(item.hembras) || 0;
+          const m = Number(item.machos) || 0;
+          const c = Number(item.crias) || 0;
+          const sum = h + m + c;
+          totalAnimales += sum;
+          animalCounts.set(especie, (animalCounts.get(especie) || 0) + sum);
+        });
+      });
+
+      if (totalAnimales > 0) {
+        let cIdx = 0;
+        const chartData = Array.from(animalCounts.entries()).map(([especie, count]) => {
+          const pct = Number(((count * 100) / totalAnimales).toFixed(1));
+          const color = PIE_COLORS[cIdx % PIE_COLORS.length];
+          cIdx++;
+          return {
+            name: `${especie}: ${count} (${pct}%)`,
+            population: count,
+            color,
+            legendFontColor: '#334155',
+            legendFontSize: 11,
+          };
+        });
+
+        const summaryParts = Array.from(animalCounts.entries()).map(([especie, count]) => {
+          const pct = ((count * 100) / totalAnimales).toFixed(1);
+          return `${especie}: ${count} (${pct}%)`;
+        });
+
+        return {
+          chartData,
+          summaryText: `Total Animales: ${totalAnimales} cabezas | ${summaryParts.join(' | ')}`,
+        };
+      }
+    }
+
+    // 4. Preguntas Estándar
     const countsMap = new Map<string, number>();
     filterResults.forEach((item) => {
-      const val = (item.valor || 'Sin respuesta').trim();
+      let val = (item.valor || 'Sin respuesta').trim();
+      if (val.includes('[object Object]')) {
+        val = 'Respuesta registrada';
+      }
       countsMap.set(val, (countsMap.get(val) || 0) + 1);
     });
 
