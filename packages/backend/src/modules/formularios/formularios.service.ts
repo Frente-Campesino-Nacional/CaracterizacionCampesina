@@ -191,7 +191,7 @@ export class FormulariosService {
         }
 
         const useAsFilter = Boolean(
-          question.use_as_filter ?? question.usar_como_filtro ?? question.useAsFilter ?? false,
+          question.use_as_filter ?? question.usar_como_filtro ?? question.useAsFilter ?? true,
         );
         if (!useAsFilter) {
           continue;
@@ -297,13 +297,12 @@ export class FormulariosService {
         co.nombre_consejo AS consejo_nombre,
         est.nombre_estado AS estado,
         mun.nombre_municipio AS municipio,
-        par.nombre_parroquia AS parroquia
+        mun.nombre_municipio AS municipio
       FROM operacional.campesinos c
       LEFT JOIN registros.personas p ON p.id_personas = c.id_campesinos
       LEFT JOIN operacional.consejos co ON co.consejo_id::text = p.consejo_id::text
-      LEFT JOIN catalogos.parroquias par ON par.id_parroquia = p.parroquia
-      LEFT JOIN catalogos.municipios mun ON mun.id_municipio = par.municipio
-      LEFT JOIN catalogos.estados est ON est.id_estados = mun.estado
+      LEFT JOIN catalogos.estados est ON est.id_estados = p.estado
+      LEFT JOIN catalogos.municipios mun ON mun.id_municipio = p.municipio
       WHERE c.id_campesinos::text = ANY (${campesinoIds})
     `);
 
@@ -325,7 +324,6 @@ export class FormulariosService {
           consejo_nombre: campesino.consejo_nombre || null,
           estado: campesino.estado || null,
           municipio: campesino.municipio || null,
-          parroquia: campesino.parroquia || null,
           pregunta_id: preguntaId,
           pregunta_label: selectedLabel,
           formulario_titulo: formulario.titulo,

@@ -106,7 +106,7 @@ function createQuestionDraft(index: number, existingId?: string): QuestionDraft 
     label: '',
     kind: 'text',
     required: false,
-    useAsFilter: false,
+    useAsFilter: true,
     placeholder: '',
     options: [],
     isBaseSurface: false,

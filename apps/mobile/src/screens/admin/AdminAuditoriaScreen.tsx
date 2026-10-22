@@ -24,6 +24,7 @@ import { EntityFilterType, filterItemsByEntity } from '../../utils/entityFilterU
 import { exportFormFilterToExcel, exportFormFilterToPDF } from '../../utils/formFilterExport';
 import { exportAllFormResponsesToExcel, exportAllFormResponsesToPDF } from '../../utils/formAllResponsesExport';
 import { Theme } from '../../theme/colors';
+import { parseFormStructure } from '../../services/encuestadorFormService';
 
 const PIE_COLORS = [
   '#2563eb', // Azul
@@ -179,14 +180,33 @@ export default function AdminAuditoriaScreen() {
 
   const questionOptionsForSelectedForm = useMemo(() => {
     if (!selectedFormularioId) return [];
-    return filterQuestions
+
+    const map = new Map<string, string>();
+
+    // 1. Obtener todas las preguntas desde la estructura del formulario
+    const currentForm = allFormularios.find((f) => f.id === selectedFormularioId);
+    if (currentForm?.estructura) {
+      const parsed = parseFormStructure(currentForm.estructura);
+      if (Array.isArray(parsed?.preguntas)) {
+        parsed.preguntas.forEach((q) => {
+          if (q.id && q.label) {
+            map.set(buildFilterKey(selectedFormularioId, q.id), q.label);
+          }
+        });
+      }
+    }
+
+    // 2. Integrar también preguntas de filtros registradas
+    filterQuestions
       .filter((item) => item.formulario_id === selectedFormularioId)
-      .map((item) => ({
-        label: item.pregunta_label,
-        value: buildFilterKey(item.formulario_id, item.pregunta_id),
-      }))
+      .forEach((item) => {
+        map.set(buildFilterKey(item.formulario_id, item.pregunta_id), item.pregunta_label);
+      });
+
+    return Array.from(map.entries())
+      .map(([value, label]) => ({ label, value }))
       .sort((a, b) => a.label.localeCompare(b.label, 'es', { sensitivity: 'base' }));
-  }, [filterQuestions, selectedFormularioId]);
+  }, [allFormularios, filterQuestions, selectedFormularioId]);
 
   const selectFormulario = (formId: string) => {
     setSelectedFormularioId(formId);
@@ -194,13 +214,30 @@ export default function AdminAuditoriaScreen() {
     setFilterResults([]);
   };
 
-  const selectedFilterQuestion = useMemo(
-    () =>
-      filterQuestions.find(
-        (item) => buildFilterKey(item.formulario_id, item.pregunta_id) === selectedFilterKey,
-      ) || null,
-    [filterQuestions, selectedFilterKey],
-  );
+  const selectedFilterQuestion = useMemo(() => {
+    if (!selectedFilterKey) return null;
+    const [formId, preguntaId] = selectedFilterKey.split('::');
+
+    const fromFilter = filterQuestions.find(
+      (item) => buildFilterKey(item.formulario_id, item.pregunta_id) === selectedFilterKey,
+    );
+    if (fromFilter) return fromFilter;
+
+    const currentForm = allFormularios.find((f) => f.id === formId);
+    let questionLabel = preguntaId;
+    if (currentForm?.estructura) {
+      const parsed = parseFormStructure(currentForm.estructura);
+      const q = parsed.preguntas.find((item) => item.id === preguntaId);
+      if (q?.label) questionLabel = q.label;
+    }
+
+    return {
+      formulario_id: formId,
+      formulario_titulo: currentForm?.titulo || 'Formulario',
+      pregunta_id: preguntaId,
+      pregunta_label: questionLabel,
+    };
+  }, [allFormularios, filterQuestions, selectedFilterKey]);
 
   const selectFilterQuestionByKey = async (key: string) => {
     if (!key || !token) {
@@ -209,11 +246,8 @@ export default function AdminAuditoriaScreen() {
       return;
     }
 
-    const selected = filterQuestions.find(
-      (item) => buildFilterKey(item.formulario_id, item.pregunta_id) === key,
-    );
-
-    if (!selected) {
+    const [formId, preguntaId] = key.split('::');
+    if (!formId || !preguntaId) {
       setSelectedFilterKey('');
       setFilterResults([]);
       return;
@@ -225,8 +259,8 @@ export default function AdminAuditoriaScreen() {
     try {
       const results = await listCampesinosByFormularioFilter(
         token,
-        selected.formulario_id,
-        selected.pregunta_id,
+        formId,
+        preguntaId,
       );
       setFilterResults(results);
     } catch (error: any) {
@@ -282,7 +316,7 @@ export default function AdminAuditoriaScreen() {
     await exportFormFilterToPDF(
       filterResults,
       selectedFilterQuestion.formulario_titulo,
-      selectedFilterQuestion.pregunta_label,
+      selectedFilterQuestion.pregunta_label || 'Pregunta',
     );
   };
 
@@ -291,7 +325,7 @@ export default function AdminAuditoriaScreen() {
     await exportFormFilterToExcel(
       filterResults,
       selectedFilterQuestion.formulario_titulo,
-      selectedFilterQuestion.pregunta_label,
+      selectedFilterQuestion.pregunta_label || 'Pregunta',
     );
   };
 
